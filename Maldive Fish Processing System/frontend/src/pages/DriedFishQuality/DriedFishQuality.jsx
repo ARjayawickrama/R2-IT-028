@@ -1,10 +1,12 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
+import { qualityService } from "../../services/api";
 
 export default function DriedFishQuality() {
   const [activeTab, setActiveTab] = useState("upload");
   const [batches, setBatches] = useState([]);
   const [preview, setPreview] = useState(null);
   const [cameraOn, setCameraOn] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const videoRef = useRef(null);
   const fileRef = useRef(null);
@@ -19,48 +21,72 @@ export default function DriedFishQuality() {
     ["environment", "Storage Environment"],
   ];
 
-  const analyseQuality = () => {
-    const score = Math.floor(Math.random() * 41) + 55;
-    if (score >= 85) return { level: "High Quality", color: "emerald", score };
-    if (score >= 70) return { level: "Medium Quality", color: "amber", score };
-    return { level: "Low Quality", color: "rose", score };
+  useEffect(() => {
+    const fetchBatches = async () => {
+      try {
+        const response = await qualityService.getBatches();
+
+        const fetchedBatches = response.data.map((b) => ({
+          ...b,
+          id: `MF-${new Date(b.createdAt).getTime().toString().slice(-6)}`,
+          image: `http://localhost:5001${b.imageUrl}`,
+          date: new Date(b.createdAt).toLocaleString(),
+        }));
+        setBatches(fetchedBatches);
+      } catch (error) {
+        console.error("Error fetching batches:", error);
+      }
+    };
+    fetchBatches();
+  }, []);
+
+  const uploadToBackend = async (file) => {
+    setIsLoading(true);
+    const previewUrl = URL.createObjectURL(file);
+    setPreview({ image: previewUrl, isLoading: true });
+
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const response = await qualityService.analyzeImage(formData);
+      const batchData = response.data;
+
+      const mappedBatch = {
+        ...batchData,
+        id: `MF-${new Date(batchData.createdAt).getTime().toString().slice(-6)}`,
+        image: `http://localhost:5001${batchData.imageUrl}`,
+        date: new Date(batchData.createdAt).toLocaleString(),
+      };
+
+      setPreview(mappedBatch);
+      setBatches((prev) => [mappedBatch, ...prev]);
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      alert("Failed to analyze image.");
+      setPreview(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const createBatch = (image, name = "camera-capture.jpg") => {
-    const result = analyseQuality();
-
-    const batch = {
-      id: `MF-${Date.now().toString().slice(-6)}`,
-      name,
-      image,
-      date: new Date().toLocaleString(),
-      voc: Math.floor(Math.random() * 120) + 60,
-      odorStatus:
-        result.score >= 85
-          ? "Fresh / Acceptable"
-          : result.score >= 70
-          ? "Monitor Required"
-          : "Possible Spoilage Risk",
-      storageAdvice:
-        result.score >= 85
-          ? "Store in a dry, cool, sealed container."
-          : result.score >= 70
-          ? "Check moisture exposure and improve ventilation."
-          : "Separate batch and inspect before distribution.",
-      ...result,
-    };
-
-    setPreview(batch);
-    setBatches((prev) => [batch, ...prev]);
-    return batch;
+  const dataURLtoFile = (dataurl, filename) => {
+    const arr = dataurl.split(",");
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
   };
 
   const handleUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const url = URL.createObjectURL(file);
-    createBatch(url, file.name);
+    uploadToBackend(file);
     e.target.value = "";
   };
 
@@ -107,10 +133,11 @@ export default function DriedFishQuality() {
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const image = canvas.toDataURL("image/jpeg", 0.9);
-    createBatch(image, "camera-captured-fish-sample.jpg");
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    const file = dataURLtoFile(dataUrl, "camera-captured-fish-sample.jpg");
+    uploadToBackend(file);
 
-    alert("Camera frame captured and added to Uploaded Batches.");
+    alert("Camera frame captured. Analyzing...");
   };
 
   return (
@@ -121,7 +148,8 @@ export default function DriedFishQuality() {
             🐟 Maldive Fish Quality Assessment System
           </h1>
           <p className="text-sm text-slate-500">
-            Image-based quality checking, batch monitoring, VOC analysis, and storage guidance
+            Image-based quality checking, batch monitoring, VOC analysis, and
+            storage guidance
           </p>
         </div>
 
@@ -144,7 +172,12 @@ export default function DriedFishQuality() {
 
       <div className="p-6">
         {activeTab === "upload" && (
-          <UploadTab fileRef={fileRef} handleUpload={handleUpload} preview={preview} />
+          <UploadTab
+            fileRef={fileRef}
+            handleUpload={handleUpload}
+            preview={preview}
+            isLoading={isLoading}
+          />
         )}
 
         {activeTab === "camera" && (
@@ -156,6 +189,7 @@ export default function DriedFishQuality() {
             captureFrame={captureFrame}
             cameraFileRef={cameraFileRef}
             handleUpload={handleUpload}
+            isLoading={isLoading}
           />
         )}
 
@@ -168,7 +202,7 @@ export default function DriedFishQuality() {
   );
 }
 
-function UploadTab({ fileRef, handleUpload, preview }) {
+function UploadTab({ fileRef, handleUpload, preview, isLoading }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-3 bg-white rounded-2xl shadow p-6">
@@ -180,7 +214,9 @@ function UploadTab({ fileRef, handleUpload, preview }) {
           className="w-full h-44 border-2 border-dashed border-blue-300 rounded-xl bg-blue-50 flex flex-col justify-center items-center hover:bg-blue-100 transition"
         >
           <div className="text-4xl mb-2">📤</div>
-          <p className="text-blue-700 font-semibold">Upload Maldive Fish Image</p>
+          <p className="text-blue-700 font-semibold">
+            Upload Maldive Fish Image
+          </p>
           <p className="text-xs text-slate-500">JPG / PNG supported</p>
         </button>
 
@@ -206,7 +242,11 @@ function UploadTab({ fileRef, handleUpload, preview }) {
 
         <div className="h-[450px] rounded-xl border bg-slate-50 flex items-center justify-center overflow-hidden">
           {preview ? (
-            <img src={preview.image} alt="preview" className="w-full h-full object-contain" />
+            <img
+              src={preview.image}
+              alt="preview"
+              className="w-full h-full object-contain"
+            />
           ) : (
             <div className="text-center text-slate-400">
               <div className="text-6xl mb-3">🖼️</div>
@@ -222,15 +262,47 @@ function UploadTab({ fileRef, handleUpload, preview }) {
 
         {preview ? (
           <div className="space-y-4">
-            <Result title="Quality Level" value={preview.level} color={preview.color} />
-            <Result title="Quality Score" value={`${preview.score}%`} color="blue" />
-            <Result title="VOC Level" value={`${preview.voc} ppm`} color="blue" />
-            <Result title="Odor Status" value={preview.odorStatus} color="indigo" />
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center p-8 bg-blue-50/50 rounded-xl border border-blue-100">
+                <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                <p className="font-medium text-blue-800 animate-pulse">
+                  Running ML Analysis...
+                </p>
+                <p className="text-xs text-blue-500 mt-2">
+                  Checking surface for quality defects
+                </p>
+              </div>
+            ) : (
+              <>
+                <Result
+                  title="Quality Level"
+                  value={preview.level}
+                  color={preview.color}
+                />
+                <Result
+                  title="Quality Score"
+                  value={`${preview.score}%`}
+                  color="blue"
+                />
+                <Result
+                  title="VOC Level"
+                  value={`${preview.voc} ppm`}
+                  color="blue"
+                />
+                <Result
+                  title="Odor Status"
+                  value={preview.odorStatus}
+                  color="indigo"
+                />
 
-            <div className="p-4 rounded-xl bg-slate-50 border">
-              <p className="text-xs font-semibold text-slate-500 mb-1">Storage Advice</p>
-              <p className="text-sm font-medium">{preview.storageAdvice}</p>
-            </div>
+                <div className="p-4 rounded-xl bg-slate-50 border">
+                  <p className="text-xs font-semibold text-slate-500 mb-1">
+                    Storage Advice
+                  </p>
+                  <p className="text-sm font-medium">{preview.storageAdvice}</p>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <p className="text-sm text-slate-400 text-center mt-24">
@@ -250,6 +322,7 @@ function CameraTab({
   captureFrame,
   cameraFileRef,
   handleUpload,
+  isLoading,
 }) {
   return (
     <div className="grid grid-cols-12 min-h-[calc(100vh-160px)] bg-slate-100 rounded-2xl overflow-hidden shadow">
@@ -265,7 +338,10 @@ function CameraTab({
             Upload
           </button>
 
-          <button type="button" className="bg-white py-2 rounded-md font-medium">
+          <button
+            type="button"
+            className="bg-white py-2 rounded-md font-medium"
+          >
             Webcam
           </button>
         </div>
@@ -301,9 +377,14 @@ function CameraTab({
         <button
           type="button"
           onClick={captureFrame}
-          className="w-full py-3 rounded-lg bg-slate-100 border text-slate-700 font-medium hover:bg-blue-50 hover:text-blue-700"
+          disabled={isLoading}
+          className={`w-full py-3 rounded-lg font-medium border ${
+            isLoading
+              ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+              : "bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+          }`}
         >
-          ◎ Capture Frame
+          {isLoading ? "◎ Analyzing..." : "◎ Capture Frame"}
         </button>
 
         <div className="bg-white border rounded-xl p-4">
@@ -311,7 +392,8 @@ function CameraTab({
             CAPTURE FRAME
           </p>
           <p className="text-sm text-slate-600">
-            Captures the current webcam view as an image, analyzes it, and stores it as a new batch.
+            Captures the current webcam view as an image, analyzes it, and
+            stores it as a new batch.
           </p>
         </div>
       </div>
@@ -382,8 +464,15 @@ function BatchTab({ batches }) {
       ) : (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
           {batches.map((b) => (
-            <div key={b.id} className="border rounded-xl overflow-hidden shadow-sm bg-white">
-              <img src={b.image} alt={b.name} className="h-48 w-full object-cover bg-slate-100" />
+            <div
+              key={b.id}
+              className="border rounded-xl overflow-hidden shadow-sm bg-white"
+            >
+              <img
+                src={b.image}
+                alt={b.name}
+                className="h-48 w-full object-cover bg-slate-100"
+              />
 
               <div className="p-4">
                 <h3 className="font-bold">{b.id}</h3>
@@ -407,7 +496,9 @@ function AnalyticsTab({ batches }) {
       : [88, 90, 92, 89, 94, 91, 95];
 
     const mediumData = batches.length
-      ? batches.map((b) => (b.score >= 70 && b.score < 85 ? b.score : 0)).reverse()
+      ? batches
+          .map((b) => (b.score >= 70 && b.score < 85 ? b.score : 0))
+          .reverse()
       : [72, 75, 79, 81, 78, 83, 80];
 
     const lowData = batches.length
@@ -428,27 +519,58 @@ function AnalyticsTab({ batches }) {
     <div className="space-y-6">
       <div className="grid md:grid-cols-3 gap-5">
         <Metric title="High Quality Batches" value={stats.high} color="blue" />
-        <Metric title="Medium Quality Batches" value={stats.medium} color="sky" />
+        <Metric
+          title="Medium Quality Batches"
+          value={stats.medium}
+          color="sky"
+        />
         <Metric title="Low Quality Batches" value={stats.low} color="indigo" />
       </div>
 
       <div className="bg-white rounded-2xl shadow p-6">
-        <h2 className="text-2xl font-bold mb-2">Quality Analytics Line Charts</h2>
+        <h2 className="text-2xl font-bold mb-2">
+          Quality Analytics Line Charts
+        </h2>
         <p className="text-slate-500 mb-6">
-          High, medium, and low quality trend analysis for uploaded Maldive fish batches.
+          High, medium, and low quality trend analysis for uploaded Maldive fish
+          batches.
         </p>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          <ChartBox title="High Quality Trend" color="text-blue-700" bg="bg-blue-50">
-            <LineChart data={stats.highData} stroke="#1d4ed8" label="High Quality Score (%)" />
+          <ChartBox
+            title="High Quality Trend"
+            color="text-blue-700"
+            bg="bg-blue-50"
+          >
+            <LineChart
+              data={stats.highData}
+              stroke="#1d4ed8"
+              label="High Quality Score (%)"
+            />
           </ChartBox>
 
-          <ChartBox title="Medium Quality Trend" color="text-sky-700" bg="bg-sky-50">
-            <LineChart data={stats.mediumData} stroke="#0284c7" label="Medium Quality Score (%)" />
+          <ChartBox
+            title="Medium Quality Trend"
+            color="text-sky-700"
+            bg="bg-sky-50"
+          >
+            <LineChart
+              data={stats.mediumData}
+              stroke="#0284c7"
+              label="Medium Quality Score (%)"
+            />
           </ChartBox>
 
-          <ChartBox title="Low Quality Trend" color="text-indigo-700" bg="bg-indigo-50">
-            <LineChart data={stats.lowData} stroke="#4f46e5" label="Low Quality Score (%)" />
+          <ChartBox
+            title="Low Quality Trend"
+            color="text-indigo-700"
+            bg="bg-indigo-50"
+          >
+            <LineChart
+              data={stats.lowData}
+              stroke="#4f46e5"
+              label="Low Quality Score (%)"
+            />
           </ChartBox>
         </div>
       </div>
@@ -470,7 +592,8 @@ function VocTab() {
       <div className="bg-white rounded-2xl shadow p-6">
         <h2 className="text-2xl font-bold mb-2">VOC Sensor Reading Graph</h2>
         <p className="text-slate-500 mb-6">
-          VOC trend helps identify odor changes and possible spoilage risk in stored Maldive fish.
+          VOC trend helps identify odor changes and possible spoilage risk in
+          stored Maldive fish.
         </p>
 
         <LineChart data={vocData} stroke="#1d4ed8" label="VOC Level (ppm)" />
@@ -495,17 +618,27 @@ function EnvironmentTab() {
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl shadow p-6">
           <h2 className="text-xl font-bold mb-2">Temperature Trend</h2>
-          <LineChart data={tempData} stroke="#2563eb" label="Temperature (°C)" />
+          <LineChart
+            data={tempData}
+            stroke="#2563eb"
+            label="Temperature (°C)"
+          />
         </div>
 
         <div className="bg-white rounded-2xl shadow p-6">
           <h2 className="text-xl font-bold mb-2">Humidity Trend</h2>
-          <LineChart data={humidityData} stroke="#0ea5e9" label="Humidity (%)" />
+          <LineChart
+            data={humidityData}
+            stroke="#0ea5e9"
+            label="Humidity (%)"
+          />
         </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">Maldive Fish Storage Instructions</h2>
+        <h2 className="text-2xl font-bold mb-4">
+          Maldive Fish Storage Instructions
+        </h2>
 
         <div className="grid md:grid-cols-2 gap-4">
           {[
@@ -516,7 +649,10 @@ function EnvironmentTab() {
             "Check smell, colour, dryness, and insect exposure before packing or distribution.",
             "Use first-in-first-out batch handling so older dried fish stock is used first.",
           ].map((item, index) => (
-            <div key={index} className="p-4 rounded-xl bg-blue-50 border border-blue-100">
+            <div
+              key={index}
+              className="p-4 rounded-xl bg-blue-50 border border-blue-100"
+            >
               <p className="text-sm font-medium text-slate-700">✅ {item}</p>
             </div>
           ))}
@@ -552,9 +688,20 @@ function LineChart({ data, stroke, label }) {
     <div>
       <p className="text-xs text-slate-500 mb-3">{label}</p>
 
-      <svg viewBox="0 0 500 270" className="w-full h-[230px] bg-white rounded-xl border">
+      <svg
+        viewBox="0 0 500 270"
+        className="w-full h-[230px] bg-white rounded-xl border"
+      >
         {[60, 110, 160, 210].map((y) => (
-          <line key={y} x1="35" y1={y} x2="470" y2={y} stroke="#dbeafe" strokeWidth="1" />
+          <line
+            key={y}
+            x1="35"
+            y1={y}
+            x2="470"
+            y2={y}
+            stroke="#dbeafe"
+            strokeWidth="1"
+          />
         ))}
 
         <polyline

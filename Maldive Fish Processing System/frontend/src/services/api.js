@@ -24,4 +24,14 @@ export const authService = {
     axiosInstance.get('/user/profile'),
 };
 
+export const qualityService = {
+  analyzeImage: (formData) =>
+    axiosInstance.post('/quality/analyze', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
+  getBatches: () => axiosInstance.get('/quality/batches'),
+};
+
 export default axiosInstance;
