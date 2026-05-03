@@ -6,7 +6,6 @@ import React, { useRef, useState, useEffect } from "react";
 import Chart from "chart.js/auto";
 import { 
   UploadPage, 
-  WebcamPage, 
   ChartPage, 
   SensorPage, 
   MechanicalPage,
@@ -833,11 +832,7 @@ export default function FishBoilingDetectionApp() {
             <span className="menu-dot dot-blue" />
             Upload Image
           </button>
-          <button className={`menu-btn ${mode === "webcam" ? "active" : ""}`} onClick={() => { setMode("webcam"); setResults(null); }}>
-            <span className="menu-dot dot-green" />
-            Live Camera
-          </button>
-          <button className={`menu-btn ${mode === "chart" ? "active" : ""}`} onClick={() => { setMode("chart"); setResults(null); }}>
+                    <button className={`menu-btn ${mode === "chart" ? "active" : ""}`} onClick={() => { setMode("chart"); setResults(null); }}>
             <span className="menu-dot dot-blue" />
             Chart
           </button>
@@ -864,15 +859,7 @@ export default function FishBoilingDetectionApp() {
               onRemoveFile={() => setSelectedFile(null)}
             />
           )}
-          {mode === "webcam" && (
-            <WebcamPage 
-              onCapture={captureFrame}
-              webcamActive={webcamActive}
-              onStartWebcam={startWebcam}
-              onStopWebcam={stopWebcam}
-            />
-          )}
-          {mode === "chart" && <ChartPage />}
+                    {mode === "chart" && <ChartPage />}
           {mode === "sensors" && <SensorPage />}
           {mode === "mechanical" && <MechanicalPage />}
           {mode === "Water" && <WaterSalinityControl />}
@@ -881,7 +868,7 @@ export default function FishBoilingDetectionApp() {
         {/* Status Bar */}
         <div className="statusbar">
           <span><span className="dot dot-green"></span>System: {loading ? "Processing" : "Ready"}</span>
-          <span>Mode: {mode === "upload" ? "Image Upload" : mode === "webcam" ? "Live Camera" : mode === "Water" ? "Water Salinity Control" : mode === "chart" ? "Chart Analytics" : mode === "sensors" ? "Sensor Data" : mode === "mechanical" ? "Mechanical Controls" : "Unknown"}</span>
+          <span>Mode: {mode === "upload" ? "Image Upload" : mode === "Water" ? "Water Salinity Control" : mode === "chart" ? "Chart Analytics" : mode === "sensors" ? "Sensor Data" : mode === "mechanical" ? "Mechanical Controls" : "Unknown"}</span>
           {results && <span>Last inference: {results.inference_time_ms}ms</span>}
           {captureHistory.length > 0 && <span>Saved results: {captureHistory.length}</span>}
           <span>AI Model: YOLOv8 | Multi-sensor enabled</span>
