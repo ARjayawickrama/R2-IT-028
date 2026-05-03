@@ -1,640 +1,10 @@
 import React, { useRef, useState, useEffect } from "react";
 
-const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');`;
-
-const CSS = `
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg-void: #eef2f7;
-    --bg-deep: #ffffff;
-    --bg-panel: #f5f7fa;
-    --bg-card: #ffffff;
-    --bg-hover: #e8eef5;
-    --accent-cyan: #0077cc;
-    --accent-cyan-dim: rgba(0,119,204,0.08);
-    --accent-cyan-glow: rgba(0,119,204,0.2);
-    --accent-green: #00a86b;
-    --accent-green-dim: rgba(0,168,107,0.1);
-    --accent-amber: #d97706;
-    --accent-red: #dc2626;
-    --accent-red-dim: rgba(220,38,38,0.08);
-    --text-primary: #0d1b2a;
-    --text-secondary: #3d5a73;
-    --text-muted: #90a8be;
-    --border: rgba(0,0,0,0.09);
-    --border-accent: rgba(0,119,204,0.35);
-    --font-display: 'Space Mono', monospace;
-    --font-body: 'DM Sans', sans-serif;
-  }
-
-  body { background: var(--bg-void); font-family: var(--font-body); color: var(--text-primary); }
-
-  .app-shell {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-void);
-    overflow: hidden;
-  }
-
-  /* ── Title Bar ── */
-  .title-bar {
-    height: 44px;
-    background: var(--bg-deep);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px;
-    flex-shrink: 0;
-  }
-  .title-bar-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .app-logo {
-    width: 26px; height: 26px;
-    background: var(--accent-cyan);
-    border-radius: 6px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-  .app-logo svg { width: 14px; height: 14px; }
-  .app-title {
-    font-family: var(--font-display);
-    font-size: 11px;
-    letter-spacing: 0.15em;
-    color: var(--text-primary);
-    text-transform: uppercase;
-  }
-  .title-bar-right {
-    display: flex; align-items: center; gap: 20px;
-  }
-  .sys-indicator {
-    display: flex; align-items: center; gap: 6px;
-    font-family: var(--font-display);
-    font-size: 10px;
-    color: var(--text-secondary);
-  }
-  .dot { width: 6px; height: 6px; border-radius: 50%; }
-  .dot-green { background: var(--accent-green); box-shadow: 0 0 5px rgba(0,168,107,0.5); animation: pulse 2s infinite; }
-  .dot-amber { background: var(--accent-amber); }
-  .dot-red { background: var(--accent-red); }
-  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
-
-  /* ── Menu Bar ── */
-  .menu-bar {
-    height: 38px;
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    padding: 0 16px;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-  .menu-btn {
-    height: 26px;
-    padding: 0 12px;
-    border-radius: 4px;
-    border: 1px solid transparent;
-    background: transparent;
-    color: var(--text-secondary);
-    font-family: var(--font-body);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    display: flex; align-items: center; gap: 6px;
-    transition: all 0.15s;
-    letter-spacing: 0.01em;
-  }
-  .menu-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border); }
-  .menu-btn.primary { background: var(--accent-cyan-dim); color: var(--accent-cyan); border-color: var(--border-accent); }
-  .menu-btn.primary:hover { background: rgba(0,212,255,0.2); }
-  .menu-btn.danger { background: var(--accent-red-dim); color: var(--accent-red); border-color: rgba(255,69,96,0.3); }
-  .menu-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .menu-separator { width: 1px; height: 16px; background: var(--border); margin: 0 6px; }
-  .menu-spacer { flex: 1; }
-  .badge-live {
-    background: var(--accent-green-dim);
-    color: var(--accent-green);
-    border: 1px solid rgba(0,255,157,0.25);
-    font-size: 9px;
-    font-family: var(--font-display);
-    letter-spacing: 0.12em;
-    padding: 2px 7px;
-    border-radius: 3px;
-    text-transform: uppercase;
-  }
-
-  /* ── Main Layout ── */
-  .main-layout {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-  }
-
-  /* ── Left Sidebar ── */
-  .sidebar {
-    width: 260px;
-    flex-shrink: 0;
-    background: var(--bg-panel);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    box-shadow: 2px 0 8px rgba(0,0,0,0.04);
-  }
-  .sidebar-section {
-    padding: 16px;
-    border-bottom: 1px solid var(--border);
-  }
-  .section-label {
-    font-family: var(--font-display);
-    font-size: 9px;
-    letter-spacing: 0.2em;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    margin-bottom: 12px;
-  }
-
-  /* Mode Toggle */
-  .mode-toggle {
-    display: flex;
-    background: var(--bg-void);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 3px;
-    gap: 2px;
-  }
-  .mode-btn {
-    flex: 1;
-    height: 28px;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--text-secondary);
-    font-family: var(--font-body);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .mode-btn.active { background: var(--bg-card); color: var(--text-primary); }
-
-  /* Upload Zone */
-  .upload-zone {
-    border: 1px dashed var(--border-accent);
-    border-radius: 8px;
-    padding: 20px 12px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: var(--accent-cyan-dim);
-    position: relative;
-    overflow: hidden;
-  }
-  .upload-zone:hover { background: rgba(0,212,255,0.18); border-color: var(--accent-cyan); }
-  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .upload-icon { font-size: 22px; margin-bottom: 6px; }
-  .upload-text { font-size: 12px; color: var(--accent-cyan); font-weight: 500; }
-  .upload-hint { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
-  .file-chip {
-    margin-top: 8px;
-    padding: 6px 10px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    display: flex; align-items: center; gap: 6px;
-    overflow: hidden;
-  }
-  .file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  /* Sliders */
-  .slider-group { display: flex; flex-direction: column; gap: 14px; }
-  .slider-row {}
-  .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-  .slider-name { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
-  .slider-val {
-    font-family: var(--font-display);
-    font-size: 11px;
-    color: var(--accent-cyan);
-    background: var(--accent-cyan-dim);
-    border: 1px solid var(--border-accent);
-    padding: 1px 6px;
-    border-radius: 3px;
-    min-width: 38px; text-align: center;
-  }
-  input[type=range] {
-    -webkit-appearance: none;
-    width: 100%; height: 3px;
-    background: var(--bg-void);
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-    border: 1px solid var(--border);
-  }
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 13px; height: 13px;
-    background: var(--accent-cyan);
-    border-radius: 50%;
-    border: 2px solid var(--bg-panel);
-    box-shadow: 0 0 8px var(--accent-cyan-glow);
-    cursor: pointer;
-  }
-  input[type=range]::-moz-range-thumb {
-    width: 13px; height: 13px;
-    background: var(--accent-cyan);
-    border-radius: 50%;
-    border: 2px solid var(--bg-panel);
-    cursor: pointer;
-  }
-
-  /* Presets */
-  .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .preset-btn {
-    height: 28px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    font-size: 11px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: var(--font-body);
-  }
-  .preset-btn:hover { border-color: var(--border-accent); color: var(--accent-cyan); background: var(--accent-cyan-dim); }
-
-  /* Webcam controls */
-  .cam-btns { display: flex; flex-direction: column; gap: 6px; }
-  .cam-btn {
-    height: 32px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: var(--font-body);
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-  }
-  .cam-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-  .cam-btn.active { background: var(--accent-red-dim); color: var(--accent-red); border-color: rgba(255,69,96,0.3); }
-  .cam-btn.go { background: var(--accent-cyan-dim); color: var(--accent-cyan); border-color: var(--border-accent); }
-  .cam-btn.go:hover { background: rgba(0,212,255,0.2); }
-
-  .sidebar-scroll { flex: 1; overflow-y: auto; }
-  .sidebar-scroll::-webkit-scrollbar { width: 4px; }
-  .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
-  .sidebar-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  /* ── Center Viewport ── */
-  .viewport {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-void);
-    overflow: hidden;
-    position: relative;
-  }
-  .viewport-header {
-    height: 36px;
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center;
-    padding: 0 16px;
-    gap: 12px;
-    flex-shrink: 0;
-  }
-  .viewport-label {
-    font-family: var(--font-display);
-    font-size: 9px;
-    letter-spacing: 0.18em;
-    color: var(--text-muted);
-    text-transform: uppercase;
-  }
-  .viewport-filename { font-size: 11px; color: var(--text-secondary); }
-  .viewport-body {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    overflow: hidden;
-  }
-  .empty-state {
-    text-align: center;
-    user-select: none;
-  }
-  .empty-grid {
-    position: absolute; inset: 0;
-    background-image:
-      linear-gradient(rgba(0,119,204,0.06) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,119,204,0.06) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-  }
-  .empty-crosshair {
-    width: 80px; height: 80px;
-    position: relative;
-    margin: 0 auto 16px;
-  }
-  .empty-crosshair::before, .empty-crosshair::after {
-    content: '';
-    position: absolute;
-    background: var(--text-muted);
-  }
-  .empty-crosshair::before { width: 1px; height: 100%; left: 50%; }
-  .empty-crosshair::after { height: 1px; width: 100%; top: 50%; }
-  .empty-ring {
-    position: absolute; inset: 15px;
-    border: 1px solid var(--text-muted);
-    border-radius: 50%;
-  }
-  .empty-title { font-size: 13px; color: var(--text-muted); font-weight: 500; }
-  .empty-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; opacity: 0.6; }
-
-  .preview-img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    display: block;
-  }
-  video.preview-video {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-  }
-
-  /* Corner decorators */
-  .corner { position: absolute; width: 20px; height: 20px; }
-  .corner-tl { top: 12px; left: 12px; border-top: 1px solid var(--accent-cyan); border-left: 1px solid var(--accent-cyan); }
-  .corner-tr { top: 12px; right: 12px; border-top: 1px solid var(--accent-cyan); border-right: 1px solid var(--accent-cyan); }
-  .corner-bl { bottom: 12px; left: 12px; border-bottom: 1px solid var(--accent-cyan); border-left: 1px solid var(--accent-cyan); }
-  .corner-br { bottom: 12px; right: 12px; border-bottom: 1px solid var(--accent-cyan); border-right: 1px solid var(--accent-cyan); }
-
-  /* Loading overlay */
-  .loading-overlay {
-    position: absolute; inset: 0;
-    background: rgba(238,242,247,0.75);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 12px;
-    backdrop-filter: blur(2px);
-    z-index: 10;
-  }
-  .loading-ring {
-    width: 40px; height: 40px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent-cyan);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text {
-    font-family: var(--font-display);
-    font-size: 10px;
-    letter-spacing: 0.15em;
-    color: var(--accent-cyan);
-    text-transform: uppercase;
-    animation: blink 1s ease-in-out infinite;
-  }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
-
-  /* ── Right Panel ── */
-  .results-panel {
-    width: 256px;
-    flex-shrink: 0;
-    background: var(--bg-panel);
-    border-left: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    box-shadow: -2px 0 8px rgba(0,0,0,0.04);
-  }
-  .results-header {
-    height: 36px;
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 14px;
-    flex-shrink: 0;
-  }
-  .results-scroll {
-    flex: 1; overflow-y: auto; padding: 12px;
-  }
-  .results-scroll::-webkit-scrollbar { width: 4px; }
-  .results-scroll::-webkit-scrollbar-track { background: transparent; }
-  .results-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  /* Stat cards */
-  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px; }
-  .stat-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 10px 10px 8px;
-  }
-  .stat-label { font-size: 9px; color: var(--text-muted); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 3px; }
-  .stat-value { font-family: var(--font-display); font-size: 18px; color: var(--text-primary); line-height: 1; }
-  .stat-value.cyan { color: var(--accent-cyan); }
-  .stat-value.green { color: var(--accent-green); }
-
-  /* Detection items */
-  .detection-item {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 10px 12px;
-    margin-bottom: 6px;
-    transition: border-color 0.15s;
-  }
-  .detection-item:hover { border-color: var(--border-accent); }
-  .det-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-  .det-label { font-size: 12px; font-weight: 600; color: var(--text-primary); }
-  .det-badge {
-    font-family: var(--font-display);
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 3px;
-  }
-  .det-badge.high { background: var(--accent-green-dim); color: var(--accent-green); border: 1px solid rgba(0,255,157,0.25); }
-  .det-badge.mid { background: rgba(255,184,0,0.1); color: var(--accent-amber); border: 1px solid rgba(255,184,0,0.25); }
-  .det-badge.low { background: var(--accent-red-dim); color: var(--accent-red); border: 1px solid rgba(255,69,96,0.25); }
-  .conf-bar { height: 3px; background: var(--bg-void); border-radius: 2px; overflow: hidden; }
-  .conf-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
-  .det-coords { font-family: var(--font-display); font-size: 9px; color: var(--text-muted); margin-top: 5px; }
-
-  /* Chart area */
-  .chart-section { margin-top: 14px; }
-  .chart-label {
-    font-family: var(--font-display);
-    font-size: 9px;
-    letter-spacing: 0.18em;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-  canvas { width: 100% !important; }
-
-  /* Error banner */
-  .error-banner {
-    display: flex; align-items: center; gap: 8px;
-    background: var(--accent-red-dim);
-    border: 1px solid rgba(255,69,96,0.3);
-    border-radius: 6px;
-    padding: 8px 10px;
-    font-size: 11px;
-    color: var(--accent-red);
-    margin-bottom: 10px;
-  }
-
-  /* ── Status Bar ── */
-  .status-bar {
-    height: 26px;
-    background: var(--bg-deep);
-    border-top: 1px solid var(--border);
-    display: flex; align-items: center;
-    padding: 0 16px;
-    gap: 20px;
-    flex-shrink: 0;
-  }
-  .status-item {
-    display: flex; align-items: center; gap: 6px;
-    font-family: var(--font-display);
-    font-size: 9px;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-  }
-  .status-item.active { color: var(--accent-cyan); }
-  .status-item.warn { color: var(--accent-amber); }
-  .status-spacer { flex: 1; }
-
-  /* ── Modal ── */
-  .modal-backdrop {
-    position: fixed; inset: 0;
-    background: rgba(13,27,42,0.35);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 100;
-    backdrop-filter: blur(4px);
-  }
-  .modal {
-    width: 420px;
-    max-height: 80vh;
-    background: var(--bg-deep);
-    border: 1px solid var(--border-accent);
-    border-radius: 10px;
-    overflow: hidden;
-    display: flex; flex-direction: column;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.15);
-  }
-  .modal-header {
-    height: 46px;
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 18px;
-    flex-shrink: 0;
-  }
-  .modal-title { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.15em; color: var(--text-primary); text-transform: uppercase; }
-  .modal-close {
-    width: 24px; height: 24px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 14px;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
-  .modal-body { flex: 1; overflow-y: auto; padding: 18px; }
-  .modal-body::-webkit-scrollbar { width: 4px; }
-  .modal-body::-webkit-scrollbar-track { background: transparent; }
-  .modal-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-  .modal-footer {
-    height: 52px;
-    border-top: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: flex-end;
-    padding: 0 18px; gap: 8px;
-    flex-shrink: 0;
-  }
-  .modal-btn {
-    height: 30px; padding: 0 16px;
-    border-radius: 5px;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    font-size: 12px; font-weight: 500;
-    cursor: pointer; font-family: var(--font-body);
-    transition: all 0.15s;
-  }
-  .modal-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-  .modal-btn.primary { background: var(--accent-cyan-dim); color: var(--accent-cyan); border-color: var(--border-accent); }
-  .modal-btn.primary:hover { background: rgba(0,212,255,0.2); }
-
-  .help-section { margin-bottom: 20px; }
-  .help-section-title { font-family: var(--font-display); font-size: 10px; letter-spacing: 0.15em; color: var(--accent-cyan); text-transform: uppercase; margin-bottom: 8px; }
-  .help-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
-  .help-list li { font-size: 12px; color: var(--text-secondary); padding-left: 12px; position: relative; }
-  .help-list li::before { content: '›'; position: absolute; left: 0; color: var(--text-muted); }
-  .help-list li strong { color: var(--text-primary); }
-
-  /* History sidebar */
-  .history-float {
-    position: fixed; right: 272px; top: 130px;
-    width: 200px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-accent);
-    border-radius: 8px;
-    overflow: hidden;
-    z-index: 50;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
-  }
-  .history-header {
-    height: 32px;
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center;
-    padding: 0 12px;
-  }
-  .history-list { max-height: 280px; overflow-y: auto; padding: 8px; }
-  .history-item {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 7px 9px;
-    margin-bottom: 5px;
-  }
-  .history-time { font-size: 9px; color: var(--text-muted); font-family: var(--font-display); }
-  .history-count { font-size: 11px; color: var(--text-primary); font-weight: 500; margin: 2px 0 5px; }
-  .history-actions { display: flex; gap: 4px; }
-  .hist-btn {
-    flex: 1; height: 20px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 9px;
-    cursor: pointer; font-family: var(--font-display);
-    letter-spacing: 0.05em;
-    transition: all 0.1s;
-  }
-  .hist-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
-  .hist-btn.del:hover { color: var(--accent-red); border-color: rgba(255,69,96,0.3); }
-`;
-
 export default function FishDetectionApp() {
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);
-
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -650,6 +20,7 @@ export default function FishDetectionApp() {
   const [showHelp, setShowHelp] = useState(false);
   const [captureHistory, setCaptureHistory] = useState([]);
   const [clock, setClock] = useState(new Date().toLocaleTimeString());
+  const [dragOver, setDragOver] = useState(false);
 
   const API_URL = "http://localhost:8000/predict";
 
@@ -671,7 +42,7 @@ export default function FishDetectionApp() {
   }, [autoDetectMode, webcamActive]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('fishDetSettings');
+    const saved = localStorage.getItem("fishDetSettings");
     if (saved) { try { setThresholds(JSON.parse(saved)); } catch {} }
   }, []);
 
@@ -688,13 +59,19 @@ export default function FishDetectionApp() {
       const data = await res.json();
       setResults(data);
       setTimeout(() => renderChart(data), 200);
-    } catch { setError("Cannot connect to backend  ·  localhost:8000"); }
+    } catch { setError("Cannot connect to backend · localhost:8000"); }
     finally { setLoading(false); }
   };
 
   const handleFileChange = (e) => {
     const f = e.target.files?.[0];
     if (f) { setSelectedFile(f); setFileName(f.name); setResults(null); setError(""); }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault(); setDragOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f && f.type.startsWith("image/")) { setSelectedFile(f); setFileName(f.name); setResults(null); setError(""); }
   };
 
   const handleDetect = () => {
@@ -721,8 +98,8 @@ export default function FishDetectionApp() {
     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
     canvas.toBlob((blob) => {
-      const ts = new Date().toISOString().replace(/[:.]/g, '-');
-      const f = new File([blob], `${isAuto ? 'auto' : 'manual'}_${ts}.jpg`, { type: "image/jpeg" });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const f = new File([blob], `${isAuto ? "auto" : "manual"}_${ts}.jpg`, { type: "image/jpeg" });
       setFileName(f.name);
       processImage(f);
     });
@@ -730,33 +107,29 @@ export default function FishDetectionApp() {
 
   const renderChart = (data) => {
     if (!data?.detections || !chartRef.current) return;
-    const labels = data.detections.map((d, i) => `${d.label} ${i+1}`);
+    const labels = data.detections.map((d, i) => `${d.label} ${i + 1}`);
     const values = data.detections.map(d => +(d.confidence * 100).toFixed(1));
     if (chartInstanceRef.current) chartInstanceRef.current.destroy();
     const ctx = chartRef.current.getContext("2d");
-    chartInstanceRef.current = new (window.Chart || require('chart.js/auto'))(ctx, {
+    chartInstanceRef.current = new window.Chart(ctx, {
       type: "bar",
       data: {
         labels,
         datasets: [{
           label: "Confidence %",
           data: values,
-          backgroundColor: values.map(v => v >= 70 ? 'rgba(0,168,107,0.2)' : v >= 40 ? 'rgba(217,119,6,0.18)' : 'rgba(220,38,38,0.15)'),
-          borderColor: values.map(v => v >= 70 ? '#00a86b' : v >= 40 ? '#d97706' : '#dc2626'),
-          borderWidth: 1,
-          borderRadius: 3,
+          backgroundColor: values.map(v => v >= 70 ? "rgba(16,185,129,0.15)" : v >= 40 ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)"),
+          borderColor: values.map(v => v >= 70 ? "#10b981" : v >= 40 ? "#f59e0b" : "#ef4444"),
+          borderWidth: 1.5,
+          borderRadius: 4,
         }],
       },
       options: {
         responsive: true,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: '#3d5a73', font: { size: 9, family: 'Space Mono' } }, grid: { color: 'rgba(0,0,0,0.05)' } },
-          y: {
-            ticks: { color: '#3d5a73', font: { size: 9, family: 'Space Mono' } },
-            grid: { color: 'rgba(0,0,0,0.05)' },
-            min: 0, max: 100
-          },
+          x: { ticks: { color: "#94a3b8", font: { size: 9, family: "monospace" } }, grid: { color: "rgba(0,0,0,0.04)" } },
+          y: { ticks: { color: "#94a3b8", font: { size: 9 } }, grid: { color: "rgba(0,0,0,0.04)" }, min: 0, max: 100 },
         },
       },
     });
@@ -769,283 +142,379 @@ export default function FishDetectionApp() {
   };
 
   const handleExport = (c) => {
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = `data:image/jpeg;base64,${c.image}`;
     a.download = `fish_det_${c.id}.jpg`;
     a.click();
   };
 
-  const getBadgeClass = (conf) => conf >= 0.7 ? 'high' : conf >= 0.4 ? 'mid' : 'low';
-  const getBarColor = (conf) => conf >= 0.7 ? '#00a86b' : conf >= 0.4 ? '#d97706' : '#dc2626';
+  const getBadge = (conf) => {
+    if (conf >= 0.7) return { text: "HIGH", cls: "bg-emerald-50 text-emerald-600 border border-emerald-200" };
+    if (conf >= 0.4) return { text: "MID", cls: "bg-amber-50 text-amber-600 border border-amber-200" };
+    return { text: "LOW", cls: "bg-red-50 text-red-500 border border-red-200" };
+  };
+
+  const getBarColor = (conf) => conf >= 0.7 ? "#10b981" : conf >= 0.4 ? "#f59e0b" : "#ef4444";
 
   return (
     <>
-      <style>{FONTS}{CSS}</style>
-      <div className="app-shell">
+      {/* Load Chart.js from CDN */}
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" />
 
-        {/* Title Bar */}
-        <div className="title-bar">
-          <div className="title-bar-left">
-            <div className="app-logo">
-              <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M1 7C1 7 3 3 7 3C11 3 13 7 13 7C13 7 11 11 7 11C3 11 1 7 1 7Z" stroke="#ffffff" strokeWidth="1.2"/>
-                <circle cx="7" cy="7" r="2" fill="#ffffff"/>
+      <div className="h-screen flex flex-col bg-slate-50 font-sans overflow-hidden">
+
+        {/* ── Title Bar ── */}
+        <div className="h-11 bg-white border-b border-slate-200 flex items-center justify-between px-5 shrink-0 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 bg-sky-500 rounded-lg flex items-center justify-center shadow-sm">
+              <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 14 14" fill="none">
+                <path d="M1 7C1 7 3 3 7 3C11 3 13 7 13 7C13 7 11 11 7 11C3 11 1 7 1 7Z" stroke="currentColor" strokeWidth="1.3"/>
+                <circle cx="7" cy="7" r="2" fill="currentColor"/>
               </svg>
             </div>
-            <span className="app-title">AquaVision · Fish Detection System</span>
+            <span className="font-mono text-[11px] tracking-widest text-slate-700 font-semibold uppercase">AquaVision · Fish Detection</span>
           </div>
-          <div className="title-bar-right">
-            <div className="sys-indicator"><div className="dot dot-green"/>BACKEND</div>
-            <div className="sys-indicator"><div className="dot dot-amber"/>MODEL</div>
-            <div className="sys-indicator" style={{fontFamily:'Space Mono', fontSize:10, color:'#3d5a73'}}>{clock}</div>
+          <div className="flex items-center gap-5">
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-300"/>
+              <span className="font-mono text-[9px] tracking-widest text-slate-400 uppercase">Backend</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400"/>
+              <span className="font-mono text-[9px] tracking-widest text-slate-400 uppercase">Model</span>
+            </div>
+            <span className="font-mono text-[10px] text-slate-400">{clock}</span>
           </div>
         </div>
 
-        {/* Menu Bar */}
-        <div className="menu-bar">
-          <button className="menu-btn primary" onClick={handleDetect} disabled={!selectedFile && mode === 'upload'}>
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 0L9.33 7.5H0.67L5 0Z"/></svg>
-            RUN DETECT
-          </button>
-          <div className="menu-separator"/>
-          <button className="menu-btn" onClick={handleCapture} disabled={!results}>
-            ◎ Capture
-          </button>
-          <button className="menu-btn" onClick={() => setShowSettings(true)}>
-            ⚙ Settings
-          </button>
-          <button className="menu-btn" onClick={() => setShowHelp(true)}>
-            ? Help
-          </button>
-          <div className="menu-separator"/>
+        {/* ── Menu Bar ── */}
+        <div className="h-10 bg-white border-b border-slate-100 flex items-center px-4 gap-2 shrink-0">
           <button
-            className={`menu-btn ${autoDetectMode ? 'danger' : ''}`}
+            onClick={handleDetect}
+            disabled={!selectedFile && mode === "upload"}
+            className="h-7 px-3.5 rounded-md text-[11px] font-semibold flex items-center gap-1.5 bg-sky-500 text-white hover:bg-sky-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+          >
+            <svg className="w-2.5 h-2.5" viewBox="0 0 10 10" fill="currentColor"><path d="M5 0L9.33 7.5H0.67L5 0Z"/></svg>
+            Run Detect
+          </button>
+          <div className="w-px h-4 bg-slate-200 mx-1"/>
+          <button onClick={handleCapture} disabled={!results} className="h-7 px-3 rounded-md text-[11px] font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5">
+            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="6" cy="6" r="4"/><circle cx="6" cy="6" r="1.5" fill="currentColor" stroke="none"/></svg>
+            Capture
+          </button>
+          <button onClick={() => setShowSettings(true)} className="h-7 px-3 rounded-md text-[11px] font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors flex items-center gap-1.5">
+            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="6" cy="6" r="2"/><path d="M6 1v1M6 10v1M1 6h1M10 6h1M2.46 2.46l.7.7M8.84 8.84l.7.7M2.46 9.54l.7-.7M8.84 3.16l.7-.7"/></svg>
+            Settings
+          </button>
+          <button onClick={() => setShowHelp(true)} className="h-7 px-3 rounded-md text-[11px] font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors flex items-center gap-1.5">
+            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="6" cy="6" r="5"/><path d="M4.5 4.5C4.5 3.67 5.17 3 6 3s1.5.67 1.5 1.5c0 1-1.5 1.5-1.5 2.5"/><circle cx="6" cy="8.5" r=".5" fill="currentColor" stroke="none"/></svg>
+            Help
+          </button>
+          <div className="w-px h-4 bg-slate-200 mx-1"/>
+          <button
             onClick={() => webcamActive && setAutoDetectMode(v => !v)}
             disabled={!webcamActive}
-            title={!webcamActive ? 'Switch to Webcam mode and start camera to enable Auto-Detect' : autoDetectMode ? 'Stop automatic detection' : 'Start automatic detection every 3s'}
-            style={!webcamActive ? {opacity:0.35, cursor:'not-allowed'} : {}}
+            className={`h-7 px-3 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed
+              ${autoDetectMode ? "bg-red-50 text-red-500 hover:bg-red-100" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"}`}
           >
-            {autoDetectMode ? '◼ Stop Auto-Detect' : '◉ Auto-Detect'}
+            <span className={`w-1.5 h-1.5 rounded-full ${autoDetectMode ? "bg-red-500 animate-pulse" : "bg-slate-300"}`}/>
+            {autoDetectMode ? "Stop Auto-Detect" : "Auto-Detect"}
           </button>
-          <div className="menu-spacer"/>
-          {autoDetectMode && <span className="badge-live">● LIVE</span>}
+          <div className="flex-1"/>
+          {autoDetectMode && (
+            <span className="text-[9px] font-mono tracking-widest text-emerald-500 border border-emerald-200 bg-emerald-50 px-2 py-0.5 rounded uppercase">● Live</span>
+          )}
           {captureHistory.length > 0 && (
-            <span style={{fontFamily:'Space Mono', fontSize:9, color:'#90a8be', letterSpacing:'0.08em'}}>
-              {captureHistory.length} CAPTURES
-            </span>
+            <span className="text-[9px] font-mono text-slate-400 tracking-wider">{captureHistory.length} captures</span>
           )}
         </div>
 
-        {/* Main */}
-        <div className="main-layout">
+        {/* ── Main Layout ── */}
+        <div className="flex flex-1 overflow-hidden">
 
-          {/* Left Sidebar */}
-          <div className="sidebar">
-            <div className="sidebar-section">
-              <div className="section-label">Input Source</div>
-              <div className="mode-toggle">
-                <button className={`mode-btn ${mode==='upload'?'active':''}`} onClick={() => { setMode('upload'); stopWebcam(); }}>Upload</button>
-                <button className={`mode-btn ${mode==='webcam'?'active':''}`} onClick={() => setMode('webcam')}>Webcam</button>
+          {/* ── Left Sidebar ── */}
+          <div className="w-64 shrink-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden shadow-sm">
+
+            {/* Source Toggle */}
+            <div className="p-4 border-b border-slate-100">
+              <p className="text-[9px] font-mono tracking-widest text-slate-400 uppercase mb-3">Input Source</p>
+              <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
+                <button
+                  onClick={() => { setMode("upload"); stopWebcam(); }}
+                  className={`flex-1 h-7 rounded-md text-xs font-semibold transition-all ${mode === "upload" ? "bg-white text-slate-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                >Upload</button>
+                <button
+                  onClick={() => setMode("webcam")}
+                  className={`flex-1 h-7 rounded-md text-xs font-semibold transition-all ${mode === "webcam" ? "bg-white text-slate-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                >Webcam</button>
               </div>
             </div>
 
-            <div className="sidebar-scroll">
-              {mode === 'upload' && (
-                <div className="sidebar-section">
-                  <div className="section-label">Image File</div>
-                  <div className="upload-zone" onClick={() => fileInputRef.current?.click()}>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} onClick={e => e.stopPropagation()} />
-                    <div className="upload-icon">⊕</div>
-                    <div className="upload-text">Click to upload</div>
-                    <div className="upload-hint">JPG, PNG · Max 20MB</div>
+            <div className="flex-1 overflow-y-auto">
+
+              {/* Upload Zone */}
+              {mode === "upload" && (
+                <div className="p-4 border-b border-slate-100">
+                  <p className="text-[9px] font-mono tracking-widest text-slate-400 uppercase mb-3">Image File</p>
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={handleDrop}
+                    className={`relative border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all
+                      ${dragOver ? "border-sky-400 bg-sky-50" : "border-slate-200 hover:border-sky-300 hover:bg-sky-50/50"}`}
+                  >
+                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer" onClick={e => e.stopPropagation()}/>
+                    <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center mx-auto mb-2">
+                      <svg className="w-4 h-4 text-sky-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M8 3v8M5 6l3-3 3 3"/><path d="M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1"/>
+                      </svg>
+                    </div>
+                    <p className="text-xs font-semibold text-sky-500">Click to upload</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">or drag & drop · JPG, PNG</p>
                   </div>
                   {fileName && (
-                    <div className="file-chip">
-                      <svg width="10" height="10" viewBox="0 0 10 10" fill="#7a8fa6"><rect x="1" y="0" width="6" height="8" rx="1" stroke="#7a8fa6" strokeWidth="1" fill="none"/><path d="M3 3h4M3 5h3" stroke="#7a8fa6" strokeWidth="0.8"/></svg>
-                      <span>{fileName}</span>
+                    <div className="mt-2.5 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                      <svg className="w-3 h-3 text-slate-400 shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2">
+                        <rect x="1" y="0.5" width="8" height="11" rx="1.5"/><path d="M3.5 4h4M3.5 6.5h3"/>
+                      </svg>
+                      <span className="text-[11px] text-slate-600 truncate font-medium">{fileName}</span>
                     </div>
                   )}
                 </div>
               )}
 
-              {mode === 'webcam' && (
-                <div className="sidebar-section">
-                  <div className="section-label">Camera</div>
-                  <div className="cam-btns">
+              {/* Webcam Controls */}
+              {mode === "webcam" && (
+                <div className="p-4 border-b border-slate-100">
+                  <p className="text-[9px] font-mono tracking-widest text-slate-400 uppercase mb-3">Camera</p>
+                  <div className="flex flex-col gap-2">
                     {!webcamActive ? (
-                      <button className="cam-btn go" onClick={startWebcam}>◉ Start Camera</button>
+                      <button onClick={startWebcam} className="h-9 rounded-xl bg-sky-500 text-white text-xs font-semibold hover:bg-sky-600 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                        <span className="w-2 h-2 rounded-full bg-white/70"/>Start Camera
+                      </button>
                     ) : (
                       <>
-                        <button className="cam-btn go" onClick={() => captureFrame(false)}>⊙ Capture Frame</button>
-                        <button className="cam-btn active" onClick={stopWebcam}>◼ Stop Camera</button>
+                        <button onClick={() => captureFrame(false)} className="h-9 rounded-xl bg-sky-50 border border-sky-200 text-sky-600 text-xs font-semibold hover:bg-sky-100 transition-colors flex items-center justify-center gap-2">
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="5"/><circle cx="7" cy="7" r="2" fill="currentColor" stroke="none"/></svg>
+                          Capture Frame
+                        </button>
+                        <button onClick={stopWebcam} className="h-9 rounded-xl bg-red-50 border border-red-200 text-red-500 text-xs font-semibold hover:bg-red-100 transition-colors flex items-center justify-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded bg-red-400"/>Stop Camera
+                        </button>
                       </>
                     )}
                   </div>
                 </div>
               )}
 
-              <div className="sidebar-section">
-                <div className="section-label">Thresholds</div>
-                <div className="slider-group">
-                  {[
-                    { key: 'confidence', label: 'Confidence' },
-                    { key: 'overlap', label: 'Overlap' },
-                    { key: 'opacity', label: 'Opacity' },
-                  ].map(({ key, label }) => (
-                    <div className="slider-row" key={key}>
-                      <div className="slider-header">
-                        <span className="slider-name">{label}</span>
-                        <span className="slider-val">{(thresholds[key] * 100).toFixed(0)}%</span>
+              {/* Thresholds */}
+              <div className="p-4 border-b border-slate-100">
+                <p className="text-[9px] font-mono tracking-widest text-slate-400 uppercase mb-4">Thresholds</p>
+                <div className="flex flex-col gap-4">
+                  {[{ key: "confidence", label: "Confidence" }, { key: "overlap", label: "Overlap" }, { key: "opacity", label: "Opacity" }].map(({ key, label }) => (
+                    <div key={key}>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs font-medium text-slate-600">{label}</span>
+                        <span className="font-mono text-[10px] text-sky-500 bg-sky-50 border border-sky-100 px-1.5 py-0.5 rounded">
+                          {(thresholds[key] * 100).toFixed(0)}%
+                        </span>
                       </div>
-                      <input
-                        type="range" min="0" max="100" step="1"
-                        value={thresholds[key] * 100}
-                        onChange={e => setThresholds(p => ({ ...p, [key]: +e.target.value / 100 }))}
-                      />
+                      <div className="relative h-1.5 bg-slate-100 rounded-full">
+                        <div
+                          className="absolute left-0 top-0 h-full bg-sky-400 rounded-full transition-all"
+                          style={{ width: `${thresholds[key] * 100}%` }}
+                        />
+                        <input
+                          type="range" min="0" max="100" step="1"
+                          value={thresholds[key] * 100}
+                          onChange={e => setThresholds(p => ({ ...p, [key]: +e.target.value / 100 }))}
+                          className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
+                        />
+                        <div
+                          className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 border-sky-400 rounded-full shadow-md pointer-events-none transition-all"
+                          style={{ left: `calc(${thresholds[key] * 100}% - 7px)` }}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="sidebar-section">
-                <div className="section-label">Presets</div>
-                <div className="preset-grid">
+              {/* Presets */}
+              <div className="p-4">
+                <p className="text-[9px] font-mono tracking-widest text-slate-400 uppercase mb-3">Presets</p>
+                <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label: 'Default', v: { confidence: 0.6, overlap: 0.5, opacity: 0.8 } },
-                    { label: 'Precise', v: { confidence: 0.8, overlap: 0.3, opacity: 0.9 } },
-                    { label: 'Sensitive', v: { confidence: 0.4, overlap: 0.7, opacity: 0.6 } },
-                    { label: 'Strict', v: { confidence: 0.9, overlap: 0.2, opacity: 0.95 } },
+                    { label: "Default", v: { confidence: 0.6, overlap: 0.5, opacity: 0.8 } },
+                    { label: "Precise", v: { confidence: 0.8, overlap: 0.3, opacity: 0.9 } },
+                    { label: "Sensitive", v: { confidence: 0.4, overlap: 0.7, opacity: 0.6 } },
+                    { label: "Strict", v: { confidence: 0.9, overlap: 0.2, opacity: 0.95 } },
                   ].map(({ label, v }) => (
-                    <button key={label} className="preset-btn" onClick={() => setThresholds(v)}>{label}</button>
+                    <button
+                      key={label}
+                      onClick={() => setThresholds(v)}
+                      className="h-8 rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 hover:border-sky-300 hover:text-sky-600 hover:bg-sky-50 transition-all"
+                    >{label}</button>
                   ))}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Viewport */}
-          <div className="viewport">
-            <div className="viewport-header">
-              <span className="viewport-label">Preview</span>
-              {fileName && <span className="viewport-filename">· {fileName}</span>}
+          {/* ── Center Viewport ── */}
+          <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+            <div className="h-9 bg-white border-b border-slate-100 flex items-center px-4 gap-3 shrink-0">
+              <span className="text-[9px] font-mono tracking-widest text-slate-400 uppercase">Preview</span>
+              {fileName && <span className="text-[11px] text-slate-500">· {fileName}</span>}
             </div>
-            <div className="viewport-body">
-              <div className="empty-grid"/>
-              <div className="corner corner-tl"/><div className="corner corner-tr"/>
-              <div className="corner corner-bl"/><div className="corner corner-br"/>
+            <div className="flex-1 flex items-center justify-center relative overflow-hidden">
+              {/* Subtle grid background */}
+              <div className="absolute inset-0 pointer-events-none" style={{
+                backgroundImage: "linear-gradient(rgba(148,163,184,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.08) 1px, transparent 1px)",
+                backgroundSize: "32px 32px"
+              }}/>
+
+              {/* Corner decorators */}
+              {["top-3 left-3 border-t border-l", "top-3 right-3 border-t border-r", "bottom-3 left-3 border-b border-l", "bottom-3 right-3 border-b border-r"].map((cls, i) => (
+                <div key={i} className={`absolute w-5 h-5 ${cls} border-sky-300`}/>
+              ))}
 
               {loading && (
-                <div className="loading-overlay">
-                  <div className="loading-ring"/>
-                  <div className="loading-text">Analyzing...</div>
+                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-10">
+                  <div className="w-10 h-10 border-2 border-slate-200 border-t-sky-500 rounded-full animate-spin"/>
+                  <span className="font-mono text-[10px] tracking-widest text-sky-500 uppercase animate-pulse">Analyzing...</span>
                 </div>
               )}
 
-              {mode === 'webcam' ? (
-                <video ref={videoRef} autoPlay className="preview-video"/>
+              {mode === "webcam" ? (
+                <video ref={videoRef} autoPlay className="max-w-full max-h-full object-contain"/>
               ) : results ? (
-                <img src={`data:image/jpeg;base64,${results.annotated_image_base64}`} className="preview-img" alt="Detection result"/>
+                <img src={`data:image/jpeg;base64,${results.annotated_image_base64}`} className="max-w-full max-h-full object-contain rounded-lg shadow-sm" alt="Detection result"/>
               ) : (
-                <div className="empty-state">
-                  <div className="empty-crosshair"><div className="empty-ring"/></div>
-                  <div className="empty-title">No Preview</div>
-                  <div className="empty-sub">Upload an image or start webcam</div>
+                <div className="text-center select-none relative z-10">
+                  <div className="w-20 h-20 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                    <svg className="w-8 h-8 text-slate-300" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2">
+                      <path d="M2 16C2 16 7 7 16 7C25 7 30 16 30 16C30 16 25 25 16 25C7 25 2 16 2 16Z"/>
+                      <circle cx="16" cy="16" r="4"/>
+                    </svg>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-400">No Preview</p>
+                  <p className="text-xs text-slate-300 mt-1">Upload an image or start the webcam</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Results Panel */}
-          <div className="results-panel">
-            <div className="results-header">
-              <span style={{fontFamily:'Space Mono', fontSize:9, letterSpacing:'0.18em', color:'#90a8be', textTransform:'uppercase'}}>Detection Results</span>
-              {results && <span style={{fontFamily:'Space Mono', fontSize:9, color:'#0077cc'}}>{results.detections?.length || 0} found</span>}
+          {/* ── Results Panel ── */}
+          <div className="w-64 shrink-0 bg-white border-l border-slate-100 flex flex-col overflow-hidden shadow-sm">
+            <div className="h-9 border-b border-slate-100 flex items-center justify-between px-4 shrink-0">
+              <span className="text-[9px] font-mono tracking-widest text-slate-400 uppercase">Results</span>
+              {results && <span className="text-[10px] font-mono text-sky-500 font-semibold">{results.detections?.length || 0} found</span>}
             </div>
-            <div className="results-scroll">
-              {error && <div className="error-banner">⚠ {error}</div>}
+            <div className="flex-1 overflow-y-auto p-3">
+
+              {error && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 mb-3">
+                  <svg className="w-3.5 h-3.5 text-red-400 shrink-0" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="6"/><path d="M7 4v3.5M7 9.5v.5"/></svg>
+                  <span className="text-[11px] text-red-500">{error}</span>
+                </div>
+              )}
 
               {results && (
                 <>
-                  <div className="stat-grid">
-                    <div className="stat-card">
-                      <div className="stat-label">Detected</div>
-                      <div className="stat-value cyan">{results.detections?.length || 0}</div>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                      <p className="text-[9px] text-slate-400 uppercase font-mono tracking-wide mb-1">Detected</p>
+                      <p className="font-mono text-xl font-bold text-sky-500">{results.detections?.length || 0}</p>
                     </div>
-                    <div className="stat-card">
-                      <div className="stat-label">Avg Conf</div>
-                      <div className="stat-value green">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                      <p className="text-[9px] text-slate-400 uppercase font-mono tracking-wide mb-1">Avg Conf</p>
+                      <p className="font-mono text-xl font-bold text-emerald-500">
                         {results.detections?.length
-                          ? (results.detections.reduce((a,d) => a + d.confidence, 0) / results.detections.length * 100).toFixed(0) + '%'
-                          : '—'}
-                      </div>
+                          ? (results.detections.reduce((a, d) => a + d.confidence, 0) / results.detections.length * 100).toFixed(0) + "%"
+                          : "—"}
+                      </p>
                     </div>
                   </div>
 
-                  {results.detections?.map((d, i) => (
-                    <div className="detection-item" key={i}>
-                      <div className="det-row">
-                        <span className="det-label">{d.label}</span>
-                        <span className={`det-badge ${getBadgeClass(d.confidence)}`}>
-                          {(d.confidence * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                      <div className="conf-bar">
-                        <div className="conf-fill" style={{ width: `${d.confidence*100}%`, background: getBarColor(d.confidence) }}/>
-                      </div>
-                      {d.bbox && (
-                        <div className="det-coords">
-                          [{d.bbox[0]}, {d.bbox[1]}] → [{d.bbox[2]}, {d.bbox[3]}]
+                  <div className="flex flex-col gap-2 mb-4">
+                    {results.detections?.map((d, i) => {
+                      const badge = getBadge(d.confidence);
+                      return (
+                        <div key={i} className="bg-white border border-slate-200 rounded-xl p-3 hover:border-sky-200 transition-colors">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-xs font-semibold text-slate-700">{d.label}</span>
+                            <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${badge.cls}`}>{badge.text}</span>
+                          </div>
+                          <div className="h-1 bg-slate-100 rounded-full overflow-hidden mb-2">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${d.confidence * 100}%`, background: getBarColor(d.confidence) }}
+                            />
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="font-mono text-[10px] text-slate-400">{(d.confidence * 100).toFixed(1)}%</span>
+                            {d.bbox && <span className="font-mono text-[9px] text-slate-300">[{d.bbox[0]},{d.bbox[1]}]</span>}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      );
+                    })}
+                  </div>
 
                   {results.detections?.length > 0 && (
-                    <div className="chart-section">
-                      <div className="chart-label">Confidence Chart</div>
-                      <canvas ref={chartRef}/>
+                    <div>
+                      <p className="text-[9px] font-mono tracking-widest text-slate-400 uppercase mb-2">Confidence Chart</p>
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-2">
+                        <canvas ref={chartRef}/>
+                      </div>
                     </div>
                   )}
                 </>
               )}
 
               {!results && !error && (
-                <div style={{textAlign:'center', padding:'30px 0'}}>
-                  <div style={{fontFamily:'Space Mono', fontSize:9, color:'#90a8be', letterSpacing:'0.15em', textTransform:'uppercase'}}>Awaiting input</div>
+                <div className="text-center py-10">
+                  <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-5 h-5 text-slate-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.2">
+                      <circle cx="10" cy="10" r="7"/><path d="M10 7v4M10 13v.5"/>
+                    </svg>
+                  </div>
+                  <p className="font-mono text-[9px] tracking-widest text-slate-300 uppercase">Awaiting input</p>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Status Bar */}
-        <div className="status-bar">
-          <div className={`status-item ${loading ? 'active' : ''}`}>
-            <div className={`dot ${loading ? 'dot-green' : 'dot-amber'}`}/>
-            {loading ? 'PROCESSING' : 'READY'}
+        {/* ── Status Bar ── */}
+        <div className="h-7 bg-white border-t border-slate-100 flex items-center px-4 gap-5 shrink-0">
+          <div className={`flex items-center gap-1.5 font-mono text-[9px] tracking-wider uppercase ${loading ? "text-sky-500" : "text-slate-400"}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${loading ? "bg-sky-400 animate-pulse" : "bg-amber-300"}`}/>
+            {loading ? "Processing" : "Ready"}
           </div>
-          <div className="status-item">MODE: {mode.toUpperCase()}</div>
-          {autoDetectMode && <div className="status-item warn">AUTO-DETECT · 3s</div>}
-          <div className="status-spacer"/>
-          <div className="status-item">CONF: {(thresholds.confidence*100).toFixed(0)}%</div>
-          <div className="status-item">OVR: {(thresholds.overlap*100).toFixed(0)}%</div>
-          <div className="status-item">OPA: {(thresholds.opacity*100).toFixed(0)}%</div>
+          <span className="font-mono text-[9px] tracking-wider text-slate-300 uppercase">Mode: {mode}</span>
+          {autoDetectMode && <span className="font-mono text-[9px] tracking-wider text-amber-400 uppercase">Auto-Detect · 3s</span>}
+          <div className="flex-1"/>
+          <span className="font-mono text-[9px] text-slate-300">CONF: {(thresholds.confidence * 100).toFixed(0)}%</span>
+          <span className="font-mono text-[9px] text-slate-300">OVR: {(thresholds.overlap * 100).toFixed(0)}%</span>
+          <span className="font-mono text-[9px] text-slate-300">OPA: {(thresholds.opacity * 100).toFixed(0)}%</span>
         </div>
 
-        {/* Capture History Float */}
+        {/* ── Capture History Float ── */}
         {captureHistory.length > 0 && (
-          <div className="history-float">
-            <div className="history-header">
-              <span style={{fontFamily:'Space Mono', fontSize:9, color:'#90a8be', letterSpacing:'0.15em', textTransform:'uppercase'}}>Captures ({captureHistory.length})</span>
+          <div className="fixed right-72 top-32 w-52 bg-white border border-slate-200 rounded-xl overflow-hidden z-50 shadow-lg">
+            <div className="h-8 border-b border-slate-100 flex items-center px-3">
+              <span className="font-mono text-[9px] tracking-widest text-slate-400 uppercase">Captures ({captureHistory.length})</span>
             </div>
-            <div className="history-list">
+            <div className="max-h-72 overflow-y-auto p-2">
               {captureHistory.slice(0, 5).map(c => (
-                <div className="history-item" key={c.id}>
-                  <div className="history-time">{c.timestamp}</div>
-                  <div className="history-count">{c.detections?.length || 0} detections</div>
-                  <div className="history-actions">
-                    <button className="hist-btn" onClick={() => handleExport(c)}>EXPORT</button>
-                    <button className="hist-btn del" onClick={() => setCaptureHistory(p => p.filter(x => x.id !== c.id))}>DEL</button>
+                <div key={c.id} className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 mb-2">
+                  <p className="font-mono text-[9px] text-slate-400">{c.timestamp}</p>
+                  <p className="text-xs font-semibold text-slate-700 mt-0.5 mb-2">{c.detections?.length || 0} detections</p>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => handleExport(c)} className="flex-1 h-6 text-[9px] font-mono border border-slate-200 rounded bg-white text-slate-500 hover:text-sky-500 hover:border-sky-200 transition-all">EXPORT</button>
+                    <button onClick={() => setCaptureHistory(p => p.filter(x => x.id !== c.id))} className="flex-1 h-6 text-[9px] font-mono border border-slate-200 rounded bg-white text-slate-500 hover:text-red-400 hover:border-red-200 transition-all">DEL</button>
                   </div>
                 </div>
               ))}
@@ -1053,71 +522,71 @@ export default function FishDetectionApp() {
           </div>
         )}
 
-        {/* Settings Modal */}
+        {/* ── Settings Modal ── */}
         {showSettings && (
-          <div className="modal-backdrop" onClick={() => setShowSettings(false)}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
-              <div className="modal-header">
-                <span className="modal-title">System Settings</span>
-                <button className="modal-close" onClick={() => setShowSettings(false)}>×</button>
+          <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowSettings(false)}>
+            <div className="w-96 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xl flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+              <div className="h-12 border-b border-slate-100 flex items-center justify-between px-5 shrink-0">
+                <span className="font-mono text-[11px] tracking-widest text-slate-700 uppercase font-semibold">System Settings</span>
+                <button onClick={() => setShowSettings(false)} className="w-6 h-6 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors text-sm flex items-center justify-center">×</button>
               </div>
-              <div className="modal-body">
-                <div style={{marginBottom:20}}>
-                  <div style={{fontFamily:'Space Mono', fontSize:9, letterSpacing:'0.18em', color:'#0077cc', textTransform:'uppercase', marginBottom:14}}>Detection Thresholds</div>
-                  <div className="slider-group">
-                    {[{key:'confidence',label:'Confidence'},{key:'overlap',label:'Overlap'},{key:'opacity',label:'Opacity'}].map(({key,label}) => (
-                      <div className="slider-row" key={key}>
-                        <div className="slider-header">
-                          <span className="slider-name">{label}</span>
-                          <span className="slider-val">{(thresholds[key]*100).toFixed(0)}%</span>
-                        </div>
-                        <input type="range" min="0" max="100" step="1" value={thresholds[key]*100}
-                          onChange={e => setThresholds(p => ({...p, [key]: +e.target.value/100}))}/>
+              <div className="flex-1 overflow-y-auto p-5">
+                <p className="font-mono text-[9px] tracking-widest text-sky-500 uppercase mb-4">Detection Thresholds</p>
+                <div className="flex flex-col gap-5 mb-6">
+                  {[{ key: "confidence", label: "Confidence" }, { key: "overlap", label: "Overlap" }, { key: "opacity", label: "Opacity" }].map(({ key, label }) => (
+                    <div key={key}>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-xs font-medium text-slate-600">{label}</span>
+                        <span className="font-mono text-[10px] text-sky-500">{(thresholds[key] * 100).toFixed(0)}%</span>
                       </div>
-                    ))}
-                  </div>
+                      <input type="range" min="0" max="100" step="1" value={thresholds[key] * 100}
+                        onChange={e => setThresholds(p => ({ ...p, [key]: +e.target.value / 100 }))}
+                        className="w-full h-1.5 rounded-full cursor-pointer accent-sky-500"/>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <div style={{fontFamily:'Space Mono', fontSize:9, letterSpacing:'0.18em', color:'#0077cc', textTransform:'uppercase', marginBottom:10}}>Capture History</div>
-                  <div style={{fontSize:12, color:'#3d5a73', marginBottom:8}}>Total stored: {captureHistory.length} / 10</div>
-                  <button style={{height:26, padding:'0 12px', background:'rgba(255,69,96,0.1)', border:'1px solid rgba(255,69,96,0.3)', borderRadius:4, color:'#ff4560', fontSize:11, cursor:'pointer', fontFamily:'DM Sans'}}
-                    onClick={() => setCaptureHistory([])}>Clear All Captures</button>
-                </div>
+                <p className="font-mono text-[9px] tracking-widest text-sky-500 uppercase mb-3">Capture History</p>
+                <p className="text-xs text-slate-500 mb-3">Stored: {captureHistory.length} / 10</p>
+                <button onClick={() => setCaptureHistory([])} className="h-8 px-4 rounded-lg bg-red-50 border border-red-200 text-red-500 text-xs font-semibold hover:bg-red-100 transition-colors">
+                  Clear All Captures
+                </button>
               </div>
-              <div className="modal-footer">
-                <button className="modal-btn" onClick={() => setThresholds({confidence:0.6,overlap:0.5,opacity:0.8})}>Reset</button>
-                <button className="modal-btn" onClick={() => setShowSettings(false)}>Cancel</button>
-                <button className="modal-btn primary" onClick={() => { localStorage.setItem('fishDetSettings', JSON.stringify(thresholds)); setShowSettings(false); }}>Save</button>
+              <div className="h-14 border-t border-slate-100 flex items-center justify-end gap-2 px-5 shrink-0">
+                <button onClick={() => setThresholds({ confidence: 0.6, overlap: 0.5, opacity: 0.8 })} className="h-8 px-4 rounded-lg border border-slate-200 text-xs font-medium text-slate-500 hover:bg-slate-100 transition-colors">Reset</button>
+                <button onClick={() => setShowSettings(false)} className="h-8 px-4 rounded-lg border border-slate-200 text-xs font-medium text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
+                <button onClick={() => { localStorage.setItem("fishDetSettings", JSON.stringify(thresholds)); setShowSettings(false); }} className="h-8 px-4 rounded-lg bg-sky-500 text-white text-xs font-semibold hover:bg-sky-600 transition-colors shadow-sm">Save</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Help Modal */}
+        {/* ── Help Modal ── */}
         {showHelp && (
-          <div className="modal-backdrop" onClick={() => setShowHelp(false)}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
-              <div className="modal-header">
-                <span className="modal-title">Help & Reference</span>
-                <button className="modal-close" onClick={() => setShowHelp(false)}>×</button>
+          <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowHelp(false)}>
+            <div className="w-96 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xl flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+              <div className="h-12 border-b border-slate-100 flex items-center justify-between px-5 shrink-0">
+                <span className="font-mono text-[11px] tracking-widest text-slate-700 uppercase font-semibold">Help & Reference</span>
+                <button onClick={() => setShowHelp(false)} className="w-6 h-6 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors text-sm flex items-center justify-center">×</button>
               </div>
-              <div className="modal-body">
+              <div className="flex-1 overflow-y-auto p-5">
                 {[
-                  { title: 'Getting Started', items: ['Upload an image via the sidebar or enable Webcam mode','Adjust confidence threshold to control detection sensitivity','Click Run Detect or press the toolbar button','Review annotations in the preview and results panel'] },
-                  { title: 'Threshold Guide', items: ['<strong>Confidence</strong> — minimum detection score (higher = fewer, more certain detections)','<strong>Overlap</strong> — NMS suppression threshold (lower = fewer duplicate boxes)','<strong>Opacity</strong> — bounding box annotation transparency'] },
-                  { title: 'Presets', items: ['<strong>Default</strong> — balanced for general use','<strong>Precise</strong> — high accuracy, fewer false positives','<strong>Sensitive</strong> — detects more, may include noise','<strong>Strict</strong> — only very high confidence detections'] },
-                  { title: 'Tips', items: ['Well-lit images produce significantly better results','Use Capture to save annotated frames for documentation','Settings are saved automatically to browser storage','Auto-Detect runs every 3s in webcam mode'] },
+                  { title: "Getting Started", items: ["Upload an image via the sidebar or enable Webcam mode", "Adjust confidence threshold to control detection sensitivity", "Click Run Detect to analyze the image", "Review annotations in the preview and results panel"] },
+                  { title: "Threshold Guide", items: ["Confidence — minimum detection score (higher = fewer, more certain)", "Overlap — NMS suppression threshold (lower = fewer duplicate boxes)", "Opacity — bounding box annotation transparency"] },
+                  { title: "Presets", items: ["Default — balanced for general use", "Precise — high accuracy, fewer false positives", "Sensitive — detects more, may include noise", "Strict — only very high confidence detections"] },
+                  { title: "Tips", items: ["Well-lit images produce significantly better results", "Use Capture to save annotated frames for documentation", "Settings are saved to browser storage automatically", "Auto-Detect runs every 3s in webcam mode"] },
                 ].map(({ title, items }) => (
-                  <div className="help-section" key={title}>
-                    <div className="help-section-title">{title}</div>
-                    <ul className="help-list">
-                      {items.map((item, i) => <li key={i} dangerouslySetInnerHTML={{__html: item}}/>)}
+                  <div key={title} className="mb-5">
+                    <p className="font-mono text-[9px] tracking-widest text-sky-500 uppercase mb-2.5">{title}</p>
+                    <ul className="flex flex-col gap-1.5">
+                      {items.map((item, i) => (
+                        <li key={i} className="text-xs text-slate-500 pl-3 relative before:absolute before:left-0 before:content-['›'] before:text-slate-300">{item}</li>
+                      ))}
                     </ul>
                   </div>
                 ))}
               </div>
-              <div className="modal-footer">
-                <button className="modal-btn primary" onClick={() => setShowHelp(false)}>Got it</button>
+              <div className="h-14 border-t border-slate-100 flex items-center justify-end px-5 shrink-0">
+                <button onClick={() => setShowHelp(false)} className="h-8 px-5 rounded-lg bg-sky-500 text-white text-xs font-semibold hover:bg-sky-600 transition-colors shadow-sm">Got it</button>
               </div>
             </div>
           </div>
