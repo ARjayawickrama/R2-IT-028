@@ -2,6 +2,47 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+// Custom CSS for animations
+const customStyles = `
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px) translateX(0px);
+      opacity: 0.3;
+    }
+    25% {
+      transform: translateY(-20px) translateX(10px);
+      opacity: 0.6;
+    }
+    50% {
+      transform: translateY(-10px) translateX(-10px);
+      opacity: 0.4;
+    }
+    75% {
+      transform: translateY(-30px) translateX(5px);
+      opacity: 0.7;
+    }
+  }
+  
+  @keyframes swim {
+    0%, 100% {
+      transform: translateX(0px) translateY(0px) rotate(0deg);
+    }
+    25% {
+      transform: translateX(30px) translateY(-15px) rotate(5deg);
+    }
+    50% {
+      transform: translateX(-20px) translateY(-25px) rotate(-3deg);
+    }
+    75% {
+      transform: translateX(40px) translateY(-10px) rotate(7deg);
+    }
+  }
+  
+  .animate-swim {
+    animation: swim 15s ease-in-out infinite;
+  }
+`;
+
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
@@ -50,6 +91,7 @@ const Login = () => {
 
   return (
     <>
+      <style>{customStyles}</style>
       {/* Desktop Application Header */}
       <div className="bg-gradient-to-r from-blue-800 to-blue-900 text-white">
         <div className="flex items-center justify-between px-4 py-2">
@@ -84,14 +126,7 @@ const Login = () => {
       {/* Desktop Menu Bar */}
       <div className="bg-gray-800 text-white border-b border-gray-700">
         <div className="flex items-center px-2 py-1">
-          <div className="flex items-center gap-1">
-            <button className="px-3 py-1 hover:bg-gray-700 rounded text-sm">File</button>
-            <button className="px-3 py-1 hover:bg-gray-700 rounded text-sm">Edit</button>
-            <button className="px-3 py-1 hover:bg-gray-700 rounded text-sm">View</button>
-            <button className="px-3 py-1 hover:bg-gray-700 rounded text-sm">Tools</button>
-            <button className="px-3 py-1 hover:bg-gray-700 rounded text-sm">Reports</button>
-            <button className="px-3 py-1 hover:bg-gray-700 rounded text-sm">Help</button>
-          </div>
+          
           <div className="ml-auto flex items-center gap-2">
             <button className="px-2 py-1 hover:bg-gray-700 rounded text-xs">⚙️ Settings</button>
             <button className="px-2 py-1 hover:bg-gray-700 rounded text-xs">🔔 Notifications</button>
@@ -101,9 +136,56 @@ const Login = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex bg-gray-100 min-h-screen">
+      <div className="flex-1 flex bg-gray-100 min-h-screen relative overflow-hidden">
+        {/* Animated Background */}
+        <div className="absolute inset-0">
+          {/* Floating Bubbles */}
+          <div className="absolute top-20 left-10 w-32 h-32 bg-blue-200 rounded-full opacity-20 animate-pulse"></div>
+          <div className="absolute top-40 right-20 w-24 h-24 bg-cyan-200 rounded-full opacity-15 animate-bounce"></div>
+          <div className="absolute bottom-20 left-1/4 w-40 h-40 bg-teal-200 rounded-full opacity-10 animate-pulse"></div>
+          <div className="absolute top-1/3 right-1/3 w-28 h-28 bg-blue-300 rounded-full opacity-20 animate-bounce"></div>
+          
+          {/* Floating Fish Icons */}
+          <div className="absolute top-10 left-1/2 text-6xl text-blue-300 opacity-30 animate-swim">🐟</div>
+          <div className="absolute top-1/4 right-10 text-4xl text-cyan-300 opacity-25 animate-swim" style={{ animationDelay: '2s' }}>🐠</div>
+          <div className="absolute bottom-1/3 left-20 text-5xl text-teal-300 opacity-20 animate-swim" style={{ animationDelay: '4s' }}>🐡</div>
+          <div className="absolute top-1/2 left-10 text-3xl text-blue-200 opacity-30 animate-swim" style={{ animationDelay: '6s' }}>🦈</div>
+          
+          {/* Wave Animation */}
+          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-blue-100 to-transparent opacity-50">
+            <svg className="absolute bottom-0 w-full h-16" viewBox="0 0 1200 120" preserveAspectRatio="none">
+              <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" 
+                    fill="rgba(59, 130, 246, 0.1)" 
+                    className="animate-pulse">
+                <animate attributeName="d" 
+                  values="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z;
+                          M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z;
+                          M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
+                  dur="8s" 
+                  repeatCount="indefinite"/>
+              </path>
+            </svg>
+          </div>
+          
+          {/* Particle Effects */}
+          <div className="absolute top-0 left-0 w-full h-full">
+            {[...Array(20)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-1 h-1 bg-blue-400 rounded-full opacity-30"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  animation: `float ${5 + Math.random() * 10}s ease-in-out infinite`,
+                  animationDelay: `${Math.random() * 5}s`
+                }}
+              ></div>
+            ))}
+          </div>
+        </div>
+
         {/* Login Form Container */}
-        <div className="flex-1 flex items-center justify-center p-8">
+        <div className="flex-1 flex items-center justify-center p-8 relative z-10">
           <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-gray-200">
             {/* Login Header */}
             <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-6 rounded-t-xl">
@@ -204,6 +286,77 @@ const Login = () => {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="bg-gray-800 text-white border-t border-gray-700">
+        <div className="px-4 py-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {/* Company Info */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
+                  <span className="text-blue-800 font-bold text-sm">MF</span>
+                </div>
+                <h3 className="font-semibold">Maldive Fish</h3>
+              </div>
+              <p className="text-gray-300 text-sm">Leading fish processing automation system for the Maldives fishing industry.</p>
+            </div>
+
+            {/* Quick Links */}
+            <div>
+              <h4 className="font-semibold mb-3">Quick Links</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Dashboard</a></li>
+                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Processing</a></li>
+                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Quality Control</a></li>
+                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Reports</a></li>
+              </ul>
+            </div>
+
+            {/* Support */}
+            <div>
+              <h4 className="font-semibold mb-3">Support</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Documentation</a></li>
+                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">API Reference</a></li>
+                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Contact Support</a></li>
+                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">System Status</a></li>
+              </ul>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h4 className="font-semibold mb-3">Contact</h4>
+              <div className="space-y-2 text-sm text-gray-300">
+                <div className="flex items-center gap-2">
+                  <span>📧</span>
+                  <span>support@maldivefish.com</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span>📞</span>
+                  <span>+960 123-4567</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span>📍</span>
+                  <span>Malé, Maldives</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Bar */}
+          <div className="border-t border-gray-700 mt-6 pt-4">
+            <div className="flex flex-col md:flex-row justify-between items-center text-sm text-gray-400">
+              <div>© 2024 Maldive Fish Processing System. All rights reserved.</div>
+              <div className="flex gap-4 mt-2 md:mt-0">
+                <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
+                <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
+                <a href="#" className="hover:text-white transition-colors">Cookie Policy</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
     </>
   );
 };

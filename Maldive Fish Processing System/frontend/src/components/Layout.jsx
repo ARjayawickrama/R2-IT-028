@@ -281,156 +281,35 @@ const Layout = ({ children }) => {
                   <span className="ml-2 text-xl font-bold text-gray-900">FishGo</span>
                 </div>
 
-                {/* Desktop Navigation */}
-                <nav className="hidden md:ml-10 md:flex space-x-8">
-                  {/* Dashboard Dropdown */}
-                  <div className="relative dropdown-menu">
-                    <button
-                      onClick={() => toggleDropdown('dashboard')}
-                      className="dropdown-trigger flex items-center text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium"
-                    >
-                      Dashboard
-                      <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {activeDropdown === 'dashboard' && (
-                      <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
-                        <div className="py-1">
-                          <button
-                            onClick={() => handleNavigation('/dashboard')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Overview
-                          </button>
-                          <button
-                            onClick={() => handleNavigation('/dashboard')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Analytics
-                          </button>
-                          <button
-                            onClick={() => handleNavigation('/dashboard')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Reports
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Production Dropdown */}
-                  <div className="relative dropdown-menu">
-                    <button
-                      onClick={() => toggleDropdown('production')}
-                      className="dropdown-trigger flex items-center text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium"
-                    >
-                      Production
-                      <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {activeDropdown === 'production' && (
-                      <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
-                        <div className="py-1">
-                          <button
-                            onClick={() => handleNavigation('/dashboard')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Chambers
-                          </button>
-                          <button
-                            onClick={() => handleNavigation('/dashboard')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Quality Control
-                          </button>
-                          <button
-                            onClick={() => handleNavigation('/dashboard')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Processing
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Tools Dropdown */}
-                  <div className="relative dropdown-menu">
-                    <button
-                      onClick={() => toggleDropdown('tools')}
-                      className="dropdown-trigger flex items-center text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium"
-                    >
-                      Tools
-                      <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {activeDropdown === 'tools' && (
-                      <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
-                        <div className="py-1">
-                          <button
-                            onClick={() => handleNavigation('/boile-control')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            ⚡ Mechanical Salt
-                          </button>
-                          <button
-                            onClick={() => handleNavigation('/dashboard')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Quality Analysis
-                          </button>
-                          <button
-                            onClick={() => handleNavigation('/dashboard')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Energy Monitor
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* System Dropdown */}
-                  <div className="relative dropdown-menu">
-                    <button
-                      onClick={() => toggleDropdown('system')}
-                      className="dropdown-trigger flex items-center text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium"
-                    >
-                      System
-                      <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {activeDropdown === 'system' && (
-                      <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
-                        <div className="py-1">
-                          <button
-                            onClick={() => handleNavigation('/system-settings')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Settings
-                          </button>
-                          <button
-                            onClick={() => handleNavigation('/dashboard')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Users
-                          </button>
-                          <button
-                            onClick={() => handleNavigation('/dashboard')}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Logs
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </nav>
+  <div className="ml-8 relative pl-6 border-l-4 border-indigo-400 rounded-l-2xl group">
+  {/* Optional: subtle gradient overlay on left edge */}
+  
+  
+  <div className="flex flex-col gap-1">
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-extrabold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+        {user?.name?.split(' ')[0] || 'there'}
+      </span>
+    </div>
+    
+    <div className="flex items-center gap-2 text-sm">
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-medium">
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+        </span>
+        Operational
+      </span>
+      <span className="text-gray-400 text-xs">·</span>
+      <span className="text-xs text-gray-500 flex items-center gap-1">
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Updated just now
+      </span>
+    </div>
+  </div>
+</div>
               </div>
 
               {/* Right side - Notifications and Profile */}
@@ -445,39 +324,91 @@ const Layout = ({ children }) => {
                 <div className="relative dropdown-menu">
                   <button
                     onClick={() => toggleDropdown('profile')}
-                    className="dropdown-trigger flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="dropdown-trigger flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 hover:ring-2 hover:ring-blue-300 transition-all"
                   >
-                    <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
-                      <span className="text-sm font-medium text-gray-700">
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm">
+                      <span className="text-sm font-medium text-white">
                         {user?.name?.charAt(0).toUpperCase() || 'U'}
                       </span>
                     </div>
                   </button>
                   {activeDropdown === 'profile' && (
-                    <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                    <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 border border-gray-100">
                       <div className="py-1">
-                        <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
-                          <div className="font-medium">{user?.name || 'User'}</div>
-                          <div className="text-gray-500">{user?.email || 'user@example.com'}</div>
+                        {/* User Info Header */}
+                        <div className="px-4 py-3 text-sm text-gray-700 border-b border-gray-100 bg-gray-50">
+                          <div className="font-semibold text-gray-900 flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                              <span className="text-xs font-medium text-white">
+                                {user?.name?.charAt(0).toUpperCase() || 'U'}
+                              </span>
+                            </div>
+                            {user?.name || 'User'}
+                          </div>
+                          <div className="text-gray-500 text-xs mt-1">{user?.email || 'user@example.com'}</div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              ● Active
+                            </span>
+                            <span className="text-xs text-gray-400">Professional</span>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => handleNavigation('/dashboard')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          Profile
-                        </button>
-                        <button
-                          onClick={() => handleNavigation('/dashboard')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          Settings
-                        </button>
-                        <button
-                          onClick={handleLogout}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          Sign out
-                        </button>
+                        
+                        {/* Menu Items */}
+                        <div className="py-1">
+                          <button
+                            onClick={() => { handleNavigation('/dashboard'); setActiveDropdown(null); }}
+                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                          >
+                            <span className="mr-3">👤</span>
+                            My Profile
+                          </button>
+                          <button
+                            onClick={() => { 
+                              navigate('/dashboard'); 
+                              setTimeout(() => {
+                                const profileTab = document.querySelector('[data-tab="profile"]');
+                                if (profileTab) {
+                                  profileTab.click();
+                                }
+                              }, 100);
+                              setActiveDropdown(null); 
+                            }}
+                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                          >
+                            <span className="mr-3">⚙️</span>
+                            Account Settings
+                          </button>
+                          <button
+                            onClick={() => { handleNavigation('/dashboard'); setActiveDropdown(null); }}
+                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                          >
+                            <span className="mr-3">🔔</span>
+                            Notifications
+                          </button>
+                          <button
+                            onClick={() => { handleNavigation('/dashboard'); setActiveDropdown(null); }}
+                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                          >
+                            <span className="mr-3">🔐</span>
+                            Security
+                          </button>
+                          <div className="border-t border-gray-100 my-1"></div>
+                          <button
+                            onClick={() => { handleNavigation('/dashboard'); setActiveDropdown(null); }}
+                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                          >
+                            <span className="mr-3">❓</span>
+                            Help & Support
+                          </button>
+                          <button
+                            onClick={handleLogout}
+                            className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <span className="mr-3">🚪</span>
+                            Sign Out
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
