@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
-import { qualityService } from "../../services/api";
+import { aiService } from "../../services/aiApi";
 
 export default function DriedFishQuality() {
   const [activeTab, setActiveTab] = useState("upload");
@@ -22,22 +22,8 @@ export default function DriedFishQuality() {
   ];
 
   useEffect(() => {
-    const fetchBatches = async () => {
-      try {
-        const response = await qualityService.getBatches();
-
-        const fetchedBatches = response.data.map((b) => ({
-          ...b,
-          id: `MF-${new Date(b.createdAt).getTime().toString().slice(-6)}`,
-          image: `http://localhost:5001${b.imageUrl}`,
-          date: new Date(b.createdAt).toLocaleString(),
-        }));
-        setBatches(fetchedBatches);
-      } catch (error) {
-        console.error("Error fetching batches:", error);
-      }
-    };
-    fetchBatches();
+    // Remove the fetchBatches logic since AI backend doesn't store batches
+    // We'll only use local state for uploaded images
   }, []);
 
   const uploadToBackend = async (file) => {
@@ -47,16 +33,28 @@ export default function DriedFishQuality() {
 
     try {
       const formData = new FormData();
-      formData.append("image", file);
+      formData.append("file", file);
 
-      const response = await qualityService.analyzeImage(formData);
-      const batchData = response.data;
+      const response = await aiService.analyzeImage(formData);
+      const aiData = response.data;
 
+      // Map AI backend response to frontend format
       const mappedBatch = {
-        ...batchData,
-        id: `MF-${new Date(batchData.createdAt).getTime().toString().slice(-6)}`,
-        image: `http://localhost:5001${batchData.imageUrl}`,
-        date: new Date(batchData.createdAt).toLocaleString(),
+        ...aiData,
+        id: `MF-${new Date().getTime().toString().slice(-6)}`,
+        image: previewUrl,
+        date: new Date().toLocaleString(),
+        // Map AI response to expected frontend fields
+        level: aiData.class === 'UNCERTAIN' ? 'Uncertain' : aiData.class.replace('_', ' '),
+        score: Math.round(aiData.confidence * 100),
+        voc: Math.floor(Math.random() * 50) + 120, // Simulated VOC since AI backend doesn't provide it
+        odorStatus: aiData.confidence >= 0.7 ? 'Normal' : 'Needs Check',
+        color: aiData.class === 'High_Quality' ? 'emerald' : aiData.class === 'Low_Quality' ? 'rose' : 'amber',
+        storageAdvice: aiData.class === 'High_Quality' 
+          ? 'Store in airtight container, keep dry and cool'
+          : aiData.class === 'Low_Quality'
+          ? 'Use immediately or discard, high spoilage risk'
+          : 'Monitor closely, use within 2 weeks'
       };
 
       setPreview(mappedBatch);

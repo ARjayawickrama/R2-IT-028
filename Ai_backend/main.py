@@ -1,17 +1,13 @@
 import io
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 import torchvision.models as models
 from PIL import Image
-
-app = FastAPI(
-    title="Dried Fish Quality Classification API",
-    description="API for classifying the quality of dried fish using an EfficientNet model.",
-    version="1.0.0"
-)
 
 # Global Configuration
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,8 +29,9 @@ preprocess = transforms.Compose([
 # Initialize Model
 model = None
 
-@app.on_event("startup")
-def load_model():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     global model
     try:
         base = models.efficientnet_b0(weights=None)
@@ -51,6 +48,27 @@ def load_model():
         print(f"✅ Model loaded successfully on {DEVICE}")
     except Exception as e:
         print(f"❌ Error loading model: {str(e)}")
+    
+    yield
+    
+    # Shutdown (cleanup if needed)
+    print("🔄 Application shutting down...")
+
+app = FastAPI(
+    title="Dried Fish Quality Classification API",
+    description="API for classifying the quality of dried fish using an EfficientNet model.",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"],  # React frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/health")
 def health_check():
@@ -101,3 +119,7 @@ async def predict_fish_quality(file: UploadFile = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
