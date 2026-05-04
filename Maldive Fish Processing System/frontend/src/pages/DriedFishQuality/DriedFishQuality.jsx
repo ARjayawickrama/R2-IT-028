@@ -13,7 +13,7 @@ export default function DriedFishQuality() {
   const cameraFileRef = useRef(null);
 
   const tabs = [
-    ["upload", "Upload Fish Image"],
+    ["upload", "Upload Maldive Fish Image"],
     ["camera", "Live Quality Scan"],
     ["batches", "Uploaded Batches"],
     ["analytics", "Quality Analytics"],
