@@ -1,22 +1,32 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 
-// ─── Data ────────────────────────────────────────────────────────────────────
+/* ─── Google Fonts ─────────────────────────────────────────────────────────── */
+const FontLink = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+  `}</style>
+);
+
+/* ─── Data (unchanged) ────────────────────────────────────────────────────── */
 const PAGES = [
   {
     id: 1,
     title: "AI Fish Detection System",
+    tag: "VISION MODULE",
     subtitle:
       "The FishGo smart processing unit uses computer vision and automated controls to identify, count, and sterilise fish with zero manual intervention.",
-      image: "/anju.jpg",
+    image: "/conveyorbelt.png",
     fallback:
       "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=900&h=420&fit=crop",
+    accent: "#00E5FF",
+    accentDark: "#006070",
     features: [
       {
         icon: "camera",
         label: "Camera",
         title: "AI fish detection",
         desc: "Identify and count fish automatically",
-        color: "#3B9EFF",
+        color: "#00E5FF",
       },
       {
         icon: "water",
@@ -27,60 +37,66 @@ const PAGES = [
       },
       {
         icon: "snowflake",
-        label: "Auto heating",
+        label: "Thermal control",
         title: "Maintain boiling temperature",
         desc: "Precision thermal control 24 / 7",
-        color: "#00C6FF",
+        color: "#A78BFA",
       },
     ],
   },
   {
     id: 2,
     title: "Quality Grading Standards",
+    tag: "GRADING ENGINE",
     subtitle:
       "Every batch is graded in real time by the AI vision module. Four quality tiers — Premium, Good, Processing, and Reject — ensure full traceability from intake to dispatch.",
-    image: "/anju.jpg",
+    image: "/WaterSalinityControl.png",
     fallback:
       "https://images.unsplash.com/photo-1543168268-1e3b5ed6d4b8?w=900&h=420&fit=crop",
+    accent: "#FFD166",
+    accentDark: "#6a5200",
     features: [
       {
         icon: "star",
         label: "Premium grade",
         title: "Top 20 % of catch",
         desc: "Bright eyes, firm flesh, fresh scent",
-        color: "#FFD700",
+        color: "#FFD166",
       },
       {
         icon: "check",
         label: "Good grade",
         title: "Standard market quality",
         desc: "Minor scale loss, pink gills acceptable",
-        color: "#4CAF50",
+        color: "#06D6A0",
       },
       {
         icon: "alert",
         label: "Processing grade",
         title: "For secondary products",
         desc: "Soft texture, slight odour present",
-        color: "#FF9800",
+        color: "#FF9A3C",
       },
     ],
   },
   {
     id: 3,
     title: "Processing Workflow",
+    tag: "PIPELINE",
     subtitle:
       "Five sequential steps take fish from intake weighing through cleaning, temperature logging, and packaging into certified cold storage — all logged automatically.",
-    image: "/anju.jpg",
+    image: "/dryingoven.png",
     fallback:
       "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=900&h=420&fit=crop",
+    accent: "#06D6A0",
+    accentDark: "#024d38",
     features: [
       {
         icon: "scale",
         label: "Receipt & weigh",
         title: "Step 1 — 5 to 10 min",
         desc: "Calibrated scales, supplier logged",
-        color: "#3B9EFF",
+        color: "#06D6A0",
       },
       {
         icon: "thermometer",
@@ -94,99 +110,95 @@ const PAGES = [
         label: "Packaging",
         title: "Step 5 — 10 to 15 min",
         desc: "Batch ID, grade, date, operator ID",
-        color: "#00C6FF",
+        color: "#A78BFA",
       },
     ],
   },
   {
     id: 4,
     title: "Maintenance Schedule",
+    tag: "UPTIME",
     subtitle:
       "Daily, weekly, and monthly routines keep the FishGo unit running at peak hygiene and mechanical performance. All tasks are logged to the maintenance register.",
-      image: "/anju.jpg",
+    image: "/anju.jpg",
     fallback:
       "https://images.unsplash.com/photo-1586733432416-e936eff5dc85?w=900&h=420&fit=crop",
+    accent: "#E879F9",
+    accentDark: "#5a0066",
     features: [
       {
         icon: "calendar-day",
         label: "Daily",
         title: "6 hygiene checks",
         desc: "Sanitise surfaces, flush drains, calibrate scales",
-        color: "#4CAF50",
+        color: "#06D6A0",
       },
       {
         icon: "calendar-week",
         label: "Weekly",
         title: "5 equipment tasks",
         desc: "Deep-clean cold room, inspect bearings",
-        color: "#FF9800",
+        color: "#FF9A3C",
       },
       {
         icon: "calendar-month",
         label: "Monthly",
         title: "3 audits",
         desc: "Full safety audit, replace worn seals",
-        color: "#E040FB",
+        color: "#E879F9",
       },
     ],
   },
 ];
 
-// ─── Icon components ──────────────────────────────────────────────────────────
+/* ─── Icons (unchanged) ───────────────────────────────────────────────────── */
 const Icon = ({ name, size = 20, color = "currentColor" }) => {
-  const s = { width: size, height: size, fill: "none", stroke: color, strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", flexShrink: 0 };
+  const s = {
+    width: size, height: size, fill: "none", stroke: color,
+    strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", flexShrink: 0,
+  };
   switch (name) {
-    case "camera":
-      return <svg viewBox="0 0 24 24" style={s}><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>;
-    case "water":
-      return <svg viewBox="0 0 24 24" style={s}><path d="M12 2C6 9 4 13.5 4 16a8 8 0 0016 0c0-2.5-2-7-8-14z"/></svg>;
-    case "snowflake":
-      return <svg viewBox="0 0 24 24" style={s}><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4"/></svg>;
-    case "star":
-      return <svg viewBox="0 0 24 24" style={s}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
-    case "check":
-      return <svg viewBox="0 0 24 24" style={s}><polyline points="20 6 9 17 4 12"/></svg>;
-    case "alert":
-      return <svg viewBox="0 0 24 24" style={s}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
-    case "scale":
-      return <svg viewBox="0 0 24 24" style={s}><path d="M12 3v18M3 9l9-6 9 6M3 15l9 6 9-6"/></svg>;
-    case "thermometer":
-      return <svg viewBox="0 0 24 24" style={s}><path d="M14 14.76V3.5a2.5 2.5 0 00-5 0v11.26a4.5 4.5 0 105 0z"/></svg>;
-    case "box":
-      return <svg viewBox="0 0 24 24" style={s}><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
-    case "calendar-day":
-      return <svg viewBox="0 0 24 24" style={s}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="16" r="1.5" fill={color} stroke="none"/></svg>;
-    case "calendar-week":
-      return <svg viewBox="0 0 24 24" style={s}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>;
-    case "calendar-month":
-      return <svg viewBox="0 0 24 24" style={s}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="8" y="13" width="8" height="5" rx="1" strokeWidth={1.4}/></svg>;
-    case "chevron-left":
-      return <svg viewBox="0 0 24 24" style={s}><polyline points="15 18 9 12 15 6"/></svg>;
-    case "chevron-right":
-      return <svg viewBox="0 0 24 24" style={s}><polyline points="9 18 15 12 9 6"/></svg>;
-    case "x":
-      return <svg viewBox="0 0 24 24" style={s}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-    default:
-      return null;
+    case "camera": return <svg viewBox="0 0 24 24" style={s}><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>;
+    case "water": return <svg viewBox="0 0 24 24" style={s}><path d="M12 2C6 9 4 13.5 4 16a8 8 0 0016 0c0-2.5-2-7-8-14z"/></svg>;
+    case "snowflake": return <svg viewBox="0 0 24 24" style={s}><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4"/></svg>;
+    case "star": return <svg viewBox="0 0 24 24" style={s}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
+    case "check": return <svg viewBox="0 0 24 24" style={s}><polyline points="20 6 9 17 4 12"/></svg>;
+    case "alert": return <svg viewBox="0 0 24 24" style={s}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+    case "scale": return <svg viewBox="0 0 24 24" style={s}><path d="M12 3v18M3 9l9-6 9 6M3 15l9 6 9-6"/></svg>;
+    case "thermometer": return <svg viewBox="0 0 24 24" style={s}><path d="M14 14.76V3.5a2.5 2.5 0 00-5 0v11.26a4.5 4.5 0 105 0z"/></svg>;
+    case "box": return <svg viewBox="0 0 24 24" style={s}><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
+    case "calendar-day": return <svg viewBox="0 0 24 24" style={s}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="16" r="1.5" fill={color} stroke="none"/></svg>;
+    case "calendar-week": return <svg viewBox="0 0 24 24" style={s}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>;
+    case "calendar-month": return <svg viewBox="0 0 24 24" style={s}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="8" y="13" width="8" height="5" rx="1" strokeWidth={1.4}/></svg>;
+    case "chevron-left": return <svg viewBox="0 0 24 24" style={s}><polyline points="15 18 9 12 15 6"/></svg>;
+    case "chevron-right": return <svg viewBox="0 0 24 24" style={s}><polyline points="9 18 15 12 9 6"/></svg>;
+    case "x": return <svg viewBox="0 0 24 24" style={s}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+    case "fish": return <svg viewBox="0 0 24 24" style={s}><path d="M6 12c0-4 3-7 9-7s9 3 9 7-3 7-9 7-9-3-9-7z"/><path d="M2 9l4 3-4 3"/><circle cx="17" cy="12" r="1.5" fill={color} stroke="none"/></svg>;
+    default: return null;
   }
 };
 
-// ─── Logo ─────────────────────────────────────────────────────────────────────
-const FishGoLogo = () => (
-  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-    <div style={{ width: 36, height: 36, background: "linear-gradient(135deg,#1a73e8,#0d47a1)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 12c0-4 3-7 9-7s9 3 9 7-3 7-9 7-9-3-9-7z"/>
-        <path d="M2 9l4 3-4 3"/>
-        <circle cx="17" cy="12" r="1.5" fill="white" stroke="none"/>
-      </svg>
-    </div>
-    <span style={{ fontFamily: "'Segoe UI',sans-serif", fontWeight: 700, fontSize: 18, color: "#1a73e8", letterSpacing: -0.3 }}>FishGo</span>
-  </div>
-);
+/* ─── Animated number counter (unchanged) ─────────────────────────────────── */
+const Counter = ({ value, suffix = "" }) => {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let start = 0;
+    const end = parseInt(value, 10);
+    if (isNaN(end)) return;
+    const duration = 1200;
+    const step = Math.ceil(end / (duration / 16));
+    const timer = setInterval(() => {
+      start = Math.min(start + step, end);
+      setCount(start);
+      if (start >= end) clearInterval(timer);
+    }, 16);
+    return () => clearInterval(timer);
+  }, [value]);
+  return <span>{count}{suffix}</span>;
+};
 
-// ─── Lightbox ─────────────────────────────────────────────────────────────────
-const Lightbox = ({ src, title, onClose }) => {
+/* ─── Lightbox (light theme) ──────────────────────────────────────────────── */
+const Lightbox = ({ src, title, accent, onClose }) => {
   useEffect(() => {
     const h = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", h);
@@ -194,626 +206,505 @@ const Lightbox = ({ src, title, onClose }) => {
   }, [onClose]);
 
   return (
-    <div
-      onClick={onClose}
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.88)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
-    >
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, overflow: "hidden", maxWidth: 860, width: "100%", boxShadow: "0 24px 64px rgba(0,0,0,.5)" }}>
-        {/* header */}
-        <div style={{ background: "#f7f8fb", borderBottom: "1px solid #e2e4e9", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e" }}>{title}</span>
-          <button onClick={onClose} style={{ border: "none", background: "transparent", cursor: "pointer", padding: 4, borderRadius: 6, display: "flex" }}>
-            <Icon name="x" size={16} color="#666" />
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 2000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+      backdropFilter: "blur(8px)", animation: "lbFadeIn .2s ease"
+    }}>
+      <style>{`@keyframes lbFadeIn{from{opacity:0}to{opacity:1}}`}</style>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: "#ffffff", borderRadius: 16, overflow: "hidden",
+        maxWidth: 900, width: "100%",
+        boxShadow: `0 0 0 1px ${accent}33, 0 30px 60px rgba(0,0,0,.2)`,
+        animation: "lbSlide .25s cubic-bezier(.2,.8,.3,1)"
+      }}>
+        <style>{`@keyframes lbSlide{from{transform:scale(.94) translateY(20px)}to{transform:scale(1) translateY(0)}}`}</style>
+        <div style={{
+          background: `#fafcff`,
+          borderBottom: `1px solid ${accent}22`,
+          padding: "12px 16px",
+          display: "flex", alignItems: "center", justifyContent: "space-between"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: accent, boxShadow: `0 0 6px ${accent}` }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#1a202c", fontFamily: "'Syne', sans-serif" }}>{title}</span>
+          </div>
+          <button onClick={onClose} style={{
+            border: "none", background: "rgba(0,0,0,.05)", cursor: "pointer",
+            padding: "6px 8px", borderRadius: 8, display: "flex", color: "#64748b",
+            transition: "all .15s"
+          }}>
+            <Icon name="x" size={16} color="#64748b" />
           </button>
         </div>
-        {/* image */}
-        <div style={{ background: "#111", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 320, padding: 12 }}>
-          <img src={src} alt={title} style={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: 4 }} />
+        <div style={{ background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", padding: 12, minHeight: 340 }}>
+          <img src={src} alt={title} style={{ maxWidth: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: 8 }} />
         </div>
-        {/* footer */}
-     
       </div>
     </div>
   );
 };
 
-// ─── Shared button styles ─────────────────────────────────────────────────────
-const btnStyle = (bg, color, outline = false) => ({
-  padding: "6px 14px",
-  borderRadius: 6,
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: "pointer",
-  background: outline ? "transparent" : bg,
-  color: outline ? bg : color,
-  border: `1.5px solid ${bg}`,
-  transition: "opacity .15s",
-  fontFamily: "inherit",
-});
+/* ─── Scanline overlay (light, subtle) ────────────────────────────────────── */
+const Scanlines = () => (
+  <div style={{
+    position: "absolute", inset: 0, pointerEvents: "none", zIndex: 3,
+    backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.02) 2px,rgba(0,0,0,.02) 4px)",
+    borderRadius: "inherit"
+  }} />
+);
 
-// ─── Main component ───────────────────────────────────────────────────────────
+/* ─── Noise texture (very subtle on white) ───────────────────────────────── */
+const Noise = () => (
+  <div style={{
+    position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2, opacity: .02,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
+    backgroundSize: "120px 120px"
+  }} />
+);
+
+/* ─── Floating particle fish (light theme – darker accents, lower opacity) ── */
+const ParticleFish = ({ accent }) => {
+  const fish = [
+    { top: "12%", left: "8%", size: 52, delay: 0, dur: 18, dir: 1 },
+    { top: "68%", right: "12%", size: 38, delay: 3, dur: 22, dir: -1 },
+    { top: "38%", left: "3%", size: 28, delay: 6, dur: 16, dir: 1 },
+    { top: "82%", left: "18%", size: 64, delay: 1, dur: 26, dir: 1 },
+    { top: "22%", right: "8%", size: 44, delay: 5, dur: 20, dir: -1 },
+    { top: "55%", right: "5%", size: 32, delay: 2, dur: 14, dir: -1 },
+  ];
+  return (
+    <>
+      {fish.map((f, i) => (
+        <div key={i} style={{
+          position: "absolute",
+          top: f.top, left: f.left, right: f.right,
+          width: f.size, height: f.size * 0.5,
+          opacity: 0.08,
+          animation: `fish${i % 3} ${f.dur}s ease-in-out ${f.delay}s infinite`,
+          transform: f.dir === -1 ? "scaleX(-1)" : "none",
+          pointerEvents: "none"
+        }}>
+          <svg width={f.size} height={f.size * 0.5} viewBox="0 0 80 40">
+            <ellipse cx="28" cy="20" rx="20" ry="11" fill={accent} />
+            <polygon points="48,20 72,6 72,34" fill={accent} />
+            <circle cx="17" cy="15" r="3.5" fill="#ffffff" />
+            <circle cx="16" cy="14.5" r="1.5" fill="#000000" opacity=".5" />
+            <path d="M22 24 Q32 29 42 24" stroke={accent} strokeWidth="1.5" fill="none" opacity=".6" />
+          </svg>
+        </div>
+      ))}
+      <style>{`
+        @keyframes fish0{0%,100%{transform:translate(0,0) rotate(0deg)}25%{transform:translate(40px,-20px) rotate(4deg)}50%{transform:translate(80px,15px) rotate(-3deg)}75%{transform:translate(30px,-10px) rotate(2deg)}}
+        @keyframes fish1{0%,100%{transform:translate(0,0) rotate(0deg) scaleX(-1)}33%{transform:translate(-50px,30px) rotate(-6deg) scaleX(-1)}66%{transform:translate(-20px,-40px) rotate(5deg) scaleX(-1)}}
+        @keyframes fish2{0%,100%{transform:translate(0,0)}20%{transform:translate(30px,20px) rotate(8deg)}40%{transform:translate(-20px,-30px) rotate(-5deg)}60%{transform:translate(50px,10px)}80%{transform:translate(-10px,-15px)}}
+      `}</style>
+    </>
+  );
+};
+
+/* ─── Stats bar (light theme) ─────────────────────────────────────────────── */
+const STATS = [
+  { label: "Fish / hr", val: "2400", suffix: "+" },
+  { label: "Accuracy", val: "99", suffix: "%" },
+  { label: "Temp precision", val: "±0.2", suffix: "°C" },
+  { label: "Uptime", val: "99.7", suffix: "%" },
+];
+
+const StatsBar = ({ accent }) => (
+  <div style={{
+    display: "flex", gap: 0,
+    borderTop: "1px solid rgba(0,0,0,.08)",
+    background: "#f8fafc"
+  }}>
+    {STATS.map((s, i) => (
+      <div key={i} style={{
+        flex: 1, padding: "14px 0", textAlign: "center",
+        borderRight: i < STATS.length - 1 ? "1px solid rgba(0,0,0,.06)" : "none"
+      }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: accent, fontFamily: "'Syne', sans-serif", lineHeight: 1 }}>
+          {s.val}{s.suffix}
+        </div>
+        <div style={{ fontSize: 10, color: "#4b5563", marginTop: 4, letterSpacing: 1, textTransform: "uppercase" }}>
+          {s.label}
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+/* ─── Feature card (light theme) ──────────────────────────────────────────── */
+const FeatureCard = ({ f, idx }) => (
+  <div style={{
+    display: "flex", gap: 14, alignItems: "flex-start",
+    padding: "16px 20px",
+    background: "#ffffff",
+    border: "1px solid rgba(0,0,0,.08)",
+    borderLeft: `3px solid ${f.color}`,
+    borderRadius: 12,
+    transition: "background .2s, transform .2s",
+    animation: `cardIn .4s cubic-bezier(.2,.8,.3,1) ${idx * 0.08 + 0.1}s both`,
+    cursor: "default",
+    boxShadow: "0 1px 2px rgba(0,0,0,.02)"
+  }}
+    onMouseEnter={e => {
+      e.currentTarget.style.background = "#f9f9ff";
+      e.currentTarget.style.transform = "translateX(4px)";
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.background = "#ffffff";
+      e.currentTarget.style.transform = "translateX(0)";
+    }}
+  >
+    <div style={{
+      width: 42, height: 42, borderRadius: 10,
+      background: `${f.color}10`,
+      border: `1px solid ${f.color}30`,
+      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
+    }}>
+      <Icon name={f.icon} size={18} color={f.color} />
+    </div>
+    <div>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: f.color, textTransform: "uppercase", marginBottom: 4 }}>
+        {f.label}
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b", lineHeight: 1.2, fontFamily: "'Syne', sans-serif" }}>
+        {f.title}
+      </div>
+      <div style={{ fontSize: 11, color: "#5b6b8c", lineHeight: 1.5, marginTop: 4 }}>
+        {f.desc}
+      </div>
+    </div>
+  </div>
+);
+
+/* ─── Main Component (White Theme) ────────────────────────────────────────── */
 export default function GuidelinesPage({ onClose, onFinish }) {
   const [pageIdx, setPageIdx] = useState(0);
   const [imgErr, setImgErr] = useState({});
   const [lightbox, setLightbox] = useState(null);
+  const [transitioning, setTransitioning] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const prevIdx = useRef(pageIdx);
 
   const page = PAGES[pageIdx];
   const isFirst = pageIdx === 0;
   const isLast = pageIdx === PAGES.length - 1;
+  const imgSrc = imgErr[page.id] ? page.fallback : page.image;
 
-  const handleBack = useCallback(() => {
-    if (!isFirst) setPageIdx((i) => i - 1);
-  }, [isFirst]);
+  const goTo = useCallback((idx) => {
+    if (idx === pageIdx || transitioning) return;
+    setTransitioning(true);
+    setImgLoaded(false);
+    setTimeout(() => {
+      prevIdx.current = idx;
+      setPageIdx(idx);
+      setTransitioning(false);
+    }, 220);
+  }, [pageIdx, transitioning]);
 
+  const handleBack = useCallback(() => { if (!isFirst) goTo(pageIdx - 1); }, [isFirst, goTo, pageIdx]);
   const handleNext = useCallback(() => {
-    if (!isLast) setPageIdx((i) => i + 1);
+    if (!isLast) goTo(pageIdx + 1);
     else onFinish?.();
-  }, [isLast, onFinish]);
+  }, [isLast, goTo, pageIdx, onFinish]);
+  const handleCancel = useCallback(() => onClose?.(), [onClose]);
 
-  const handleCancel = useCallback(() => {
-    onClose?.();
-  }, [onClose]);
-
-  // Keyboard navigation
   useEffect(() => {
-    const handleKey = (e) => {
+    const h = (e) => {
       if (e.key === "ArrowLeft") handleBack();
       if (e.key === "ArrowRight") handleNext();
       if (e.key === "Escape") handleCancel();
     };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
   }, [handleBack, handleNext, handleCancel]);
 
-  const imgSrc = imgErr[page.id] ? page.fallback : page.image;
+  const progress = ((pageIdx + 1) / PAGES.length) * 100;
 
   return (
     <>
-      {/* ── Lightbox ── */}
-      {lightbox && <Lightbox src={lightbox.src} title={lightbox.title} onClose={() => setLightbox(null)} />}
+      <FontLink />
+      <style>{`
+        *{box-sizing:border-box;margin:0;padding:0}
+        @keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeSlide{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+        @keyframes glow{0%,100%{box-shadow:0 0 20px var(--ac)33}50%{box-shadow:0 0 40px var(--ac)55}}
+        @keyframes scanH{0%{top:-100%}100%{top:110%}}
+        @keyframes progressBar{from{width:0}to{width:100%}}
+        .page-wrap{opacity:1;transition:opacity .22s ease,transform .22s ease}
+        .page-wrap.out{opacity:0;transform:translateX(-16px)}
+        .nb:hover{filter:brightness(1.02);transform:scale(1.02)!important}
+      `}</style>
 
-      {/* ── Full Screen Fish Theme Shell ── */}
+      {lightbox && (
+        <Lightbox src={lightbox.src} title={lightbox.title} accent={page.accent} onClose={() => setLightbox(null)} />
+      )}
+
+      {/* ── Full screen shell (light background) ── */}
       <div style={{
-        width: "100vw",
-        height: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#ffffff",
-        backgroundImage: `
-          radial-gradient(circle at 20% 20%, rgba(26, 115, 232, 0.05) 0%, transparent 50%),
-          radial-gradient(circle at 80% 80%, rgba(239, 68, 68, 0.03) 0%, transparent 50%),
-          radial-gradient(circle at 40% 60%, rgba(34, 197, 94, 0.04) 0%, transparent 50%),
-          linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #ffffff 100%)
-        `,
-        fontFamily: "'Segoe UI', system-ui, sans-serif",
-        overflow: "hidden",
-        position: "fixed",
-        top: 0,
-        left: 0,
-        zIndex: 9999,
+        position: "fixed", inset: 0, zIndex: 9999,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "#f1f5f9",
+        fontFamily: "'DM Sans', sans-serif",
       }}>
+        {/* Full-bg particle fish */}
+        <ParticleFish accent={page.accent} />
+
+        {/* Radial glow (light version) */}
         <div style={{
+          position: "absolute", inset: 0, pointerEvents: "none",
+          background: `radial-gradient(ellipse 60% 60% at 50% 50%, ${page.accent}08 0%, transparent 80%)`,
+          transition: "background 1s ease"
+        }} />
+
+        {/* ── Card (white) ── */}
+        <div style={{
+          "--ac": page.accent,
+          width: "96vw", maxWidth: 1180,
+          height: "92vh", maxHeight: 820,
+          display: "flex", flexDirection: "column",
           background: "#ffffff",
-          borderRadius: "16px",
-          border: "2px solid rgba(26, 115, 232, 0.1)",
-          width: "90vw",
-          maxWidth: "1200px",
-          height: "90vh",
-          maxHeight: "800px",
+          borderRadius: 24,
+          border: `1px solid ${page.accent}30`,
           overflow: "hidden",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.08), 0 0 80px rgba(26,115,232,0.05)",
-          backdropFilter: "blur(10px)",
-          position: "relative"
+          boxShadow: `0 20px 40px -12px rgba(0,0,0,.1), 0 0 0 1px ${page.accent}08, 0 0 0 3px rgba(255,255,255,.8)`,
+          position: "relative",
+          transition: "border-color .4s ease, box-shadow .4s ease"
         }}>
-          {/* Animated Fish Background */}
+          <Noise />
+          <Scanlines />
+
+          {/* ── Scanning line effect (light) ── */}
           <div style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            opacity: 0.04,
-            backgroundImage: `
-              url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg%3E%3Cpath d='M40 20C45 20 50 25 50 30C50 35 45 40 40 40C35 40 30 35 30 30C30 25 35 20 40 20Z' fill='%231a73e8'/%3E%3Cpath d='M35 40C30 40 25 45 25 50C25 55 30 60 35 60C40 60 45 55 45 50C45 45 40 40 35 40Z' fill='%231a73e8'/%3E%3Cpath d='M45 30C50 30 55 35 55 40C55 45 50 50 45 50C40 50 35 45 35 40C35 35 40 30 45 30Z' fill='%231a73e8'/%3E%3C/g%3E%3C/svg%3E")
-            `,
-            backgroundRepeat: "repeat",
-            backgroundSize: "160px 160px",
-            backgroundPosition: "0 0, 80px 80px",
-            pointerEvents: "none",
-            animation: "swim 20s linear infinite"
+            position: "absolute", left: 0, right: 0, height: 2, zIndex: 10,
+            background: `linear-gradient(90deg, transparent, ${page.accent}80, transparent)`,
+            animation: "scanH 6s linear infinite",
+            pointerEvents: "none"
           }} />
 
-          {/* Floating Animated Fish */}
+          {/* ── Header (light) ── */}
           <div style={{
-            position: "absolute",
-            top: "10%",
-            left: "5%",
-            width: "60px",
-            height: "30px",
-            opacity: 0.06,
-            animation: "floatFish1 15s ease-in-out infinite"
+            padding: "0 28px",
+            borderBottom: `1px solid ${page.accent}20`,
+            background: "#fefefe",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 16, flexShrink: 0, minHeight: 64, position: "relative", zIndex: 4
           }}>
-            <svg width="60" height="30" viewBox="0 0 60 30" xmlns="http://www.w3.org/2000/svg">
-              <ellipse cx="20" cy="15" rx="15" ry="8" fill="#1a73e8"/>
-              <polygon points="35,15 50,5 50,25" fill="#1a73e8"/>
-              <circle cx="12" cy="12" r="2" fill="#ffffff"/>
-            </svg>
-          </div>
-
-          <div style={{
-            position: "absolute",
-            top: "25%",
-            right: "10%",
-            width: "50px",
-            height: "25px",
-            opacity: 0.05,
-            animation: "floatFish2 18s ease-in-out infinite"
-          }}>
-            <svg width="50" height="25" viewBox="0 0 50 25" xmlns="http://www.w3.org/2000/svg">
-              <ellipse cx="18" cy="12" rx="12" ry="6" fill="#1557b0"/>
-              <polygon points="30,12 42,3 42,21" fill="#1557b0"/>
-              <circle cx="10" cy="10" r="1.5" fill="#ffffff"/>
-            </svg>
-          </div>
-
-          <div style={{
-            position: "absolute",
-            bottom: "20%",
-            left: "15%",
-            width: "70px",
-            height: "35px",
-            opacity: 0.04,
-            animation: "floatFish3 22s ease-in-out infinite"
-          }}>
-            <svg width="70" height="35" viewBox="0 0 70 35" xmlns="http://www.w3.org/2000/svg">
-              <ellipse cx="25" cy="17" rx="18" ry="10" fill="#0d47a1"/>
-              <polygon points="43,17 60,7 60,27" fill="#0d47a1"/>
-              <circle cx="15" cy="14" r="2.5" fill="#ffffff"/>
-            </svg>
-          </div>
-
-          <div style={{
-            position: "absolute",
-            top: "60%",
-            right: "20%",
-            width: "45px",
-            height: "22px",
-            opacity: 0.05,
-            animation: "floatFish4 17s ease-in-out infinite"
-          }}>
-            <svg width="45" height="22" viewBox="0 0 45 22" xmlns="http://www.w3.org/2000/svg">
-              <ellipse cx="15" cy="11" rx="10" ry="5" fill="#1976d2"/>
-              <polygon points="25,11 35,4 35,18" fill="#1976d2"/>
-              <circle cx="8" cy="9" r="1.2" fill="#ffffff"/>
-            </svg>
-          </div>
-
-          {/* Animation Styles */}
-          <style>{`
-            @keyframes swim {
-              0%, 100% {
-                background-position: 0 0, 80px 80px;
-              }
-              50% {
-                background-position: 40px 40px, 120px 120px;
-              }
-            }
-            
-            @keyframes floatFish1 {
-              0%, 100% {
-                transform: translateX(0) translateY(0) rotate(0deg);
-                opacity: 0.06;
-              }
-              25% {
-                transform: translateX(30px) translateY(-20px) rotate(5deg);
-                opacity: 0.08;
-              }
-              50% {
-                transform: translateX(60px) translateY(10px) rotate(-3deg);
-                opacity: 0.05;
-              }
-              75% {
-                transform: translateX(20px) translateY(-15px) rotate(2deg);
-                opacity: 0.07;
-              }
-            }
-            
-            @keyframes floatFish2 {
-              0%, 100% {
-                transform: translateX(0) translateY(0) rotate(0deg) scaleX(-1);
-                opacity: 0.05;
-              }
-              33% {
-                transform: translateX(-40px) translateY(25px) rotate(-8deg) scaleX(-1);
-                opacity: 0.07;
-              }
-              66% {
-                transform: translateX(-20px) translateY(-30px) rotate(6deg) scaleX(-1);
-                opacity: 0.04;
-              }
-            }
-            
-            @keyframes floatFish3 {
-              0%, 100% {
-                transform: translateX(0) translateY(0) rotate(0deg);
-                opacity: 0.04;
-              }
-              20% {
-                transform: translateX(50px) translateY(20px) rotate(10deg);
-                opacity: 0.06;
-              }
-              40% {
-                transform: translateX(-30px) translateY(-25px) rotate(-7deg);
-                opacity: 0.05;
-              }
-              60% {
-                transform: translateX(40px) translateY(15px) rotate(5deg);
-                opacity: 0.07;
-              }
-              80% {
-                transform: translateX(-20px) translateY(-10px) rotate(-3deg);
-                opacity: 0.03;
-              }
-            }
-            
-            @keyframes floatFish4 {
-              0%, 100% {
-                transform: translateX(0) translateY(0) rotate(0deg) scaleX(-1);
-                opacity: 0.05;
-              }
-              30% {
-                transform: translateX(-35px) translateY(-20px) rotate(-5deg) scaleX(-1);
-                opacity: 0.06;
-              }
-              60% {
-                transform: translateX(-15px) translateY(30px) rotate(8deg) scaleX(-1);
-                opacity: 0.04;
-              }
-            }
-          `}</style>
-
-          {/* ── Professional Header ── */}
-          <div style={{ 
-            padding: "20px 30px 15px", 
-            borderBottom: "1px solid rgba(0,0,0,0.08)", 
-            display: "flex", 
-            alignItems: "center", 
-            justifyContent: "space-between",
-            background: "linear-gradient(135deg, #1a73e8 0%, #1557b0 100%)",
-            borderRadius: "16px 16px 0 0"
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-              <div style={{ 
-                width: "40px", 
-                height: "40px", 
-                background: "rgba(255,255,255,0.2)", 
-                borderRadius: "12px", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                backdropFilter: "blur(10px)"
+            {/* Logo */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{
+                width: 36, height: 36,
+                background: `linear-gradient(135deg, ${page.accent}20, ${page.accent}05)`,
+                border: `1px solid ${page.accent}40`,
+                borderRadius: 10,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: `0 2px 6px ${page.accent}10`
               }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M6 12c0-4 3-7 9-7s9 3 9 7-3 7-9 7-9-3-9-7z"/>
-                  <path d="M2 9l4 3-4 3"/>
-                  <circle cx="17" cy="12" r="1.5" fill="white" stroke="none"/>
-                </svg>
+                <Icon name="fish" size={18} color={page.accent} />
               </div>
               <div>
-                <h1 style={{ color: "#ffffff", fontSize: "18px", fontWeight: 700, margin: 0 }}>FishGo System</h1>
-                <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "12px", margin: "2px 0 0" }}>Smart Processing Guidelines</p>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#0f172a", fontFamily: "'Syne', sans-serif", letterSpacing: -.3 }}>
+                  FishGo
+                </div>
+                <div style={{ fontSize: 9, color: "#6b7280", letterSpacing: 2, textTransform: "uppercase" }}>
+                  Smart Processing
+                </div>
               </div>
             </div>
+
+            {/* Center: page dots */}
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              {PAGES.map((p, i) => (
+                <button key={p.id} onClick={() => goTo(i)} style={{
+                  width: i === pageIdx ? 28 : 8, height: 8, borderRadius: 4, border: "none",
+                  cursor: "pointer", padding: 0, transition: "all .35s cubic-bezier(.2,.8,.3,1)",
+                  background: i === pageIdx ? page.accent : i < pageIdx ? `${page.accent}70` : "rgba(0,0,0,.15)",
+                  boxShadow: i === pageIdx ? `0 0 6px ${page.accent}80` : "none"
+                }} title={p.title} />
+              ))}
+            </div>
+
+            {/* Nav buttons (light theme) */}
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {/* Previous Button */}
-              <button
-                onClick={handleBack}
-                disabled={isFirst}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: isFirst ? "not-allowed" : "pointer",
-                  background: isFirst ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.2)",
-                  color: isFirst ? "rgba(255,255,255,0.5)" : "#ffffff",
-                  border: "1px solid rgba(255,255,255,0.3)",
-                  transition: "all 0.3s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  opacity: isFirst ? 0.5 : 1
-                }}
-                onMouseOver={(e) => !isFirst && (e.target.style.background = "rgba(255,255,255,0.3)")}
-                onMouseOut={(e) => !isFirst && (e.target.style.background = "rgba(255,255,255,0.2)")}
-              >
-                <Icon name="chevron-left" size={12} color={isFirst ? "rgba(255,255,255,0.5)" : "#ffffff"} />
-                Previous
-              </button>
-
-              {/* Next Button */}
-              <button
-                onClick={handleNext}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  background: "rgba(255,255,255,0.2)",
-                  color: "#ffffff",
-                  border: "1px solid rgba(255,255,255,0.3)",
-                  transition: "all 0.3s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4
-                }}
-                onMouseOver={(e) => e.target.style.background = "rgba(255,255,255,0.3)"}
-                onMouseOut={(e) => e.target.style.background = "rgba(255,255,255,0.2)"}
-              >
-                {isLast ? "Complete" : "Next"}
-                {!isLast && <Icon name="chevron-right" size={12} color="#ffffff" />}
-              </button>
-
-              {/* Close Button */}
-              <button
-                onClick={handleCancel}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  background: "rgba(239,68,68,0.2)",
-                  color: "#ffffff",
-                  border: "1px solid rgba(239,68,68,0.3)",
-                  transition: "all 0.3s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4
-                }}
-                onMouseOver={(e) => e.target.style.background = "rgba(239,68,68,0.3)"}
-                onMouseOut={(e) => e.target.style.background = "rgba(239,68,68,0.2)"}
-              >
-                <Icon name="x" size={12} color="#ffffff" />
-                Close
-              </button>
-
-              {/* Navigation Dots */}
-              <div style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 12 }}>
-                {PAGES.map((p, i) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setPageIdx(i)}
-                    title={p.title}
-                    style={{
-                      width: i === pageIdx ? "24px" : "8px", 
-                      height: "8px", 
-                      borderRadius: "4px", 
-                      border: "none", 
-                      cursor: "pointer", 
-                      padding: 0,
-                      background: i === pageIdx ? "#ffffff" : i < pageIdx ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.3)",
-                      transition: "all 0.3s ease",
-                      boxShadow: i === pageIdx ? "0 2px 8px rgba(255,255,255,0.3)" : "none"
-                    }}
-                  />
-                ))}
-              </div>
+              {[
+                { label: "Back", icon: "chevron-left", action: handleBack, disabled: isFirst },
+                { label: isLast ? "Finish" : "Next", icon: isLast ? null : "chevron-right", action: handleNext, disabled: false, primary: true },
+                { label: "✕", action: handleCancel, disabled: false, close: true },
+              ].map((b, i) => (
+                <button key={i} onClick={b.action} disabled={b.disabled} className={b.disabled ? "" : "nb"} style={{
+                  padding: b.close ? "6px 10px" : "7px 16px",
+                  borderRadius: 10, fontSize: 12, fontWeight: 600,
+                  cursor: b.disabled ? "not-allowed" : "pointer",
+                  background: b.primary ? page.accent : b.close ? "#fee2e2" : "#f1f5f9",
+                  color: b.primary ? "#0f172a" : b.close ? "#b91c1c" : b.disabled ? "#cbd5e1" : "#1e293b",
+                  border: `1px solid ${b.primary ? page.accent : b.close ? "#fecaca" : "#e2e8f0"}`,
+                  transition: "all .2s",
+                  display: "flex", alignItems: "center", gap: 4,
+                  opacity: b.disabled ? 0.5 : 1,
+                  fontFamily: "'Syne', sans-serif"
+                }}>
+                  {b.icon === "chevron-left" && <Icon name="chevron-left" size={12} color="currentColor" />}
+                  {b.label}
+                  {b.icon === "chevron-right" && <Icon name="chevron-right" size={12} color="currentColor" />}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* ── Content Area ── */}
-          <div style={{ 
-            padding: "25px 30px", 
-            flex: 1, 
-            display: "flex", 
-            flexDirection: "column",
-            overflow: "hidden"
-          }}>
-            {/* Title Section */}
-            <div style={{ marginBottom: "20px" }}>
-              <h2 style={{ 
-                fontSize: "clamp(20px, 3vw, 28px)", 
-                fontWeight: 700, 
-                margin: "0 0 8px", 
-                color: "#1a1a2e",
-                background: "linear-gradient(135deg, #1a73e8, #1557b0)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text"
-              }}>
-                {page.title}
-              </h2>
-              <p style={{ 
-                fontSize: "clamp(12px, 1.5vw, 14px)", 
-                color: "#5f6b7c", 
-                margin: 0, 
-                lineHeight: 1.6,
-                maxWidth: "800px"
-              }}>
-                {page.subtitle}
-              </p>
-            </div>
+          {/* ── Progress bar (light) ── */}
+          <div style={{ height: 2, background: "#eef2ff", flexShrink: 0, position: "relative", zIndex: 4 }}>
+            <div style={{
+              height: "100%", width: `${progress}%`,
+              background: `linear-gradient(90deg, ${page.accent}aa, ${page.accent})`,
+              transition: "width .5s cubic-bezier(.2,.8,.3,1), background .6s ease",
+              boxShadow: `0 0 6px ${page.accent}80`
+            }} />
+          </div>
 
-            {/* Hero Image Section */}
-            <div style={{ 
-              position: "relative", 
-              flex: 1, 
-              background: "linear-gradient(135deg, #0a0e1a 0%, #1a1f3a 100%)", 
-              cursor: "pointer",
-              borderRadius: "12px",
-              overflow: "hidden",
-              boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-              minHeight: "300px"
-            }}
-              onClick={() => setLightbox({ src: imgSrc, title: page.title })}>
+          {/* ── Body ── */}
+          <div className={`page-wrap${transitioning ? " out" : ""}`} style={{
+            flex: 1, display: "flex", gap: 0, overflow: "hidden", position: "relative", zIndex: 4
+          }}>
+            {/* Left: image + overlay (light fade) */}
+            <div style={{ flex: "1.1", position: "relative", overflow: "hidden" }}>
               <img
                 src={imgSrc}
                 alt={page.title}
-                onError={() => setImgErr((prev) => ({ ...prev, [page.id]: true }))}
-                style={{ 
-                  width: "100%", 
-                  height: "100%", 
-                  objectFit: "cover", 
-                  display: "block", 
-                  opacity: 0.9,
-                  transition: "transform 0.3s ease"
+                onLoad={() => setImgLoaded(true)}
+                onError={() => setImgErr(p => ({ ...p, [page.id]: true }))}
+                onClick={() => setLightbox({ src: imgSrc, title: page.title })}
+                style={{
+                  width: "100%", height: "100%", objectFit: "cover", display: "block",
+                  cursor: "zoom-in",
+                  filter: "brightness(0.95) saturate(1.05)",
+                  transition: "opacity .4s ease, transform .4s ease",
+                  opacity: imgLoaded ? 1 : 0,
+                  transform: imgLoaded ? "scale(1)" : "scale(1.02)"
                 }}
-                onMouseOver={(e) => e.target.style.transform = "scale(1.02)"}
-                onMouseOut={(e) => e.target.style.transform = "scale(1)"}
               />
 
-              {/* Feature Overlay */}
+              {/* Gradient right fade (white) */}
               <div style={{
-                position: "absolute", top: 0, right: 0, bottom: 0,
-                width: "clamp(250px, 40%, 400px)", 
-                display: "flex", 
-                flexDirection: "column",
-                justifyContent: "center", 
-                gap: "clamp(12px, 2vw, 20px)", 
-                padding: "clamp(20px, 3vw, 30px)",
-                background: "linear-gradient(to left, rgba(10,14,26,.95) 70%, transparent)",
-              }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {page.features.map((f, index) => (
-                  <div key={f.label} 
-                       style={{ 
-                         display: "flex", 
-                         gap: "clamp(10px, 2vw, 15px)", 
-                         alignItems: "flex-start",
-                         opacity: 0,
-                         animation: `slideInRight 0.5s ease ${index * 0.1}s forwards`
-                       }}>
-                    <div style={{ 
-                      width: "clamp(35px, 5vw, 45px)", 
-                      height: "clamp(35px, 5vw, 45px)", 
-                      borderRadius: "10px", 
-                      background: "rgba(255,255,255,.1)", 
-                      border: "1px solid rgba(255,255,255,.2)", 
-                      display: "flex", 
-                      alignItems: "center", 
-                      justifyContent: "center", 
-                      flexShrink: 0,
-                      backdropFilter: "blur(10px)"
-                    }}>
-                      <Icon name={f.icon} size={Math.max(16, Math.min(20, window.innerWidth * 0.03))} color={f.color} />
-                    </div>
-                    <div>
-                      <div style={{ 
-                        fontSize: "clamp(10px, 1.5vw, 12px)", 
-                        fontWeight: 700, 
-                        letterSpacing: 1, 
-                        color: f.color, 
-                        textTransform: "uppercase", 
-                        marginBottom: 4 
-                      }}>
-                        {f.label}
-                      </div>
-                      <div style={{ 
-                        fontSize: "clamp(12px, 2vw, 16px)", 
-                        fontWeight: 600, 
-                        color: "#fff", 
-                        lineHeight: 1.3 
-                      }}>
-                        {f.title}
-                      </div>
-                      <div style={{ 
-                        fontSize: "clamp(10px, 1.5vw, 12px)", 
-                        color: "rgba(255,255,255,.7)", 
-                        lineHeight: 1.4, 
-                        marginTop: 2 
-                      }}>
-                        {f.desc}
-                      </div>
-                    </div>
-                  </div>
+                position: "absolute", inset: 0, pointerEvents: "none",
+                background: "linear-gradient(90deg, transparent 40%, #ffffff 100%)"
+              }} />
+
+              {/* Gradient bottom (white) */}
+              <div style={{
+                position: "absolute", inset: 0, pointerEvents: "none",
+                background: "linear-gradient(to top, #ffffff 0%, transparent 40%)"
+              }} />
+
+              {/* Tag badge (light) */}
+              <div style={{
+                position: "absolute", top: 20, left: 20,
+                background: "#ffffffcc",
+                border: `1px solid ${page.accent}50`,
+                borderRadius: 40,
+                padding: "6px 14px",
+                display: "flex", alignItems: "center", gap: 8,
+                backdropFilter: "blur(8px)",
+                boxShadow: "0 1px 2px rgba(0,0,0,.05)"
+              }}>
+                <div style={{
+                  width: 6, height: 6, borderRadius: "50%", background: page.accent,
+                  boxShadow: `0 0 4px ${page.accent}`,
+                  animation: "pulse 2s infinite"
+                }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: page.accent, letterSpacing: 2, textTransform: "uppercase", fontFamily: "'Syne', sans-serif" }}>
+                  {page.tag}
+                </span>
+              </div>
+
+              {/* Zoom hint (light) */}
+              <div style={{
+                position: "absolute", bottom: 20, left: 20,
+                background: "rgba(255,255,255,.85)", border: "1px solid rgba(0,0,0,.1)",
+                borderRadius: 40, padding: "6px 14px",
+                fontSize: 11, color: "#334155",
+                backdropFilter: "blur(8px)",
+                display: "flex", alignItems: "center", gap: 6,
+                boxShadow: "0 1px 2px rgba(0,0,0,.05)"
+              }}>
+                🔍 Click to enlarge
+              </div>
+
+              {/* Page counter (light) */}
+              <div style={{
+                position: "absolute", bottom: 20, right: 28,
+                fontSize: 11, color: "#94a3b8",
+                fontFamily: "'Syne', sans-serif"
+              }}>
+                {String(pageIdx + 1).padStart(2, "0")} / {String(PAGES.length).padStart(2, "0")}
+              </div>
+            </div>
+
+            {/* Right: info panel (light) */}
+            <div style={{
+              width: 360, flexShrink: 0, display: "flex", flexDirection: "column",
+              borderLeft: `1px solid ${page.accent}20`,
+              overflow: "hidden",
+              background: "#ffffff"
+            }}>
+              {/* Title area */}
+              <div style={{ padding: "28px 24px 20px", flexShrink: 0 }}>
+                <div style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: page.accent,
+                  textTransform: "uppercase", marginBottom: 10, fontFamily: "'Syne', sans-serif"
+                }}>
+                  {page.tag}
+                </div>
+                <h2 style={{
+                  fontSize: 22, fontWeight: 800, color: "#0f172a", lineHeight: 1.2,
+                  marginBottom: 12, fontFamily: "'Syne', sans-serif"
+                }}>
+                  {page.title}
+                </h2>
+                <p style={{ fontSize: 12.5, color: "#475569", lineHeight: 1.7 }}>
+                  {page.subtitle}
+                </p>
+              </div>
+
+              {/* Divider */}
+              <div style={{ height: 1, background: `linear-gradient(90deg, ${page.accent}30, transparent)`, marginLeft: 24, marginRight: 24 }} />
+
+              {/* Features list */}
+              <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10, flex: 1, overflowY: "auto" }}>
+                {page.features.map((f, i) => (
+                  <FeatureCard key={f.label} f={f} idx={i} />
                 ))}
               </div>
 
-              {/* Status Indicators */}
-              <div style={{
-                position: "absolute", top: "20px", left: "20px",
-                background: "rgba(26,115,232,0.9)", 
-                borderRadius: "20px",
-                padding: "8px 16px", 
-                fontSize: "12px", 
-                color: "#ffffff",
-                fontWeight: 600,
-                backdropFilter: "blur(10px)",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px"
-              }}>
-                <span style={{
-                  width: "8px",
-                  height: "8px",
-                  backgroundColor: "#4caf50",
-                  borderRadius: "50%",
-                  animation: "pulse 2s infinite"
-                }}></span>
-                SYSTEM ACTIVE
-              </div>
-
-              {/* Page Indicator */}
-              <div style={{
-                position: "absolute", bottom: "20px", left: "20px",
-                background: "rgba(0,0,0,.7)", 
-                borderRadius: "25px",
-                padding: "10px 20px", 
-                fontSize: "14px", 
-                color: "rgba(255,255,255,.9)",
-                fontWeight: 600,
-                backdropFilter: "blur(10px)"
-              }}>
-                {pageIdx + 1} / {PAGES.length}
-              </div>
-
-              {/* Zoom Hint */}
-              <div style={{
-                position: "absolute", bottom: "20px", right: "20px",
-                background: "rgba(255,255,255,.1)", 
-                borderRadius: "25px",
-                padding: "10px 20px", 
-                fontSize: "12px", 
-                color: "rgba(255,255,255,.8)",
-                fontWeight: 500,
-                backdropFilter: "blur(10px)",
-                border: "1px solid rgba(255,255,255,.2)",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px"
-              }}>
-                <span style={{ fontSize: "16px" }}>🔍</span>
-                Click to enlarge
+              {/* Stats bar */}
+              <div style={{ flexShrink: 0 }}>
+                <StatsBar accent={page.accent} />
               </div>
             </div>
           </div>
 
-          {/* ── Professional Footer ── */}
+          {/* ── Footer (light) ── */}
           <div style={{
-            padding: "20px 30px", 
-            borderTop: "1px solid rgba(0,0,0,0.08)",
-            display: "flex", 
-            alignItems: "center", 
-            justifyContent: "space-between", 
-            gap: 12,
-            background: "linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)",
-            borderRadius: "0 0 16px 16px"
+            padding: "10px 28px",
+            borderTop: `1px solid ${page.accent}15`,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            background: "#fefefe", flexShrink: 0, position: "relative", zIndex: 4
           }}>
-            <div style={{
-              fontSize: "12px",
-              color: "#64748b",
-              fontWeight: 500
-            }}>
+            <span style={{ fontSize: 10, color: "#94a3b8", letterSpacing: 1.5, textTransform: "uppercase" }}>
               FishGo™ Smart Processing System
+            </span>
+            <div style={{ display: "flex", gap: 6 }}>
+              {["HACCP", "ISO 22000", "CE Marked"].map(tag => (
+                <span key={tag} style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: 1,
+                  color: "#64748b", padding: "3px 8px",
+                  border: "1px solid #e2e8f0", borderRadius: 6,
+                  textTransform: "uppercase", background: "#f8fafc"
+                }}>{tag}</span>
+              ))}
             </div>
-            
-           
           </div>
-
         </div>
       </div>
     </>

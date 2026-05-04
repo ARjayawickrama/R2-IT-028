@@ -261,7 +261,7 @@ export default function FishBoilingDetectionApp() {
           <span className={`w-1.5 h-1.5 rounded-full ${mode === "chart" ? "bg-blue-600" : "bg-gray-400"}`} />
           Chart
         </button>
-         <button 
+         {/* <button 
           className={`px-3.5 h-[34px] rounded-t-lg text-xs font-medium flex items-center gap-2 transition-all ${
             mode === "guidelines" 
               ? "bg-gray-50 border border-gray-200 border-b-transparent text-blue-600" 
@@ -271,7 +271,7 @@ export default function FishBoilingDetectionApp() {
         >
           <span className={`w-1.5 h-1.5 rounded-full ${mode === "guidelines" ? "bg-blue-600" : "bg-gray-400"}`} />
           Guidelines
-        </button>
+        </button> */}
       </div>
 
       {/* Main Content Area */}
