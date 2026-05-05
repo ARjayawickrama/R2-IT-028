@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { connectDB } from './config/database.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
+import rawFishRoutes from './routes/rawFish.js';
 
 // Load environment variables
 dotenv.config();
@@ -24,6 +25,7 @@ connectDB();
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/raw-fish', rawFishRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -24,4 +24,10 @@ export const authService = {
     axiosInstance.get('/user/profile'),
 };
 
+export const rawFishService = {
+  fetchHistory: () => axiosInstance.get('/raw-fish'),
+  saveAnalysis: (payload) => axiosInstance.post('/raw-fish', payload),
+  deleteAssessment: (id) => axiosInstance.delete(`/raw-fish/${id}`),
+};
+
 export default axiosInstance;
