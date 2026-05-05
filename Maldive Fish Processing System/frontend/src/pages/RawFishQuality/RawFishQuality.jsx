@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { rawFishService } from '../../services/api';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 const FRESHNESS_API_URL = 'http://localhost:8000/predict';
 
@@ -16,6 +17,7 @@ const RawFishQuality = () => {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [history, setHistory] = useState([]);
   const [feedback, setFeedback] = useState('Use the upload or camera feature to analyze fish freshness.');
+  const [qualityData, setQualityData] = useState([]);
   const [recentBatches] = useState([
     { id: 'RF-2024-001', species: 'Alagoduwa', date: '2024-04-26', status: 'Excellent', quality: 92.5, quantity: 250 },
     { id: 'RF-2024-002', species: 'Alagoduwa', date: '2024-04-26', status: 'Good', quality: 87.3, quantity: 180 },
@@ -47,9 +49,33 @@ const RawFishQuality = () => {
     try {
       const { data } = await rawFishService.fetchHistory();
       setHistory(data);
+      updateQualityData(data);
     } catch (error) {
       console.error('Could not load raw fish history:', error);
     }
+  };
+
+  const updateQualityData = (historyRecords) => {
+    const counts = { 'very fresh': 0, 'fresh': 0, 'spoiled': 0 };
+
+    historyRecords.forEach(record => {
+      const label = record.qualityLabel;
+      if (label === 'Alagoduwa_Very_fresh') {
+        counts['very fresh']++;
+      } else if (label === 'Alagoduwa_fresh') {
+        counts['fresh']++;
+      } else if (label === 'Alagoduwa_Spoiled') {
+        counts['spoiled']++;
+      }
+    });
+
+    const data = [
+      { name: 'Very Fresh', value: counts['very fresh'], color: '#10B981' },
+      { name: 'Fresh', value: counts['fresh'], color: '#3B82F6' },
+      { name: 'Spoiled', value: counts['spoiled'], color: '#EF4444' }
+    ].filter(item => item.value > 0); // Only show categories with data
+
+    setQualityData(data);
   };
 
   const deleteAssessment = async (id) => {
@@ -59,7 +85,9 @@ const RawFishQuality = () => {
 
     try {
       await rawFishService.deleteAssessment(id);
-      setHistory(prev => prev.filter(record => record._id !== id));
+      const updatedHistory = history.filter(record => record._id !== id);
+      setHistory(updatedHistory);
+      updateQualityData(updatedHistory);
       setFeedback('Assessment deleted successfully.');
     } catch (error) {
       console.error('Could not delete assessment:', error);
@@ -215,7 +243,9 @@ const RawFishQuality = () => {
 
       const savedResponse = await rawFishService.saveAnalysis(payload);
       setAnalysisResult({ ...payload, assessment: payload.assessment });
-      setHistory((prev) => [savedResponse.data, ...prev].slice(0, 10));
+      const updatedHistory = [savedResponse.data, ...history].slice(0, 10);
+      setHistory(updatedHistory);
+      updateQualityData(updatedHistory);
       setFeedback('Freshness analysis completed and saved to MongoDB.');
     } catch (error) {
       console.error('Analysis failed:', error);
@@ -370,6 +400,41 @@ const RawFishQuality = () => {
         </div>
 
         <div className="space-y-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-gray-900">Quality Distribution</h2>
+            <div className="mt-4">
+              {qualityData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={qualityData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {qualityData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value, name) => [`${value} assessments`, name]}
+                      labelFormatter={() => ''}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-48 text-gray-500">
+                  <p>No quality data available</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-gray-900">Latest assessments</h2>
             <div className="mt-4 space-y-4">
