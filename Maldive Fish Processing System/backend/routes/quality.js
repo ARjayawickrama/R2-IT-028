@@ -35,10 +35,14 @@ const generateBatchData = (mlResponse, file) => {
     color = "amber";
     score =
       score >= 70 && score < 85 ? score : 70 + Math.floor(Math.random() * 14);
-  } else {
+  } else if (mlResponse.class === "Low_Quality")  {
     level = "Low Quality";
     color = "rose";
     score = score < 70 ? score : 55 + Math.floor(Math.random() * 14);
+  } else {
+    level = mlResponse.class;
+    color = "rose";
+    score = 0;
   }
 
   const voc = Math.floor(Math.random() * 120) + 60;

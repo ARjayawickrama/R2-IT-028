@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { aiService } from "../../services/aiApi";
+import { qualityService } from "../../services/api";
 
 export default function DriedFishQuality() {
   const [activeTab, setActiveTab] = useState("upload");
@@ -22,9 +23,18 @@ export default function DriedFishQuality() {
   ];
 
   useEffect(() => {
-    // Remove the fetchBatches logic since AI backend doesn't store batches
-    // We'll only use local state for uploaded images
+    fetchBatches();
   }, []);
+
+  const fetchBatches = async () => {
+    try {
+      const response = await qualityService.getBatches();
+      const batchesWithImages = response.data.map(b => ({ ...b, image: `http://localhost:5001${b.imageUrl}` }));
+      setBatches(batchesWithImages);
+    } catch (error) {
+      console.error("Error fetching batches:", error);
+    }
+  };
 
   const uploadToBackend = async (file) => {
     setIsLoading(true);
@@ -33,32 +43,28 @@ export default function DriedFishQuality() {
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("image", file);
 
-      const response = await aiService.analyzeImage(formData);
-      const aiData = response.data;
+      const response = await qualityService.analyzeImage(formData);
+      const batchData = response.data;
 
-      // Map AI backend response to frontend format
+      // Map backend response to frontend format if needed
       const mappedBatch = {
-        ...aiData,
-        id: `MF-${new Date().getTime().toString().slice(-6)}`,
-        image: previewUrl,
-        date: new Date().toLocaleString(),
-        // Map AI response to expected frontend fields
-        level: aiData.class === 'UNCERTAIN' ? 'Uncertain' : aiData.class.replace('_', ' '),
-        score: Math.round(aiData.confidence * 100),
-        voc: Math.floor(Math.random() * 50) + 120, // Simulated VOC since AI backend doesn't provide it
-        odorStatus: aiData.confidence >= 0.7 ? 'Normal' : 'Needs Check',
-        color: aiData.class === 'High_Quality' ? 'emerald' : aiData.class === 'Low_Quality' ? 'rose' : 'amber',
-        storageAdvice: aiData.class === 'High_Quality' 
-          ? 'Store in airtight container, keep dry and cool'
-          : aiData.class === 'Low_Quality'
-          ? 'Use immediately or discard, high spoilage risk'
-          : 'Monitor closely, use within 2 weeks'
+        ...batchData,
+        id: batchData._id || `MF-${new Date().getTime().toString().slice(-6)}`,
+        image: batchData.imageUrl ? `http://localhost:5001${batchData.imageUrl}` : previewUrl,
+        date: batchData.createdAt ? new Date(batchData.createdAt).toLocaleString() : new Date().toLocaleString(),
+        level: batchData.level,
+        score: batchData.score,
+        voc: batchData.voc,
+        odorStatus: batchData.odorStatus,
+        color: batchData.color,
+        storageAdvice: batchData.storageAdvice,
       };
 
       setPreview(mappedBatch);
-      setBatches((prev) => [mappedBatch, ...prev]);
+      // Refetch batches to include the new one
+      fetchBatches();
     } catch (error) {
       console.error("Error uploading image:", error);
       alert("Failed to analyze image.");
