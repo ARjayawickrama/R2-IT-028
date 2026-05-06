@@ -502,18 +502,16 @@ function UploadTab({ fileRef, handleUpload, preview, isLoading }) {
                   value={`${preview.score}%`}
                   color="blue"
                 />
-            
-                <Result
-                  title="VOC Level"
-                  value={`${preview.voc} ppm`}
-                  color="blue"
-                />
 
-                <Result
-                  title="Odor Status"
-                  value={preview.odorStatus}
-                  color="indigo"
-                />
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                  <p className="text-xs font-semibold text-slate-500 mb-1">
+                    Advanced Monitoring
+                  </p>
+                  <p className="text-sm font-medium text-slate-700">
+                    VOC and odor analysis will be displayed in the next
+                    development phase.
+                  </p>
+                </div>
 
                 <div className="p-4 rounded-xl bg-slate-50 border">
                   <p className="text-xs font-semibold text-slate-500 mb-1">
@@ -709,7 +707,15 @@ function BatchTab({ batches, deleteBatch }) {
 
                 <p className="mt-3 font-semibold">{b.level}</p>
                 <p className="text-sm text-slate-500">Score: {b.score}%</p>
-                <p className="text-sm text-slate-500">VOC: {b.voc} ppm</p>
+
+                <div className="mt-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <p className="text-xs font-semibold text-slate-500">
+                    Advanced Monitoring
+                  </p>
+                  <p className="text-xs text-slate-600 mt-1">
+                    VOC and odor details will be included in the next phase.
+                  </p>
+                </div>
               </div>
             </div>
           ))}
@@ -946,24 +952,88 @@ function QualityBarChart({ data, total }) {
 }
 
 function VocTab() {
-  const vocData = [90, 110, 130, 125, 150, 140, 165, 155, 180, 170, 160];
-
   return (
     <div className="space-y-6">
+      <div className="bg-white rounded-2xl shadow p-8">
+        <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
+          <div className="w-20 h-20 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-4xl mb-5">
+            🧪
+          </div>
+
+          <h2 className="text-2xl font-bold text-slate-900 mb-3">
+            VOC Sensor Monitoring
+          </h2>
+
+          <p className="text-slate-500 leading-7">
+            VOC sensor reading analysis is planned as an advanced monitoring
+            feature for the next development phase. In the current progress
+            presentation, the system mainly focuses on image-based Maldive fish
+            quality classification and batch management.
+          </p>
+
+          <div className="mt-6 px-5 py-3 rounded-xl bg-amber-50 border border-amber-200">
+            <p className="text-sm font-semibold text-amber-700">
+              Status: Under Development
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid md:grid-cols-3 gap-5">
-        <Metric title="Current VOC Level" value="170 ppm" color="blue" />
-        <Metric title="Odor Risk Status" value="Normal" color="sky" />
-        <Metric title="Air Quality" value="Good" color="indigo" />
+        <div className="bg-white rounded-2xl shadow p-6 border border-slate-100">
+          <p className="text-slate-500">VOC Sensor Integration</p>
+          <h3 className="text-2xl font-bold mt-3 text-blue-600">
+            Planned
+          </h3>
+          <p className="text-sm text-slate-500 mt-3">
+            Hardware sensor connection will be added in the next phase.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow p-6 border border-slate-100">
+          <p className="text-slate-500">Odor Risk Detection</p>
+          <h3 className="text-2xl font-bold mt-3 text-sky-600">
+            Upcoming
+          </h3>
+          <p className="text-sm text-slate-500 mt-3">
+            Odor-based spoilage risk analysis will be introduced later.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow p-6 border border-slate-100">
+          <p className="text-slate-500">Real-Time Graph</p>
+          <h3 className="text-2xl font-bold mt-3 text-indigo-600">
+            Next Phase
+          </h3>
+          <p className="text-sm text-slate-500 mt-3">
+            Live VOC trend visualization will be displayed after sensor setup.
+          </p>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow p-6">
-        <h2 className="text-2xl font-bold mb-2">VOC Sensor Reading Graph</h2>
-        <p className="text-slate-500 mb-6">
-          VOC trend helps identify odor changes and possible spoilage risk in
-          stored Maldive fish.
-        </p>
+        <h2 className="text-xl font-bold mb-4">
+          Planned VOC Monitoring Workflow
+        </h2>
 
-        <LineChart data={vocData} stroke="#1d4ed8" label="VOC Level (ppm)" />
+        <div className="grid md:grid-cols-4 gap-4">
+          {[
+            "Connect VOC sensor module",
+            "Collect real-time gas readings",
+            "Analyze odor/spoilage risk",
+            "Display live sensor graph",
+          ].map((item, index) => (
+            <div
+              key={index}
+              className="p-4 rounded-xl bg-slate-50 border border-slate-200"
+            >
+              <p className="text-sm font-semibold text-slate-700">
+                Step {index + 1}
+              </p>
+              <p className="text-sm text-slate-500 mt-2">{item}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
