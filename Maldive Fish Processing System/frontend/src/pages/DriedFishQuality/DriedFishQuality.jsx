@@ -29,10 +29,16 @@ export default function DriedFishQuality() {
   const fetchBatches = async () => {
     try {
       const response = await qualityService.getBatches();
+
       const batchesWithImages = response.data.map((b) => ({
         ...b,
-        image: `http://localhost:5001${b.imageUrl}`,
+        id: b._id || b.id,
+        image: b.imageUrl ? `http://localhost:5001${b.imageUrl}` : b.image,
+        date: b.createdAt
+          ? new Date(b.createdAt).toLocaleString()
+          : b.date || new Date().toLocaleString(),
       }));
+
       setBatches(batchesWithImages);
     } catch (error) {
       console.error("Error fetching batches:", error);
@@ -76,6 +82,23 @@ export default function DriedFishQuality() {
       setPreview(null);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const deleteBatch = async (batchId) => {
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this batch?"
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      await qualityService.deleteBatch(batchId);
+      alert("Batch deleted successfully.");
+      fetchBatches();
+    } catch (error) {
+      console.error("Error deleting batch:", error);
+      alert("Failed to delete batch.");
     }
   };
 
@@ -205,7 +228,10 @@ export default function DriedFishQuality() {
           />
         )}
 
-        {activeTab === "batches" && <BatchTab batches={batches} />}
+        {activeTab === "batches" && (
+          <BatchTab batches={batches} deleteBatch={deleteBatch} />
+        )}
+
         {activeTab === "analytics" && <AnalyticsTab batches={batches} />}
         {activeTab === "voc" && <VocTab />}
         {activeTab === "environment" && <EnvironmentTab />}
@@ -466,7 +492,7 @@ function CameraTab({
   );
 }
 
-function BatchTab({ batches }) {
+function BatchTab({ batches, deleteBatch }) {
   return (
     <div className="bg-white rounded-2xl shadow p-6">
       <h2 className="text-2xl font-bold mb-6">Uploaded Maldive Fish Batches</h2>
@@ -477,18 +503,31 @@ function BatchTab({ batches }) {
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
           {batches.map((b) => (
             <div
-              key={b.id}
+              key={b._id || b.id}
               className="border rounded-xl overflow-hidden shadow-sm bg-white"
             >
               <img
                 src={b.image}
-                alt={b.name}
+                alt={b.name || "Maldive fish batch"}
                 className="h-48 w-full object-cover bg-slate-100"
               />
 
               <div className="p-4">
-                <h3 className="font-bold">{b.id}</h3>
-                <p className="text-xs text-slate-500">{b.date}</p>
+                <div className="flex justify-between items-start gap-3">
+                  <div>
+                    <h3 className="font-bold">{b.id}</h3>
+                    <p className="text-xs text-slate-500">{b.date}</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => deleteBatch(b._id || b.id)}
+                    className="px-3 py-1 rounded-lg bg-red-50 text-red-600 border border-red-200 text-xs font-semibold hover:bg-red-100"
+                  >
+                    Delete
+                  </button>
+                </div>
+
                 <p className="mt-3 font-semibold">{b.level}</p>
                 <p className="text-sm text-slate-500">Score: {b.score}%</p>
                 <p className="text-sm text-slate-500">VOC: {b.voc} ppm</p>
@@ -500,10 +539,6 @@ function BatchTab({ batches }) {
     </div>
   );
 }
-
-/* =========================
-   UPDATED ANALYTICS SECTION
-   ========================= */
 
 function AnalyticsTab({ batches }) {
   const stats = useMemo(() => {
@@ -730,10 +765,6 @@ function QualityBarChart({ data, total }) {
     </div>
   );
 }
-
-/* =========================
-   OTHER SECTIONS SAME
-   ========================= */
 
 function VocTab() {
   const vocData = [90, 110, 130, 125, 150, 140, 165, 155, 180, 170, 160];

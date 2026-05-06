@@ -9,17 +9,21 @@ const axiosInstance = axios.create({
 // Add token to requests
 axiosInstance.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 
 export const authService = {
   register: (name, email, password) =>
     axiosInstance.post('/auth/register', { name, email, password }),
+
   login: (email, password) =>
     axiosInstance.post('/auth/login', { email, password }),
+
   getProfile: () =>
     axiosInstance.get('/user/profile'),
 };
@@ -31,7 +35,12 @@ export const qualityService = {
         'Content-Type': 'multipart/form-data',
       },
     }),
-  getBatches: () => axiosInstance.get('/quality/batches'),
+
+  getBatches: () =>
+    axiosInstance.get('/quality/batches'),
+
+  deleteBatch: (id) =>
+    axiosInstance.delete(`/quality/batches/${id}`),
 };
 
 export default axiosInstance;

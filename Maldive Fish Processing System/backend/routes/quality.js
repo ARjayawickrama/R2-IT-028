@@ -12,6 +12,7 @@ const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, "uploads/");
   },
+
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(null, uniqueSuffix + path.extname(file.originalname));
@@ -35,7 +36,7 @@ const generateBatchData = (mlResponse, file) => {
     color = "amber";
     score =
       score >= 70 && score < 85 ? score : 70 + Math.floor(Math.random() * 14);
-  } else if (mlResponse.class === "Low_Quality")  {
+  } else if (mlResponse.class === "Low_Quality") {
     level = "Low Quality";
     color = "rose";
     score = score < 70 ? score : 55 + Math.floor(Math.random() * 14);
@@ -85,11 +86,12 @@ router.post("/analyze", upload.single("image"), async (req, res) => {
     }
 
     const filePath = req.file.path;
+
     const formData = new FormData();
     formData.append(
       "file",
       fs.createReadStream(filePath),
-      req.file.originalname,
+      req.file.originalname
     );
 
     const mlResponse = await axios.post(
@@ -99,7 +101,7 @@ router.post("/analyze", upload.single("image"), async (req, res) => {
         headers: {
           ...formData.getHeaders(),
         },
-      },
+      }
     );
 
     const mlData = mlResponse.data;
@@ -112,11 +114,13 @@ router.post("/analyze", upload.single("image"), async (req, res) => {
   } catch (error) {
     console.error(
       "Error analyzing image:",
-      error?.response?.data || error.message,
+      error?.response?.data || error.message
     );
-    res
-      .status(500)
-      .json({ message: "Error analyzing image", error: error.message });
+
+    res.status(500).json({
+      message: "Error analyzing image",
+      error: error.message,
+    });
   }
 });
 
@@ -126,7 +130,45 @@ router.get("/batches", async (req, res) => {
     res.json(batches);
   } catch (error) {
     console.error("Error fetching batches:", error);
-    res.status(500).json({ message: "Error fetching batches" });
+
+    res.status(500).json({
+      message: "Error fetching batches",
+      error: error.message,
+    });
+  }
+});
+
+router.delete("/batches/:id", async (req, res) => {
+  try {
+    const batch = await FishQualityBatch.findById(req.params.id);
+
+    if (!batch) {
+      return res.status(404).json({
+        message: "Batch not found",
+      });
+    }
+
+    if (batch.imageUrl) {
+      const imagePath = path.join(process.cwd(), batch.imageUrl);
+
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
+    }
+
+    await FishQualityBatch.findByIdAndDelete(req.params.id);
+
+    res.status(200).json({
+      message: "Batch deleted successfully",
+      deletedId: req.params.id,
+    });
+  } catch (error) {
+    console.error("Error deleting batch:", error);
+
+    res.status(500).json({
+      message: "Error deleting batch",
+      error: error.message,
+    });
   }
 });
 
