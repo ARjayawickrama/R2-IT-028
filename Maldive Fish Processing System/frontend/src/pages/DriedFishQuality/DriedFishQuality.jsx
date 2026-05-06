@@ -768,17 +768,6 @@ function AnalyticsTab({ batches }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid md:grid-cols-3 gap-5">
-        <Metric title="High Quality Batches" value={stats.high} color="blue" />
-
-        <Metric
-          title="Medium Quality Batches"
-          value={stats.medium}
-          color="sky"
-        />
-
-        <Metric title="Low Quality Batches" value={stats.low} color="indigo" />
-      </div>
 
       <div className="bg-white rounded-2xl shadow p-6">
         <h2 className="text-2xl font-bold mb-2">
