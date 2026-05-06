@@ -29,7 +29,10 @@ export default function DriedFishQuality() {
   const fetchBatches = async () => {
     try {
       const response = await qualityService.getBatches();
-      const batchesWithImages = response.data.map(b => ({ ...b, image: `http://localhost:5001${b.imageUrl}` }));
+      const batchesWithImages = response.data.map((b) => ({
+        ...b,
+        image: `http://localhost:5001${b.imageUrl}`,
+      }));
       setBatches(batchesWithImages);
     } catch (error) {
       console.error("Error fetching batches:", error);
@@ -48,12 +51,15 @@ export default function DriedFishQuality() {
       const response = await qualityService.analyzeImage(formData);
       const batchData = response.data;
 
-      // Map backend response to frontend format if needed
       const mappedBatch = {
         ...batchData,
         id: batchData._id || `MF-${new Date().getTime().toString().slice(-6)}`,
-        image: batchData.imageUrl ? `http://localhost:5001${batchData.imageUrl}` : previewUrl,
-        date: batchData.createdAt ? new Date(batchData.createdAt).toLocaleString() : new Date().toLocaleString(),
+        image: batchData.imageUrl
+          ? `http://localhost:5001${batchData.imageUrl}`
+          : previewUrl,
+        date: batchData.createdAt
+          ? new Date(batchData.createdAt).toLocaleString()
+          : new Date().toLocaleString(),
         level: batchData.level,
         score: batchData.score,
         voc: batchData.voc,
@@ -63,7 +69,6 @@ export default function DriedFishQuality() {
       };
 
       setPreview(mappedBatch);
-      // Refetch batches to include the new one
       fetchBatches();
     } catch (error) {
       console.error("Error uploading image:", error);
@@ -80,9 +85,11 @@ export default function DriedFishQuality() {
     const bstr = atob(arr[1]);
     let n = bstr.length;
     const u8arr = new Uint8Array(n);
+
     while (n--) {
       u8arr[n] = bstr.charCodeAt(n);
     }
+
     return new File([u8arr], filename, { type: mime });
   };
 
@@ -139,6 +146,7 @@ export default function DriedFishQuality() {
 
     const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
     const file = dataURLtoFile(dataUrl, "camera-captured-fish-sample.jpg");
+
     uploadToBackend(file);
 
     alert("Camera frame captured. Analyzing...");
@@ -283,16 +291,19 @@ function UploadTab({ fileRef, handleUpload, preview, isLoading }) {
                   value={preview.level}
                   color={preview.color}
                 />
+
                 <Result
                   title="Quality Score"
                   value={`${preview.score}%`}
                   color="blue"
                 />
+
                 <Result
                   title="VOC Level"
                   value={`${preview.voc} ppm`}
                   color="blue"
                 />
+
                 <Result
                   title="Odor Status"
                   value={preview.odorStatus}
@@ -342,10 +353,7 @@ function CameraTab({
             Upload
           </button>
 
-          <button
-            type="button"
-            className="bg-white py-2 rounded-md font-medium"
-          >
+          <button type="button" className="bg-white py-2 rounded-md font-medium">
             Webcam
           </button>
         </div>
@@ -493,29 +501,48 @@ function BatchTab({ batches }) {
   );
 }
 
+/* =========================
+   UPDATED ANALYTICS SECTION
+   ========================= */
+
 function AnalyticsTab({ batches }) {
   const stats = useMemo(() => {
-    const highData = batches.length
-      ? batches.map((b) => (b.score >= 85 ? b.score : 0)).reverse()
-      : [88, 90, 92, 89, 94, 91, 95];
+    const high = batches.filter((b) => Number(b.score) >= 85).length;
 
-    const mediumData = batches.length
-      ? batches
-          .map((b) => (b.score >= 70 && b.score < 85 ? b.score : 0))
-          .reverse()
-      : [72, 75, 79, 81, 78, 83, 80];
+    const medium = batches.filter(
+      (b) => Number(b.score) >= 70 && Number(b.score) < 85
+    ).length;
 
-    const lowData = batches.length
-      ? batches.map((b) => (b.score < 70 ? b.score : 0)).reverse()
-      : [58, 62, 66, 64, 60, 68, 65];
+    const low = batches.filter((b) => Number(b.score) < 70).length;
 
     return {
-      high: batches.filter((b) => b.score >= 85).length,
-      medium: batches.filter((b) => b.score >= 70 && b.score < 85).length,
-      low: batches.filter((b) => b.score < 70).length,
-      highData,
-      mediumData,
-      lowData,
+      high,
+      medium,
+      low,
+      total: high + medium + low,
+      chartData: [
+        {
+          label: "High",
+          quantity: high,
+          color: "#2563eb",
+          bg: "bg-blue-50",
+          text: "text-blue-700",
+        },
+        {
+          label: "Medium",
+          quantity: medium,
+          color: "#0284c7",
+          bg: "bg-sky-50",
+          text: "text-sky-700",
+        },
+        {
+          label: "Low",
+          quantity: low,
+          color: "#4f46e5",
+          bg: "bg-indigo-50",
+          text: "text-indigo-700",
+        },
+      ],
     };
   }, [batches]);
 
@@ -523,64 +550,190 @@ function AnalyticsTab({ batches }) {
     <div className="space-y-6">
       <div className="grid md:grid-cols-3 gap-5">
         <Metric title="High Quality Batches" value={stats.high} color="blue" />
+
         <Metric
           title="Medium Quality Batches"
           value={stats.medium}
           color="sky"
         />
+
         <Metric title="Low Quality Batches" value={stats.low} color="indigo" />
       </div>
 
       <div className="bg-white rounded-2xl shadow p-6">
         <h2 className="text-2xl font-bold mb-2">
-          Quality Analytics Line Charts
+          Quality Analytics Bar Chart
         </h2>
+
         <p className="text-slate-500 mb-6">
-          High, medium, and low quality trend analysis for uploaded Maldive fish
-          batches.
+          This chart shows the quantity of Maldive fish batches detected under
+          High, Medium, and Low quality levels.
         </p>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          <ChartBox
-            title="High Quality Trend"
-            color="text-blue-700"
-            bg="bg-blue-50"
-          >
-            <LineChart
-              data={stats.highData}
-              stroke="#1d4ed8"
-              label="High Quality Score (%)"
-            />
-          </ChartBox>
-
-          <ChartBox
-            title="Medium Quality Trend"
-            color="text-sky-700"
-            bg="bg-sky-50"
-          >
-            <LineChart
-              data={stats.mediumData}
-              stroke="#0284c7"
-              label="Medium Quality Score (%)"
-            />
-          </ChartBox>
-
-          <ChartBox
-            title="Low Quality Trend"
-            color="text-indigo-700"
-            bg="bg-indigo-50"
-          >
-            <LineChart
-              data={stats.lowData}
-              stroke="#4f46e5"
-              label="Low Quality Score (%)"
-            />
-          </ChartBox>
-        </div>
+        <QualityBarChart data={stats.chartData} total={stats.total} />
       </div>
     </div>
   );
 }
+
+function QualityBarChart({ data, total }) {
+  const maxQuantity = Math.max(...data.map((item) => item.quantity), 1);
+
+  return (
+    <div className="w-full">
+      <div className="grid md:grid-cols-3 gap-4 mb-6">
+        {data.map((item) => (
+          <div
+            key={item.label}
+            className={`${item.bg} rounded-xl border p-4 text-center`}
+          >
+            <p className={`text-sm font-semibold ${item.text}`}>
+              {item.label} Quality
+            </p>
+
+            <h3 className={`text-3xl font-bold mt-2 ${item.text}`}>
+              {item.quantity}
+            </h3>
+
+            <p className="text-xs text-slate-500 mt-1">Batches</p>
+          </div>
+        ))}
+      </div>
+
+      <svg
+        viewBox="0 0 700 360"
+        className="w-full h-[360px] bg-slate-50 rounded-xl border"
+      >
+        <text
+          x="350"
+          y="30"
+          textAnchor="middle"
+          className="fill-slate-700 text-sm font-semibold"
+        >
+          Quality Level vs Quantity
+        </text>
+
+        {[0, 1, 2, 3, 4].map((line) => {
+          const y = 290 - line * 55;
+          const value = Math.round((maxQuantity / 4) * line);
+
+          return (
+            <g key={line}>
+              <line
+                x1="80"
+                y1={y}
+                x2="650"
+                y2={y}
+                stroke="#dbeafe"
+                strokeWidth="1"
+              />
+
+              <text
+                x="55"
+                y={y + 5}
+                textAnchor="middle"
+                className="fill-slate-400 text-xs"
+              >
+                {value}
+              </text>
+            </g>
+          );
+        })}
+
+        <line
+          x1="80"
+          y1="70"
+          x2="80"
+          y2="290"
+          stroke="#94a3b8"
+          strokeWidth="2"
+        />
+
+        <line
+          x1="80"
+          y1="290"
+          x2="650"
+          y2="290"
+          stroke="#94a3b8"
+          strokeWidth="2"
+        />
+
+        {data.map((item, index) => {
+          const barWidth = 100;
+          const gap = 85;
+          const x = 140 + index * (barWidth + gap);
+          const barHeight = (item.quantity / maxQuantity) * 200;
+          const y = 290 - barHeight;
+
+          return (
+            <g key={item.label}>
+              <rect
+                x={x}
+                y={y}
+                width={barWidth}
+                height={barHeight}
+                rx="10"
+                fill={item.color}
+              />
+
+              <text
+                x={x + barWidth / 2}
+                y={item.quantity === 0 ? 275 : y - 12}
+                textAnchor="middle"
+                className="fill-slate-800 text-lg font-bold"
+              >
+                {item.quantity}
+              </text>
+
+              <text
+                x={x + barWidth / 2}
+                y="325"
+                textAnchor="middle"
+                className="fill-slate-700 text-sm font-semibold"
+              >
+                {item.label}
+              </text>
+
+              <text
+                x={x + barWidth / 2}
+                y="345"
+                textAnchor="middle"
+                className="fill-slate-400 text-xs"
+              >
+                {total > 0
+                  ? `${Math.round((item.quantity / total) * 100)}%`
+                  : "0%"}
+              </text>
+            </g>
+          );
+        })}
+
+        <text
+          x="25"
+          y="190"
+          textAnchor="middle"
+          transform="rotate(-90 25 190)"
+          className="fill-slate-500 text-xs"
+        >
+          Quantity
+        </text>
+
+        <text
+          x="365"
+          y="355"
+          textAnchor="middle"
+          className="fill-slate-500 text-xs"
+        >
+          Quality Level
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+/* =========================
+   OTHER SECTIONS SAME
+   ========================= */
 
 function VocTab() {
   const vocData = [90, 110, 130, 125, 150, 140, 165, 155, 180, 170, 160];
@@ -666,15 +819,6 @@ function EnvironmentTab() {
   );
 }
 
-function ChartBox({ title, color, bg, children }) {
-  return (
-    <div className={`${bg} rounded-2xl p-5 border border-blue-100`}>
-      <h3 className={`font-bold ${color} mb-2`}>{title}</h3>
-      {children}
-    </div>
-  );
-}
-
 function LineChart({ data, stroke, label }) {
   const cleanData = data.map((v) => (v === null || v === undefined ? 0 : v));
   const max = Math.max(...cleanData, 100);
@@ -720,6 +864,7 @@ function LineChart({ data, stroke, label }) {
         {cleanData.map((v, i) => {
           const x = 40 + i * (420 / Math.max(cleanData.length - 1, 1));
           const y = 240 - ((v - min) / (max - min || 1)) * 180;
+
           return <circle key={i} cx={x} cy={y} r="5" fill={stroke} />;
         })}
       </svg>
