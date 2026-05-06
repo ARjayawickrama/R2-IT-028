@@ -9,6 +9,16 @@ export default function DriedFishQuality() {
   const [cameraOn, setCameraOn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [dialog, setDialog] = useState({
+    open: false,
+    type: "success",
+    title: "",
+    message: "",
+    confirmText: "OK",
+    cancelText: "",
+    onConfirm: null,
+  });
+
   const videoRef = useRef(null);
   const fileRef = useRef(null);
   const cameraFileRef = useRef(null);
@@ -25,6 +35,37 @@ export default function DriedFishQuality() {
   useEffect(() => {
     fetchBatches();
   }, []);
+
+  const showDialog = ({
+    type = "success",
+    title,
+    message,
+    confirmText = "OK",
+    cancelText = "",
+    onConfirm = null,
+  }) => {
+    setDialog({
+      open: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      onConfirm,
+    });
+  };
+
+  const closeDialog = () => {
+    setDialog({
+      open: false,
+      type: "success",
+      title: "",
+      message: "",
+      confirmText: "OK",
+      cancelText: "",
+      onConfirm: null,
+    });
+  };
 
   const fetchBatches = async () => {
     try {
@@ -45,8 +86,9 @@ export default function DriedFishQuality() {
     }
   };
 
-  const uploadToBackend = async (file) => {
+  const uploadToBackend = async (file, source = "upload") => {
     setIsLoading(true);
+
     const previewUrl = URL.createObjectURL(file);
     setPreview({ image: previewUrl, isLoading: true });
 
@@ -75,31 +117,75 @@ export default function DriedFishQuality() {
       };
 
       setPreview(mappedBatch);
-      fetchBatches();
+      await fetchBatches();
+
+      if (source === "camera") {
+        showDialog({
+          type: "success",
+          title: "Webcam Image Saved Successfully",
+          message: `Captured image was analyzed and saved as a new batch. Quality Level: ${mappedBatch.level}. Score: ${mappedBatch.score}%.`,
+        });
+      } else if (source === "cameraUpload") {
+        showDialog({
+          type: "success",
+          title: "Camera Tab Upload Successful",
+          message: `Image uploaded from Live Quality Scan and saved successfully. Quality Level: ${mappedBatch.level}. Score: ${mappedBatch.score}%.`,
+        });
+      } else {
+        showDialog({
+          type: "success",
+          title: "Image Uploaded Successfully",
+          message: `Maldive fish image was analyzed and saved successfully. Quality Level: ${mappedBatch.level}. Score: ${mappedBatch.score}%.`,
+        });
+      }
     } catch (error) {
       console.error("Error uploading image:", error);
-      alert("Failed to analyze image.");
+
+      showDialog({
+        type: "error",
+        title: "Analysis Failed",
+        message:
+          "Failed to upload or analyze the image. Please check that the backend and ML server are running.",
+      });
+
       setPreview(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const deleteBatch = async (batchId) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this batch?"
-    );
+  const deleteBatch = (batchId) => {
+    showDialog({
+      type: "confirm",
+      title: "Delete Batch?",
+      message:
+        "Are you sure you want to delete this batch? This will remove the batch record and uploaded image.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      onConfirm: async () => {
+        try {
+          closeDialog();
 
-    if (!confirmDelete) return;
+          await qualityService.deleteBatch(batchId);
+          await fetchBatches();
 
-    try {
-      await qualityService.deleteBatch(batchId);
-      alert("Batch deleted successfully.");
-      fetchBatches();
-    } catch (error) {
-      console.error("Error deleting batch:", error);
-      alert("Failed to delete batch.");
-    }
+          showDialog({
+            type: "success",
+            title: "Batch Deleted Successfully",
+            message: "The selected batch has been removed successfully.",
+          });
+        } catch (error) {
+          console.error("Error deleting batch:", error);
+
+          showDialog({
+            type: "error",
+            title: "Delete Failed",
+            message:
+              "Failed to delete the batch. Please check your backend delete API.",
+          });
+        }
+      },
+    });
   };
 
   const dataURLtoFile = (dataurl, filename) => {
@@ -116,11 +202,11 @@ export default function DriedFishQuality() {
     return new File([u8arr], filename, { type: mime });
   };
 
-  const handleUpload = (e) => {
+  const handleUpload = (e, source = "upload") => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    uploadToBackend(file);
+    uploadToBackend(file, source);
     e.target.value = "";
   };
 
@@ -135,9 +221,20 @@ export default function DriedFishQuality() {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
         setCameraOn(true);
+
+        showDialog({
+          type: "success",
+          title: "Camera Started",
+          message: "Live camera preview is now active. You can capture a frame.",
+        });
       }
     } catch (error) {
-      alert("Camera permission denied or camera already used by another app.");
+      showDialog({
+        type: "error",
+        title: "Camera Error",
+        message:
+          "Camera permission denied or camera is already used by another app.",
+      });
     }
   };
 
@@ -150,11 +247,21 @@ export default function DriedFishQuality() {
     }
 
     setCameraOn(false);
+
+    showDialog({
+      type: "success",
+      title: "Camera Stopped",
+      message: "Live camera preview has been stopped.",
+    });
   };
 
   const captureFrame = () => {
     if (!videoRef.current || !cameraOn) {
-      alert("Start camera before capturing a frame.");
+      showDialog({
+        type: "error",
+        title: "Camera Not Started",
+        message: "Please start the camera before capturing a frame.",
+      });
       return;
     }
 
@@ -170,13 +277,13 @@ export default function DriedFishQuality() {
     const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
     const file = dataURLtoFile(dataUrl, "camera-captured-fish-sample.jpg");
 
-    uploadToBackend(file);
-
-    alert("Camera frame captured. Analyzing...");
+    uploadToBackend(file, "camera");
   };
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
+      <CustomDialog dialog={dialog} closeDialog={closeDialog} />
+
       <div className="bg-white border-b shadow-sm sticky top-0 z-20">
         <div className="px-6 py-4">
           <h1 className="text-2xl font-bold">
@@ -240,6 +347,78 @@ export default function DriedFishQuality() {
   );
 }
 
+function CustomDialog({ dialog, closeDialog }) {
+  if (!dialog.open) return null;
+
+  const iconMap = {
+    success: "✅",
+    error: "❌",
+    confirm: "⚠️",
+  };
+
+  const colorMap = {
+    success: {
+      iconBg: "bg-emerald-50 text-emerald-600",
+      button: "bg-blue-600 hover:bg-blue-700 text-white",
+    },
+    error: {
+      iconBg: "bg-red-50 text-red-600",
+      button: "bg-red-600 hover:bg-red-700 text-white",
+    },
+    confirm: {
+      iconBg: "bg-amber-50 text-amber-600",
+      button: "bg-red-600 hover:bg-red-700 text-white",
+    },
+  };
+
+  const style = colorMap[dialog.type] || colorMap.success;
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <div
+              className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${style.iconBg}`}
+            >
+              {iconMap[dialog.type] || "✅"}
+            </div>
+
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-slate-900">
+                {dialog.title}
+              </h2>
+              <p className="text-sm text-slate-500 mt-2 leading-6">
+                {dialog.message}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 px-6 py-4 flex justify-end gap-3">
+          {dialog.cancelText && (
+            <button
+              type="button"
+              onClick={closeDialog}
+              className="px-5 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-white"
+            >
+              {dialog.cancelText}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={dialog.onConfirm ? dialog.onConfirm : closeDialog}
+            className={`px-5 py-2 rounded-lg font-semibold ${style.button}`}
+          >
+            {dialog.confirmText || "OK"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function UploadTab({ fileRef, handleUpload, preview, isLoading }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -262,7 +441,7 @@ function UploadTab({ fileRef, handleUpload, preview, isLoading }) {
           ref={fileRef}
           type="file"
           accept="image/*"
-          onChange={handleUpload}
+          onChange={(e) => handleUpload(e, "upload")}
           className="hidden"
         />
 
@@ -323,7 +502,7 @@ function UploadTab({ fileRef, handleUpload, preview, isLoading }) {
                   value={`${preview.score}%`}
                   color="blue"
                 />
-
+            
                 <Result
                   title="VOC Level"
                   value={`${preview.voc} ppm`}
@@ -388,7 +567,7 @@ function CameraTab({
           ref={cameraFileRef}
           type="file"
           accept="image/*"
-          onChange={handleUpload}
+          onChange={(e) => handleUpload(e, "cameraUpload")}
           className="hidden"
         />
 
