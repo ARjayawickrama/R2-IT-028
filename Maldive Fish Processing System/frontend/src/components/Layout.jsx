@@ -5,46 +5,46 @@ import RightSideNotificationBar from "./RightSideNotificationBar";
 import NotificationBar from "./NotificationBar";
 
 const navItems = [
-  {
+   {
     path: "/dashboard",
     icon: "📊",
     label: "Dashboard Overview",
-    color: "from-blue-500 to-indigo-600",
-    accent: "blue",
+    color: "from-slate-600 to-slate-800",
+    accent: "slate",
   },
   {
     path: "/dried-fish-quality",
     icon: "🐟",
     label: "Dried Fish Quality",
-    color: "from-amber-500 to-orange-600",
-    accent: "amber",
+    color: "from-slate-600 to-slate-800",
+    accent: "slate",
   },
   {
     path: "/boile-control",
     icon: "⚡",
     label: "AutoSalt Regulator",
-    color: "from-violet-500 to-purple-600",
-    accent: "violet",
+    color: "from-slate-600 to-slate-800",
+    accent: "slate",
   },
   {
     path: "/environmental-monitoring",
     icon: "🌡️",
     label: "EcoScan",
-    color: "from-teal-500 to-emerald-600",
-    accent: "teal",
+    color: "from-slate-600 to-slate-800",
+    accent: "slate",
   },
   {
     path: "/raw-fish-quality",
     icon: "🐠",
     label: "Raw Fish Quality",
-    color: "from-cyan-500 to-blue-600",
-    accent: "cyan",
+    color: "from-slate-600 to-slate-800",
+    accent: "slate",
   },
   {
     path: "/system-settings",
     icon: "🔧",
     label: "System Settings",
-    color: "from-slate-500 to-gray-600",
+    color: "from-slate-600 to-slate-800",
     accent: "slate",
   },
 ];
