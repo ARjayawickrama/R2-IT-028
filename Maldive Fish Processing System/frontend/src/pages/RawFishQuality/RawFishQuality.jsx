@@ -18,13 +18,10 @@ const RawFishQuality = () => {
   const [history, setHistory] = useState([]);
   const [feedback, setFeedback] = useState('Use the upload or camera feature to analyze fish freshness.');
   const [qualityData, setQualityData] = useState([]);
-  const [recentBatches] = useState([
-    { id: 'RF-2024-001', species: 'Alagoduwa', date: '2024-04-26', status: 'Excellent', quality: 92.5, quantity: 250 },
-    { id: 'RF-2024-002', species: 'Alagoduwa', date: '2024-04-26', status: 'Good', quality: 87.3, quantity: 180 },
-    { id: 'RF-2024-003', species: 'Alagoduwa', date: '2024-04-25', status: 'Excellent', quality: 91.8, quantity: 320 },
-    { id: 'RF-2024-004', species: 'Alagoduwa', date: '2024-04-25', status: 'Acceptable', quality: 82.1, quantity: 450 },
-    { id: 'RF-2024-005', species: 'Alagoduwa', date: '2024-04-24', status: 'Good', quality: 86.7, quantity: 210 }
-  ]);
+  const [autoCaptionActive, setAutoCaptionActive] = useState(false);
+  const [currentCaption, setCurrentCaption] = useState('');
+  const autoCaptionIntervalRef = useRef(null);
+
   const [qualityAlerts] = useState([
     { type: 'warning', message: 'Temperature slightly above optimal for batch RF-2024-002', time: '30 minutes ago' },
     { type: 'info', message: 'Quality inspection completed for batch RF-2024-001', time: '2 hours ago' },
@@ -42,6 +39,9 @@ const RawFishQuality = () => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       stopCamera();
+      if (autoCaptionIntervalRef.current) {
+        clearInterval(autoCaptionIntervalRef.current);
+      }
     };
   }, []);
 
@@ -178,6 +178,14 @@ const RawFishQuality = () => {
       setVideoStream(null);
     }
     setCameraActive(false);
+    if (autoCaptionActive) {
+      setAutoCaptionActive(false);
+      setCurrentCaption('');
+      if (autoCaptionIntervalRef.current) {
+        clearInterval(autoCaptionIntervalRef.current);
+        autoCaptionIntervalRef.current = null;
+      }
+    }
   };
 
   const captureFromCamera = async () => {
@@ -252,6 +260,64 @@ const RawFishQuality = () => {
       setFeedback(error.message || 'There was an error analyzing the image.');
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const analyzeRealtime = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+
+      const file = new File([blob], 'realtime-capture.jpg', { type: 'image/jpeg' });
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(FRESHNESS_API_URL, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          const apiResult = await response.json();
+          const results = apiResult.results || [];
+          const qualityLabel = results.length ? results[0].class : 'unknown';
+          const freshnessScore = getFreshnessScoreFromLabel(qualityLabel);
+          setCurrentCaption(`${qualityLabel} (${freshnessScore}%)`);
+        }
+      } catch (error) {
+        console.error('Realtime analysis failed:', error);
+        setCurrentCaption('Analysis error');
+      }
+    }, 'image/jpeg', 0.95);
+  };
+
+  const toggleAutoCaption = () => {
+    if (autoCaptionActive) {
+      if (autoCaptionIntervalRef.current) {
+        clearInterval(autoCaptionIntervalRef.current);
+        autoCaptionIntervalRef.current = null;
+      }
+      setAutoCaptionActive(false);
+      setCurrentCaption('');
+      setFeedback('Auto caption stopped.');
+    } else {
+      if (!cameraActive) {
+        setFeedback('Please start the camera first.');
+        return;
+      }
+      setAutoCaptionActive(true);
+      setFeedback('Auto caption started. Analyzing live feed...');
+      autoCaptionIntervalRef.current = setInterval(analyzeRealtime, 3000); // Analyze every 3 seconds
     }
   };
 
@@ -333,15 +399,20 @@ const RawFishQuality = () => {
                   <p className="text-sm font-medium text-gray-700">Live camera</p>
                   <p className="text-xs text-gray-500">Capture fish quality directly from your webcam.</p>
                 </div>
-                <div className="overflow-hidden rounded-lg bg-black">
+                <div className="overflow-hidden rounded-lg bg-black relative">
                   <video
                     ref={videoRef}
                     className="h-64 w-full object-cover"
                     autoPlay
                     playsInline
                   />
+                  {currentCaption && (
+                    <div className="absolute bottom-4 left-4 bg-black bg-opacity-75 text-white px-3 py-2 rounded-lg text-sm font-semibold">
+                      {currentCaption}
+                    </div>
+                  )}
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2 sm:grid-cols-3">
                   {!cameraActive ? (
                     <button
                       onClick={startCamera}
@@ -363,6 +434,13 @@ const RawFishQuality = () => {
                     className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
                   >
                     {isAnalyzing ? 'Capturing...' : 'Capture & Analyze'}
+                  </button>
+                  <button
+                    onClick={toggleAutoCaption}
+                    disabled={!cameraActive}
+                    className={`rounded-lg px-4 py-2 text-white ${autoCaptionActive ? 'bg-orange-600 hover:bg-orange-700' : 'bg-purple-600 hover:bg-purple-700'} disabled:cursor-not-allowed disabled:bg-gray-300`}
+                  >
+                    {autoCaptionActive ? 'Stop Auto Caption' : 'Auto Caption'}
                   </button>
                 </div>
               </div>
