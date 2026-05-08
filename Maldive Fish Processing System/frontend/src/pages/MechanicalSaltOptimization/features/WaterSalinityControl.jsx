@@ -46,12 +46,12 @@ const BoilerIcon = ({ waterPct, isBoiling }) => {
       
       {isBoiling && (
         <g>
-          <circle cx="50" cy={110 - fillH} r="2" fill="white">
-            <animate attributeName="cy" from={110 - fillH} to="45" dur="1s" repeatCount="indefinite" />
+          <circle cx="50" cy={125 - fillH} r="2" fill="white">
+            <animate attributeName="cy" from={125 - fillH} to="45" dur="1s" repeatCount="indefinite" />
             <animate attributeName="opacity" from="1" to="0" dur="1s" repeatCount="indefinite" />
           </circle>
-          <circle cx="70" cy={110 - fillH} r="2" fill="white">
-            <animate attributeName="cy" from={110 - fillH} to="45" dur="1.4s" repeatCount="indefinite" />
+          <circle cx="70" cy={125 - fillH} r="2" fill="white">
+            <animate attributeName="cy" from={125 - fillH} to="45" dur="1.4s" repeatCount="indefinite" />
             <animate attributeName="opacity" from="1" to="0" dur="1.4s" repeatCount="indefinite" />
           </circle>
         </g>
@@ -62,15 +62,13 @@ const BoilerIcon = ({ waterPct, isBoiling }) => {
 };
 
 export default function BoilerDashboard() {
-  // State for multiple tanks
   const [tanks, setTanks] = useState([
-    { id: 1, name: 'Boiler Tank 1', length: 60, width: 30, thickness: 25, temp: 22.0, isCycling: false }
+    { id: 1, name: 'Boiler Tank 1', length: 60, width: 40, thickness: 25, fishWeight: 3, temp: 22.0, isCycling: false }
   ]);
   const [activeId, setActiveId] = useState(1);
 
   const activeTank = tanks.find(t => t.id === activeId);
 
-  // Update Tank Function (Changes reflect immediately)
   const handleInputChange = (field, value) => {
     setTanks(prev => prev.map(t => 
       t.id === activeId ? { ...t, [field]: Number(value) } : t
@@ -79,7 +77,7 @@ export default function BoilerDashboard() {
 
   const addTank = () => {
     const newId = tanks.length + 1;
-    setTanks([...tanks, { id: newId, name: `Boiler Tank ${newId}`, length: 60, width: 30, thickness: 25, temp: 22.0, isCycling: false }]);
+    setTanks([...tanks, { id: newId, name: `Boiler Tank ${newId}`, length: 60, width: 40, thickness: 25, fishWeight: 3, temp: 22.0, isCycling: false }]);
     setActiveId(newId);
   };
 
@@ -87,26 +85,40 @@ export default function BoilerDashboard() {
     setTanks(prev => prev.map(t => t.id === activeId ? { ...t, isCycling: !t.isCycling } : t));
   };
 
-  // Temp Simulation
   useEffect(() => {
     const timer = setInterval(() => {
       setTanks(prev => prev.map(t => {
-        if (t.isCycling && t.temp < 100) return { ...t, temp: t.temp + 0.2 };
-        if (!t.isCycling && t.temp > 22) return { ...t, temp: t.temp - 0.1 };
+        if (t.isCycling && t.temp < 100) return { ...t, temp: t.temp + 0.5 };
+        if (!t.isCycling && t.temp > 22) return { ...t, temp: t.temp - 0.2 };
         return t;
       }));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Real-time Calculations
-  const waterVolume = (activeTank.length * activeTank.width * (activeTank.thickness / 10)) / 1000;
-  const waterPct = Math.min((waterVolume / 50) * 100, 100); // 50L as max scale
+  // --- Scientific Calculations ---
+  
+  // 1. මාළුවා යටවීමට අවශ්‍ය අවම උස (Thickness + 2cm buffer)
+  const requiredHeight = (activeTank.thickness / 10) + 2; 
+  
+  // 2. ටැංකියේ වර්ගඵලය මත පදනම්ව අවශ්‍ය ජල පරිමාව (Volume = L * W * H)
+  const volumeBasedWater = (activeTank.length * activeTank.width * requiredHeight) / 1000;
+  
+  // 3. 1:2 Ratio එක මත පදනම්ව අවශ්‍ය ජල පරිමාව (3kg නම් 6L)
+  const weightBasedWater = activeTank.fishWeight * 2;
+  
+  // 4. අවසාන ජල ප්‍රමාණය (මේ දෙකෙන් වැඩි අගය තෝරාගැනීම වඩාත් ආරක්ෂිතයි)
+  const finalWaterLiters = Math.max(volumeBasedWater, weightBasedWater);
+  
+  // 5. ලුණු ප්‍රමාණය (3% සාන්ද්‍රණය)
+  const requiredSalt = finalWaterLiters * 1000 * 0.03;
+
+  const waterPct = Math.min((finalWaterLiters / 50) * 100, 100);
 
   return (
     <div style={{ backgroundColor: '#F1EFE8', minHeight: '100vh', padding: '20px', fontFamily: "'Courier New', monospace" }}>
       
-      {/* Tank Tabs */}
+      {/* Tank Management Tabs */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: 'white', padding: '10px', borderRadius: '30px', width: 'fit-content', border: '1px solid #D3D1C7' }}>
         <span style={{ fontSize: '11px', alignSelf: 'center', color: '#888', fontWeight: 'bold', padding: '0 10px' }}>BOILER TANK MANAGEMENT</span>
         {tanks.map(t => (
@@ -119,53 +131,80 @@ export default function BoilerDashboard() {
 
       <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
         
-        {/* CALCULATE PANEL */}
-        <div style={{ flex: '1', minWidth: '280px', background: 'white', padding: '20px', borderRadius: '15px', border: '1px solid #D3D1C7' }}>
-          <div style={{ fontSize: '11px', color: '#888', marginBottom: '20px' }}>CALCULATE - Tank Water Volume</div>
+        {/* INPUT PANEL */}
+        <div style={{ flex: '1', minWidth: '300px', background: 'white', padding: '20px', borderRadius: '20px', border: '1px solid #D3D1C7', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+          <div style={{ fontSize: '11px', color: '#1D9E75', fontWeight: 'black', marginBottom: '20px', letterSpacing: '1px' }}>SCIENTIFIC INPUTS</div>
           
           <div style={{ marginBottom: '15px' }}>
-            <label style={{ fontSize: '10px', color: '#999', display: 'block' }}>TANK LENGTH (cm)</label>
-            <input type="number" value={activeTank.length} onChange={(e) => handleInputChange('length', e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #EEE', borderRadius: '8px', background: '#F8F8F6' }} />
+            <label style={{ fontSize: '10px', color: '#999', display: 'block', marginBottom: '5px' }}>FISH BATCH WEIGHT (kg)</label>
+            <input type="number" value={activeTank.fishWeight} onChange={(e) => handleInputChange('fishWeight', e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #EEE', borderRadius: '10px', background: '#F8F8F6', fontWeight: 'bold' }} />
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '10px', color: '#999', display: 'block', marginBottom: '5px' }}>LENGTH (cm)</label>
+              <input type="number" value={activeTank.length} onChange={(e) => handleInputChange('length', e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #EEE', borderRadius: '10px', background: '#F8F8F6' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '10px', color: '#999', display: 'block', marginBottom: '5px' }}>WIDTH (cm)</label>
+              <input type="number" value={activeTank.width} onChange={(e) => handleInputChange('width', e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #EEE', borderRadius: '10px', background: '#F8F8F6' }} />
+            </div>
           </div>
 
           <div style={{ marginBottom: '15px' }}>
-            <label style={{ fontSize: '10px', color: '#999', display: 'block' }}>TANK WIDTH (cm)</label>
-            <input type="number" value={activeTank.width} onChange={(e) => handleInputChange('width', e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #EEE', borderRadius: '8px', background: '#F8F8F6' }} />
-          </div>
-
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ fontSize: '10px', color: '#999', display: 'block' }}>FISH THICKNESS (mm)</label>
-            <input type="number" value={activeTank.thickness} onChange={(e) => handleInputChange('thickness', e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #EEE', borderRadius: '8px', background: '#F8F8F6' }} />
+            <label style={{ fontSize: '10px', color: '#999', display: 'block', marginBottom: '5px' }}>MAX FISH THICKNESS (mm)</label>
+            <input type="number" value={activeTank.thickness} onChange={(e) => handleInputChange('thickness', e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #EEE', borderRadius: '10px', background: '#F8F8F6' }} />
           </div>
         </div>
 
         {/* STATUS PANEL */}
-        <div style={{ flex: '1.5', background: 'white', padding: '20px', borderRadius: '15px', border: '1px solid #D3D1C7', textAlign: 'center' }}>
+        <div style={{ flex: '1.2', background: 'white', padding: '20px', borderRadius: '20px', border: '1px solid #D3D1C7', textAlign: 'center', position: 'relative' }}>
           <div style={{ fontSize: '11px', color: '#888', marginBottom: '10px' }}>BOILER STATUS — {activeTank.name}</div>
           <BoilerIcon waterPct={waterPct} isBoiling={activeTank.isCycling} />
-          <div style={{ fontSize: '32px', color: '#1D9E75', fontWeight: 'bold' }}>{activeTank.temp.toFixed(1)}°C</div>
-          <div style={{ fontSize: '10px', color: '#AAA', letterSpacing: '3px' }}>{activeTank.isCycling ? 'BOILING' : 'STANDBY'}</div>
+          <div style={{ fontSize: '42px', color: '#333', fontWeight: 'black', marginTop: '10px' }}>{activeTank.temp.toFixed(1)}°C</div>
+          <div style={{ fontSize: '10px', color: activeTank.isCycling ? '#E11D48' : '#AAA', letterSpacing: '4px', fontWeight: 'bold' }}>{activeTank.isCycling ? 'ACTIVE BOILING' : 'SYSTEM STANDBY'}</div>
         </div>
 
-        {/* SENSORS & BUTTON PANEL */}
+        {/* CALCULATION & SENSORS PANEL */}
         <div style={{ flex: '1.5', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ background: 'white', padding: '20px', borderRadius: '15px', border: '1px solid #D3D1C7' }}>
-            <div style={{ fontSize: '11px', color: '#888', textAlign: 'center', marginBottom: '15px' }}>LIVE SENSORS</div>
+          
+          {/* Live Gauges */}
+          <div style={{ background: 'white', padding: '20px', borderRadius: '20px', border: '1px solid #D3D1C7' }}>
+            <div style={{ fontSize: '11px', color: '#888', textAlign: 'center', marginBottom: '15px' }}>REAL-TIME PARAMETERS</div>
             <div style={{ display: 'flex', justifyContent: 'space-around' }}>
-              <GaugeArc value={0} max={10} color="#1D9E75" unit="kg" label="FISH" />
-              <GaugeArc value={waterVolume} max={50} color="#6F42C1" unit="L" label="WATER" />
-              <GaugeArc value={activeTank.temp} max={100} color="#BA7517" unit="°C" label="TEMP" />
+              <GaugeArc value={activeTank.fishWeight} max={20} color="#1D9E75" unit="kg" label="BATCH" />
+              <GaugeArc value={finalWaterLiters} max={50} color="#6F42C1" unit="L" label="WATER" />
+              <GaugeArc value={requiredSalt} max={1000} color="#BA7517" unit="g" label="SALT" />
             </div>
           </div>
 
-          <div style={{ background: '#4A3AFF', padding: '20px', borderRadius: '15px', color: 'white', textAlign: 'center' }}>
-            <div style={{ fontSize: '10px', opacity: '0.8' }}>REQUIRED WATER VOLUME</div>
-            <div style={{ fontSize: '36px', fontWeight: 'bold' }}>{waterVolume.toFixed(2)} Liters</div>
+          {/* Results Summary */}
+          <div style={{ background: '#4A3AFF', padding: '25px', borderRadius: '20px', color: 'white', boxShadow: '0 10px 20px rgba(74, 58, 255, 0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '10px', opacity: '0.8', letterSpacing: '1px' }}>TOTAL WATER REQUIRED</div>
+                <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{finalWaterLiters.toFixed(2)} L</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '10px', opacity: '0.8', letterSpacing: '1px' }}>SALT (3%)</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{requiredSalt.toFixed(0)}g</div>
+              </div>
+            </div>
+            <div style={{ height: '1px', background: 'rgba(255,255,255,0.2)', margin: '15px 0' }} />
+            <div style={{ fontSize: '9px', opacity: '0.7', fontStyle: 'italic' }}>
+              Target Submersion Height: {requiredHeight.toFixed(1)} cm | Based on Codex CXC 52-2003
+            </div>
           </div>
 
-          <button onClick={toggleCycle} style={{ width: '100%', padding: '15px', borderRadius: '12px', border: '1px solid #D3D1C7', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: activeTank.isCycling ? '#FFF1F2' : '#F8F9FA' }}>
-            {activeTank.isCycling ? <div style={{ width: 10, height: 10, background: '#E11D48' }} /> : <div style={{ borderLeft: '10px solid #5E6D82', borderTop: '6px solid transparent', borderBottom: '6px solid transparent' }} />}
-            <span style={{ fontWeight: 'bold', color: activeTank.isCycling ? '#E11D48' : '#5E6D82' }}>{activeTank.isCycling ? 'STOP CYCLE' : 'START CYCLE'}</span>
+          {/* Control Button */}
+          <button onClick={toggleCycle} style={{ width: '100%', padding: '18px', borderRadius: '15px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', background: activeTank.isCycling ? '#FFF1F2' : '#1D9E75', transition: 'all 0.3s' }}>
+            {activeTank.isCycling ? 
+              <div style={{ width: 12, height: 12, background: '#E11D48' }} /> : 
+              <div style={{ borderLeft: '12px solid white', borderTop: '8px solid transparent', borderBottom: '8px solid transparent' }} />
+            }
+            <span style={{ fontWeight: 'bold', fontSize: '14px', color: activeTank.isCycling ? '#E11D48' : 'white' }}>
+              {activeTank.isCycling ? 'TERMINATE BOILING CYCLE' : 'INITIATE BOILING CYCLE'}
+            </span>
           </button>
         </div>
 
