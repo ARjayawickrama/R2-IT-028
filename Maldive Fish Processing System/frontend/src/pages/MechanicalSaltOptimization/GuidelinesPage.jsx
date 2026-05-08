@@ -1,13 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 
-/* ─── Google Fonts ─────────────────────────────────────────────────────────── */
-const FontLink = () => (
-  <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
-  `}</style>
-);
+// Add this to your global CSS or index.html for best font experience:
+// @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
 
-/* ─── Data ────────────────────────────────────────────────────────────────── */
 const PAGES = [
   {
     id: 1,
@@ -21,27 +16,9 @@ const PAGES = [
     accent: "#00E5FF",
     accentDark: "#006070",
     features: [
-      {
-        icon: "camera",
-        label: "AI Vision",
-        title: "Automated fish detection",
-        desc: "Identifies species, size, and freshness in real time",
-        color: "#00E5FF",
-      },
-      {
-        icon: "scale",
-        label: "Intake Weighing",
-        title: "Calibrated at entry",
-        desc: "Each batch weighed and logged with supplier ID",
-        color: "#06D6A0",
-      },
-      {
-        icon: "check",
-        label: "Species Check",
-        title: "99 % accuracy rate",
-        desc: "Vision model trained on 40 + local fish species",
-        color: "#A78BFA",
-      },
+      { icon: "camera", label: "AI Vision", title: "Automated fish detection", desc: "Identifies species, size, and freshness in real time", color: "#00E5FF" },
+      { icon: "scale", label: "Intake Weighing", title: "Calibrated at entry", desc: "Each batch weighed and logged with supplier ID", color: "#06D6A0" },
+      { icon: "check", label: "Species Check", title: "99 % accuracy rate", desc: "Vision model trained on 40 + local fish species", color: "#A78BFA" },
     ],
   },
   {
@@ -56,27 +33,9 @@ const PAGES = [
     accent: "#FF6B35",
     accentDark: "#7a2200",
     features: [
-      {
-        icon: "water",
-        label: "Boiling Chamber",
-        title: "100 °C maintained",
-        desc: "Pressurised tank ensures consistent full boil",
-        color: "#FF6B35",
-      },
-      {
-        icon: "thermometer",
-        label: "Thermal Logging",
-        title: "Logged every 30 sec",
-        desc: "Auto-alert if temperature drops below threshold",
-        color: "#FFD166",
-      },
-      {
-        icon: "snowflake",
-        label: "Salt Bath Option",
-        title: "Brine concentration",
-        desc: "Optional 8 – 12 % salt solution for Maldive fish prep",
-        color: "#A78BFA",
-      },
+      { icon: "water", label: "Boiling Chamber", title: "100 °C maintained", desc: "Pressurised tank ensures consistent full boil", color: "#FF6B35" },
+      { icon: "thermometer", label: "Thermal Logging", title: "Logged every 30 sec", desc: "Auto-alert if temperature drops below threshold", color: "#FFD166" },
+      { icon: "snowflake", label: "Salt Bath Option", title: "Brine concentration", desc: "Optional 8 – 12 % salt solution for Maldive fish prep", color: "#A78BFA" },
     ],
   },
   {
@@ -91,27 +50,9 @@ const PAGES = [
     accent: "#FFD166",
     accentDark: "#6a5200",
     features: [
-      {
-        icon: "thermometer",
-        label: "Drying Oven",
-        title: "55 – 65 °C airflow",
-        desc: "Forced hot-air circulation for uniform drying",
-        color: "#FFD166",
-      },
-      {
-        icon: "calendar-week",
-        label: "Drying Duration",
-        title: "6 – 8 hours per batch",
-        desc: "Duration adjusted by fish size and moisture sensor",
-        color: "#FF9A3C",
-      },
-      {
-        icon: "box",
-        label: "Moisture Target",
-        title: "< 20 % moisture",
-        desc: "Sensor confirms safe moisture before packaging",
-        color: "#06D6A0",
-      },
+      { icon: "thermometer", label: "Drying Oven", title: "55 – 65 °C airflow", desc: "Forced hot-air circulation for uniform drying", color: "#FFD166" },
+      { icon: "calendar-week", label: "Drying Duration", title: "6 – 8 hours per batch", desc: "Duration adjusted by fish size and moisture sensor", color: "#FF9A3C" },
+      { icon: "box", label: "Moisture Target", title: "< 20 % moisture", desc: "Sensor confirms safe moisture before packaging", color: "#06D6A0" },
     ],
   },
   {
@@ -126,144 +67,95 @@ const PAGES = [
     accent: "#06D6A0",
     accentDark: "#024d38",
     features: [
-      {
-        icon: "star",
-        label: "Premium Grade",
-        title: "Top 20 % of batch",
-        desc: "Firm texture, deep colour, full shape intact",
-        color: "#06D6A0",
-      },
-      {
-        icon: "check",
-        label: "Good Grade",
-        title: "Standard export quality",
-        desc: "Minor surface cracks acceptable, no soft spots",
-        color: "#FFD166",
-      },
-      {
-        icon: "alert",
-        label: "Processing Grade",
-        title: "Secondary use",
-        desc: "Broken pieces redirected to powder / paste line",
-        color: "#FF6B35",
-      },
+      { icon: "star", label: "Premium Grade", title: "Top 20 % of batch", desc: "Firm texture, deep colour, full shape intact", color: "#06D6A0" },
+      { icon: "check", label: "Good Grade", title: "Standard export quality", desc: "Minor surface cracks acceptable, no soft spots", color: "#FFD166" },
+      { icon: "alert", label: "Processing Grade", title: "Secondary use", desc: "Broken pieces redirected to powder / paste line", color: "#FF6B35" },
     ],
   },
 ];
 
-/* ─── Icons ───────────────────────────────────────────────────────────────── */
+const STATS = [
+  { label: "Fish / hr", val: "2400", suffix: "+" },
+  { label: "Accuracy", val: "99", suffix: "%" },
+  { label: "Temp precision", val: "±0.2", suffix: "°C" },
+  { label: "Uptime", val: "99.7", suffix: "%" },
+];
+
 const Icon = ({ name, size = 20, color = "currentColor" }) => {
   const s = {
-    width: size, height: size, fill: "none", stroke: color,
-    strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", flexShrink: 0,
+    width: size,
+    height: size,
+    fill: "none",
+    stroke: color,
+    strokeWidth: 1.8,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    flexShrink: 0,
   };
   switch (name) {
-    case "camera": return <svg viewBox="0 0 24 24" style={s}><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>;
-    case "water": return <svg viewBox="0 0 24 24" style={s}><path d="M12 2C6 9 4 13.5 4 16a8 8 0 0016 0c0-2.5-2-7-8-14z"/></svg>;
-    case "snowflake": return <svg viewBox="0 0 24 24" style={s}><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4"/></svg>;
-    case "star": return <svg viewBox="0 0 24 24" style={s}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
-    case "check": return <svg viewBox="0 0 24 24" style={s}><polyline points="20 6 9 17 4 12"/></svg>;
-    case "alert": return <svg viewBox="0 0 24 24" style={s}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
-    case "scale": return <svg viewBox="0 0 24 24" style={s}><path d="M12 3v18M3 9l9-6 9 6M3 15l9 6 9-6"/></svg>;
-    case "thermometer": return <svg viewBox="0 0 24 24" style={s}><path d="M14 14.76V3.5a2.5 2.5 0 00-5 0v11.26a4.5 4.5 0 105 0z"/></svg>;
-    case "box": return <svg viewBox="0 0 24 24" style={s}><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
-    case "calendar-day": return <svg viewBox="0 0 24 24" style={s}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="16" r="1.5" fill={color} stroke="none"/></svg>;
-    case "calendar-week": return <svg viewBox="0 0 24 24" style={s}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>;
-    case "calendar-month": return <svg viewBox="0 0 24 24" style={s}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="8" y="13" width="8" height="5" rx="1" strokeWidth={1.4}/></svg>;
-    case "chevron-left": return <svg viewBox="0 0 24 24" style={s}><polyline points="15 18 9 12 15 6"/></svg>;
-    case "chevron-right": return <svg viewBox="0 0 24 24" style={s}><polyline points="9 18 15 12 9 6"/></svg>;
-    case "x": return <svg viewBox="0 0 24 24" style={s}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-    case "fish": return <svg viewBox="0 0 24 24" style={s}><path d="M6 12c0-4 3-7 9-7s9 3 9 7-3 7-9 7-9-3-9-7z"/><path d="M2 9l4 3-4 3"/><circle cx="17" cy="12" r="1.5" fill={color} stroke="none"/></svg>;
-    default: return null;
+    case "camera":
+      return <svg viewBox="0 0 24 24" style={s}><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>;
+    case "water":
+      return <svg viewBox="0 0 24 24" style={s}><path d="M12 2C6 9 4 13.5 4 16a8 8 0 0016 0c0-2.5-2-7-8-14z"/></svg>;
+    case "snowflake":
+      return <svg viewBox="0 0 24 24" style={s}><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4"/></svg>;
+    case "star":
+      return <svg viewBox="0 0 24 24" style={s}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
+    case "check":
+      return <svg viewBox="0 0 24 24" style={s}><polyline points="20 6 9 17 4 12"/></svg>;
+    case "alert":
+      return <svg viewBox="0 0 24 24" style={s}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+    case "scale":
+      return <svg viewBox="0 0 24 24" style={s}><path d="M12 3v18M3 9l9-6 9 6M3 15l9 6 9-6"/></svg>;
+    case "thermometer":
+      return <svg viewBox="0 0 24 24" style={s}><path d="M14 14.76V3.5a2.5 2.5 0 00-5 0v11.26a4.5 4.5 0 105 0z"/></svg>;
+    case "box":
+      return <svg viewBox="0 0 24 24" style={s}><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
+    case "calendar-week":
+      return <svg viewBox="0 0 24 24" style={s}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>;
+    case "chevron-left":
+      return <svg viewBox="0 0 24 24" style={s}><polyline points="15 18 9 12 15 6"/></svg>;
+    case "chevron-right":
+      return <svg viewBox="0 0 24 24" style={s}><polyline points="9 18 15 12 9 6"/></svg>;
+    case "x":
+      return <svg viewBox="0 0 24 24" style={s}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+    case "fish":
+      return <svg viewBox="0 0 24 24" style={s}><path d="M6 12c0-4 3-7 9-7s9 3 9 7-3 7-9 7-9-3-9-7z"/><path d="M2 9l4 3-4 3"/><circle cx="17" cy="12" r="1.5" fill={color} stroke="none"/></svg>;
+    default:
+      return null;
   }
 };
 
-/* ─── Animated number counter ─────────────────────────────────────────────── */
-const Counter = ({ value, suffix = "" }) => {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    let start = 0;
-    const end = parseInt(value, 10);
-    if (isNaN(end)) return;
-    const duration = 1200;
-    const step = Math.ceil(end / (duration / 16));
-    const timer = setInterval(() => {
-      start = Math.min(start + step, end);
-      setCount(start);
-      if (start >= end) clearInterval(timer);
-    }, 16);
-    return () => clearInterval(timer);
-  }, [value]);
-  return <span>{count}{suffix}</span>;
-};
-
-/* ─── Lightbox ────────────────────────────────────────────────────────────── */
 const Lightbox = ({ src, title, accent, onClose }) => {
   useEffect(() => {
-    const h = (e) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
+    const handler = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
   return (
-    <div onClick={onClose} style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 2000,
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
-      backdropFilter: "blur(8px)", animation: "lbFadeIn .2s ease"
-    }}>
-      <style>{`@keyframes lbFadeIn{from{opacity:0}to{opacity:1}}`}</style>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        background: "#ffffff", borderRadius: 16, overflow: "hidden",
-        maxWidth: 900, width: "100%",
-        boxShadow: `0 0 0 1px ${accent}33, 0 30px 60px rgba(0,0,0,.2)`,
-        animation: "lbSlide .25s cubic-bezier(.2,.8,.3,1)"
-      }}>
-        <style>{`@keyframes lbSlide{from{transform:scale(.94) translateY(20px)}to{transform:scale(1) translateY(0)}}`}</style>
-        <div style={{
-          background: `#fafcff`,
-          borderBottom: `1px solid ${accent}22`,
-          padding: "12px 16px",
-          display: "flex", alignItems: "center", justifyContent: "space-between"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: accent, boxShadow: `0 0 6px ${accent}` }} />
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#1a202c", fontFamily: "'Syne', sans-serif" }}>{title}</span>
+    <div onClick={onClose} className="lightbox-overlay">
+      <div onClick={(e) => e.stopPropagation()} className="lightbox-content" style={{ boxShadow: `0 0 0 1px ${accent}33, 0 30px 60px rgba(0,0,0,.2)` }}>
+        <div className="lightbox-header" style={{ borderBottomColor: `${accent}22` }}>
+          <div className="lightbox-title">
+            <div className="lightbox-accent-dot" style={{ background: accent, boxShadow: `0 0 6px ${accent}` }} />
+            <span>{title}</span>
           </div>
-          <button onClick={onClose} style={{
-            border: "none", background: "rgba(0,0,0,.05)", cursor: "pointer",
-            padding: "6px 8px", borderRadius: 8, display: "flex", color: "#64748b",
-            transition: "all .15s"
-          }}>
+          <button onClick={onClose} className="lightbox-close">
             <Icon name="x" size={16} color="#64748b" />
           </button>
         </div>
-        <div style={{ background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", padding: 12, minHeight: 340 }}>
-          <img src={src} alt={title} style={{ maxWidth: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: 8 }} />
+        <div className="lightbox-body">
+          <img src={src} alt={title} />
         </div>
       </div>
     </div>
   );
 };
 
-/* ─── Scanline overlay ────────────────────────────────────────────────────── */
-const Scanlines = () => (
-  <div style={{
-    position: "absolute", inset: 0, pointerEvents: "none", zIndex: 3,
-    backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.02) 2px,rgba(0,0,0,.02) 4px)",
-    borderRadius: "inherit"
-  }} />
-);
+const Scanlines = () => <div className="scanlines" />;
+const Noise = () => <div className="noise" />;
 
-/* ─── Noise texture ───────────────────────────────────────────────────────── */
-const Noise = () => (
-  <div style={{
-    position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2, opacity: .02,
-    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
-    backgroundSize: "120px 120px"
-  }} />
-);
-
-/* ─── Floating particle fish ──────────────────────────────────────────────── */
 const ParticleFish = ({ accent }) => {
   const fish = [
     { top: "12%", left: "8%", size: 52, delay: 0, dur: 18, dir: 1 },
@@ -276,15 +168,20 @@ const ParticleFish = ({ accent }) => {
   return (
     <>
       {fish.map((f, i) => (
-        <div key={i} style={{
-          position: "absolute",
-          top: f.top, left: f.left, right: f.right,
-          width: f.size, height: f.size * 0.5,
-          opacity: 0.08,
-          animation: `fish${i % 3} ${f.dur}s ease-in-out ${f.delay}s infinite`,
-          transform: f.dir === -1 ? "scaleX(-1)" : "none",
-          pointerEvents: "none"
-        }}>
+        <div
+          key={i}
+          className={`particle-fish fish-${i % 3}`}
+          style={{
+            top: f.top,
+            left: f.left,
+            right: f.right,
+            width: f.size,
+            height: f.size * 0.5,
+            animationDuration: `${f.dur}s`,
+            animationDelay: `${f.delay}s`,
+            transform: f.dir === -1 ? "scaleX(-1)" : "none",
+          }}
+        >
           <svg width={f.size} height={f.size * 0.5} viewBox="0 0 80 40">
             <ellipse cx="28" cy="20" rx="20" ry="11" fill={accent} />
             <polygon points="48,20 72,6 72,34" fill={accent} />
@@ -294,142 +191,72 @@ const ParticleFish = ({ accent }) => {
           </svg>
         </div>
       ))}
-      <style>{`
-        @keyframes fish0{0%,100%{transform:translate(0,0) rotate(0deg)}25%{transform:translate(40px,-20px) rotate(4deg)}50%{transform:translate(80px,15px) rotate(-3deg)}75%{transform:translate(30px,-10px) rotate(2deg)}}
-        @keyframes fish1{0%,100%{transform:translate(0,0) rotate(0deg) scaleX(-1)}33%{transform:translate(-50px,30px) rotate(-6deg) scaleX(-1)}66%{transform:translate(-20px,-40px) rotate(5deg) scaleX(-1)}}
-        @keyframes fish2{0%,100%{transform:translate(0,0)}20%{transform:translate(30px,20px) rotate(8deg)}40%{transform:translate(-20px,-30px) rotate(-5deg)}60%{transform:translate(50px,10px)}80%{transform:translate(-10px,-15px)}}
-      `}</style>
     </>
   );
 };
 
-/* ─── Stats bar ───────────────────────────────────────────────────────────── */
-const STATS = [
-  { label: "Fish / hr", val: "2400", suffix: "+" },
-  { label: "Accuracy", val: "99", suffix: "%" },
-  { label: "Temp precision", val: "±0.2", suffix: "°C" },
-  { label: "Uptime", val: "99.7", suffix: "%" },
-];
-
 const StatsBar = ({ accent }) => (
-  <div style={{
-    display: "flex", gap: 0,
-    borderTop: "1px solid rgba(0,0,0,.08)",
-    background: "#f8fafc"
-  }}>
-    {STATS.map((s, i) => (
-      <div key={i} style={{
-        flex: 1, padding: "14px 0", textAlign: "center",
-        borderRight: i < STATS.length - 1 ? "1px solid rgba(0,0,0,.06)" : "none"
-      }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: accent, fontFamily: "'Syne', sans-serif", lineHeight: 1 }}>
-          {s.val}{s.suffix}
-        </div>
-        <div style={{ fontSize: 10, color: "#4b5563", marginTop: 4, letterSpacing: 1, textTransform: "uppercase" }}>
-          {s.label}
-        </div>
-      </div>
-    ))}
+  <div className="stats-bar">
+    
   </div>
 );
 
-/* ─── Step pipeline indicator ─────────────────────────────────────────────── */
 const PipelineSteps = ({ currentIdx, accent }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 0, padding: "10px 24px 0" }}>
+  <div className="pipeline-steps">
     {PAGES.map((p, i) => (
       <React.Fragment key={p.id}>
-        <div style={{
-          display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flex: 1
-        }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: "50%",
-            background: i < currentIdx ? accent : i === currentIdx ? accent : "#e2e8f0",
-            border: `2px solid ${i <= currentIdx ? accent : "#cbd5e1"}`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 11, fontWeight: 800,
-            color: i <= currentIdx ? "#0f172a" : "#94a3b8",
-            fontFamily: "'Syne', sans-serif",
-            transition: "all .4s ease",
-            boxShadow: i === currentIdx ? `0 0 10px ${accent}60` : "none"
-          }}>
+        <div className="pipeline-step">
+          <div
+            className={`step-circle ${i < currentIdx ? "completed" : i === currentIdx ? "active" : ""}`}
+            style={{
+              background: i < currentIdx ? accent : i === currentIdx ? accent : "#e2e8f0",
+              borderColor: i <= currentIdx ? accent : "#cbd5e1",
+              boxShadow: i === currentIdx ? `0 0 10px ${accent}60` : "none",
+            }}
+          >
             {i < currentIdx ? "✓" : i + 1}
           </div>
-          <div style={{
-            fontSize: 8, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase",
-            color: i === currentIdx ? accent : i < currentIdx ? "#64748b" : "#cbd5e1",
-            textAlign: "center", lineHeight: 1.3, maxWidth: 60,
-            transition: "color .4s ease"
-          }}>
+          <div
+            className="step-label"
+            style={{ color: i === currentIdx ? accent : i < currentIdx ? "#64748b" : "#cbd5e1" }}
+          >
             {p.tag.split("—")[1]?.trim() || p.tag}
           </div>
         </div>
         {i < PAGES.length - 1 && (
-          <div style={{
-            flex: 2, height: 2, marginBottom: 18,
-            background: i < currentIdx
-              ? `linear-gradient(90deg, ${accent}, ${accent})`
-              : `linear-gradient(90deg, ${i === currentIdx ? accent : "#e2e8f0"}, #e2e8f0)`,
-            transition: "background .4s ease"
-          }} />
+          <div
+            className="step-connector"
+            style={{
+              background: i < currentIdx
+                ? `linear-gradient(90deg, ${accent}, ${accent})`
+                : `linear-gradient(90deg, ${i === currentIdx ? accent : "#e2e8f0"}, #e2e8f0)`,
+            }}
+          />
         )}
       </React.Fragment>
     ))}
   </div>
 );
 
-/* ─── Feature card ────────────────────────────────────────────────────────── */
 const FeatureCard = ({ f, idx }) => (
-  <div style={{
-    display: "flex", gap: 14, alignItems: "flex-start",
-    padding: "16px 20px",
-    background: "#ffffff",
-    border: "1px solid rgba(0,0,0,.08)",
-    borderLeft: `3px solid ${f.color}`,
-    borderRadius: 12,
-    transition: "background .2s, transform .2s",
-    animation: `cardIn .4s cubic-bezier(.2,.8,.3,1) ${idx * 0.08 + 0.1}s both`,
-    cursor: "default",
-    boxShadow: "0 1px 2px rgba(0,0,0,.02)"
-  }}
-    onMouseEnter={e => {
-      e.currentTarget.style.background = "#f9f9ff";
-      e.currentTarget.style.transform = "translateX(4px)";
-    }}
-    onMouseLeave={e => {
-      e.currentTarget.style.background = "#ffffff";
-      e.currentTarget.style.transform = "translateX(0)";
-    }}
-  >
-    <div style={{
-      width: 42, height: 42, borderRadius: 10,
-      background: `${f.color}10`,
-      border: `1px solid ${f.color}30`,
-      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
-    }}>
+  <div className="feature-card" style={{ borderLeftColor: f.color, animationDelay: `${idx * 0.08 + 0.1}s` }}>
+    <div className="feature-icon" style={{ background: `${f.color}10`, borderColor: `${f.color}30` }}>
       <Icon name={f.icon} size={18} color={f.color} />
     </div>
-    <div>
-      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: f.color, textTransform: "uppercase", marginBottom: 4 }}>
-        {f.label}
-      </div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b", lineHeight: 1.2, fontFamily: "'Syne', sans-serif" }}>
-        {f.title}
-      </div>
-      <div style={{ fontSize: 11, color: "#5b6b8c", lineHeight: 1.5, marginTop: 4 }}>
-        {f.desc}
-      </div>
+    <div className="feature-content">
+      <div className="feature-label" style={{ color: f.color }}>{f.label}</div>
+      <div className="feature-title">{f.title}</div>
+      <div className="feature-desc">{f.desc}</div>
     </div>
   </div>
 );
 
-/* ─── Main Component ──────────────────────────────────────────────────────── */
 export default function GuidelinesPage({ onClose, onFinish }) {
   const [pageIdx, setPageIdx] = useState(0);
   const [imgErr, setImgErr] = useState({});
   const [lightbox, setLightbox] = useState(null);
   const [transitioning, setTransitioning] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
-  const prevIdx = useRef(pageIdx);
 
   const page = PAGES[pageIdx];
   const isFirst = pageIdx === 0;
@@ -441,7 +268,6 @@ export default function GuidelinesPage({ onClose, onFinish }) {
     setTransitioning(true);
     setImgLoaded(false);
     setTimeout(() => {
-      prevIdx.current = idx;
       setPageIdx(idx);
       setTransitioning(false);
     }, 220);
@@ -468,286 +294,583 @@ export default function GuidelinesPage({ onClose, onFinish }) {
 
   return (
     <>
-      <FontLink />
       <style>{`
-        *{box-sizing:border-box;margin:0;padding:0}
-        @keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes fadeSlide{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-        @keyframes glow{0%,100%{box-shadow:0 0 20px var(--ac)33}50%{box-shadow:0 0 40px var(--ac)55}}
-        @keyframes scanH{0%{top:-100%}100%{top:110%}}
-        .page-wrap{opacity:1;transition:opacity .22s ease,transform .22s ease}
-        .page-wrap.out{opacity:0;transform:translateX(-16px)}
-        .nb:hover{filter:brightness(1.02);transform:scale(1.02)!important}
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+
+        @keyframes lbFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes lbSlide {
+          from { transform: scale(0.94) translateY(20px); }
+          to { transform: scale(1) translateY(0); }
+        }
+        @keyframes cardIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+        @keyframes scanH {
+          0% { top: -100%; }
+          100% { top: 110%; }
+        }
+        @keyframes fish0 {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          25% { transform: translate(40px, -20px) rotate(4deg); }
+          50% { transform: translate(80px, 15px) rotate(-3deg); }
+          75% { transform: translate(30px, -10px) rotate(2deg); }
+        }
+        @keyframes fish1 {
+          0%, 100% { transform: translate(0, 0) rotate(0deg) scaleX(-1); }
+          33% { transform: translate(-50px, 30px) rotate(-6deg) scaleX(-1); }
+          66% { transform: translate(-20px, -40px) rotate(5deg) scaleX(-1); }
+        }
+        @keyframes fish2 {
+          0%, 100% { transform: translate(0, 0); }
+          20% { transform: translate(30px, 20px) rotate(8deg); }
+          40% { transform: translate(-20px, -30px) rotate(-5deg); }
+          60% { transform: translate(50px, 10px); }
+          80% { transform: translate(-10px, -15px); }
+        }
+
+        .particle-fish {
+          position: absolute;
+          opacity: 0.08;
+          pointer-events: none;
+        }
+        .fish-0 { animation: fish0 ease-in-out infinite; }
+        .fish-1 { animation: fish1 ease-in-out infinite; }
+        .fish-2 { animation: fish2 ease-in-out infinite; }
+
+        .scanlines {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          z-index: 3;
+          background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.02) 2px, rgba(0,0,0,.02) 4px);
+          border-radius: inherit;
+        }
+
+        .noise {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          z-index: 2;
+          opacity: 0.02;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+          background-size: 120px 120px;
+        }
+
+        .lightbox-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,.85);
+          z-index: 2000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          backdrop-filter: blur(8px);
+          animation: lbFadeIn 0.2s ease;
+        }
+        .lightbox-content {
+          background: #ffffff;
+          border-radius: 16px;
+          overflow: hidden;
+          max-width: 900px;
+          width: 100%;
+          animation: lbSlide 0.25s cubic-bezier(0.2, 0.8, 0.3, 1);
+        }
+        .lightbox-header {
+          background: #fafcff;
+          border-bottom: 1px solid;
+          padding: 12px 16px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .lightbox-title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13px;
+          font-weight: 600;
+          color: #1a202c;
+          font-family: 'Syne', sans-serif;
+        }
+        .lightbox-accent-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+        .lightbox-close {
+          border: none;
+          background: rgba(0,0,0,.05);
+          cursor: pointer;
+          padding: 6px 8px;
+          border-radius: 8px;
+          display: flex;
+          transition: all 0.15s;
+        }
+        .lightbox-close:hover { background: rgba(0,0,0,.1); }
+        .lightbox-body {
+          background: #f8fafc;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 12px;
+          min-height: 340px;
+        }
+        .lightbox-body img {
+          max-width: 100%;
+          max-height: 70vh;
+          object-fit: contain;
+          border-radius: 8px;
+        }
+
+        .stats-bar {
+          display: flex;
+          gap: 0;
+          border-top: 1px solid rgba(0,0,0,.08);
+          background: #f8fafc;
+        }
+        .stat-item {
+          flex: 1;
+          padding: 14px 0;
+          text-align: center;
+          border-right: 1px solid rgba(0,0,0,.06);
+        }
+        .stat-item:last-child { border-right: none; }
+        .stat-value {
+          font-size: 18px;
+          font-weight: 800;
+          font-family: 'Syne', sans-serif;
+          line-height: 1;
+        }
+        .stat-label {
+          font-size: 10px;
+          color: #4b5563;
+          margin-top: 4px;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+        }
+
+        .pipeline-steps {
+          display: flex;
+          align-items: center;
+          gap: 0;
+          padding: 10px 24px 0;
+        }
+        .pipeline-step {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+          flex: 1;
+        }
+        .step-circle {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          border: 2px solid;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 800;
+          font-family: 'Syne', sans-serif;
+          color: #0f172a;
+          transition: all 0.4s ease;
+        }
+        .step-circle.completed { color: #0f172a; }
+        .step-circle.active { color: #0f172a; }
+        .step-circle:not(.completed):not(.active) { background: #e2e8f0; color: #94a3b8; }
+        .step-label {
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          text-align: center;
+          line-height: 1.3;
+          max-width: 60px;
+          transition: color 0.4s ease;
+        }
+        .step-connector {
+          flex: 2;
+          height: 2px;
+          margin-bottom: 18px;
+          transition: background 0.4s ease;
+        }
+
+        .feature-card {
+          display: flex;
+          gap: 14px;
+          align-items: flex-start;
+          padding: 16px 20px;
+          background: #ffffff;
+          border: 1px solid rgba(0,0,0,.08);
+          border-left-width: 3px;
+          border-radius: 12px;
+          transition: background 0.2s, transform 0.2s;
+          animation: cardIn 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+          cursor: default;
+          box-shadow: 0 1px 2px rgba(0,0,0,.02);
+        }
+        .feature-card:hover {
+          background: #f9f9ff;
+          transform: translateX(4px);
+        }
+        .feature-icon {
+          width: 42px;
+          height: 42px;
+          border-radius: 10px;
+          border: 1px solid;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .feature-content { flex: 1; }
+        .feature-label {
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+        .feature-title {
+          font-size: 14px;
+          font-weight: 700;
+          color: #1e293b;
+          line-height: 1.2;
+          font-family: 'Syne', sans-serif;
+        }
+        .feature-desc {
+          font-size: 11px;
+          color: #5b6b8c;
+          line-height: 1.5;
+          margin-top: 4px;
+        }
+
+        .page-wrap {
+          opacity: 1;
+          transition: opacity 0.22s ease, transform 0.22s ease;
+        }
+        .page-wrap.out {
+          opacity: 0;
+          transform: translateX(-16px);
+        }
+
+        .guidelines-container {
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #f1f5f9;
+          font-family: 'DM Sans', sans-serif;
+        }
+        .guidelines-backdrop {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          transition: background 1s ease;
+        }
+        .guidelines-card {
+          width: 96vw;
+          max-width: 1180px;
+          height: 92vh;
+          max-height: 840px;
+          display: flex;
+          flex-direction: column;
+          background: #ffffff;
+          border-radius: 24px;
+          border: 1px solid;
+          overflow: hidden;
+          position: relative;
+          transition: border-color 0.4s ease, box-shadow 0.4s ease;
+        }
+        .scanning-line {
+          position: absolute;
+          left: 0;
+          right: 0;
+          height: 2px;
+          z-index: 10;
+          animation: scanH 6s linear infinite;
+          pointer-events: none;
+        }
+        .guidelines-header {
+          padding: 0 28px;
+          border-bottom: 1px solid;
+          background: #fefefe;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          flex-shrink: 0;
+          min-height: 64px;
+          z-index: 4;
+        }
+        .logo-area { display: flex; align-items: center; gap: 12px; }
+        .logo-icon {
+          width: 36px;
+          height: 36px;
+          border: 1px solid;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .logo-text { font-size: 14px; font-weight: 800; color: #0f172a; font-family: 'Syne', sans-serif; letter-spacing: -0.3px; }
+        .logo-sub { font-size: 9px; color: #6b7280; letter-spacing: 2px; text-transform: uppercase; }
+        .page-dots { display: flex; gap: 10px; align-items: center; }
+        .page-dot {
+          height: 8px;
+          border-radius: 4px;
+          border: none;
+          cursor: pointer;
+          padding: 0;
+          transition: all 0.35s cubic-bezier(0.2, 0.8, 0.3, 1);
+        }
+        .nav-buttons { display: flex; gap: 8px; align-items: center; }
+        .nav-btn {
+          padding: 7px 16px;
+          border-radius: 10px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          background: #f1f5f9;
+          color: #1e293b;
+          border: 1px solid #e2e8f0;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-family: 'Syne', sans-serif;
+        }
+        .nav-btn.back.disabled { opacity: 0.5; cursor: not-allowed; }
+        .nav-btn.next { color: #0f172a; }
+        .nav-btn.close { padding: 6px 10px; background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+        .nav-btn:hover:not(.disabled) { filter: brightness(1.02); transform: scale(1.02); }
+        .progress-bar-bg { height: 2px; background: #eef2ff; flex-shrink: 0; }
+        .progress-bar-fill { height: 100%; transition: width 0.5s cubic-bezier(0.2, 0.8, 0.3, 1), background 0.6s ease; }
+        .pipeline-wrapper { background: #fafcff; border-bottom: 1px solid; flex-shrink: 0; z-index: 4; }
+        .guidelines-body { flex: 1; display: flex; gap: 0; overflow: hidden; position: relative; z-index: 4; }
+        .image-panel { flex: 1.1; position: relative; overflow: hidden; }
+        .main-image {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+          cursor: zoom-in;
+          filter: brightness(0.95) saturate(1.05);
+          transition: opacity 0.4s ease, transform 0.4s ease;
+          opacity: 0;
+          transform: scale(1.02);
+        }
+        .main-image.loaded { opacity: 1; transform: scale(1); }
+        .image-gradient-overlay {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: linear-gradient(90deg, transparent 40%, #ffffff 100%);
+        }
+        .image-gradient-top {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: linear-gradient(to top, #ffffff 0%, transparent 40%);
+        }
+        .step-badge {
+          position: absolute;
+          top: 20px;
+          left: 20px;
+          background: #ffffffcc;
+          border: 1px solid;
+          border-radius: 40px;
+          padding: 6px 14px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          backdrop-filter: blur(8px);
+          box-shadow: 0 1px 2px rgba(0,0,0,.05);
+        }
+        .step-badge-dot { width: 6px; height: 6px; border-radius: 50%; animation: pulse 2s infinite; }
+        .zoom-hint {
+          position: absolute;
+          bottom: 20px;
+          left: 20px;
+          background: rgba(255,255,255,.85);
+          border: 1px solid rgba(0,0,0,.1);
+          border-radius: 40px;
+          padding: 6px 14px;
+          font-size: 11px;
+          color: #334155;
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .page-counter {
+          position: absolute;
+          bottom: 20px;
+          right: 28px;
+          font-size: 11px;
+          color: #94a3b8;
+          font-family: 'Syne', sans-serif;
+        }
+        .info-panel {
+          width: 360px;
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          border-left: 1px solid;
+          overflow: hidden;
+          background: #ffffff;
+        }
+        .info-title-area { padding: 28px 24px 20px; flex-shrink: 0; }
+        .info-tag { font-size: 9px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 10px; font-family: 'Syne', sans-serif; }
+        .info-heading { font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.2; margin-bottom: 12px; font-family: 'Syne', sans-serif; }
+        .info-subtitle { font-size: 12.5px; color: #475569; line-height: 1.7; }
+        .info-divider { height: 1px; margin-left: 24px; margin-right: 24px; }
+        .features-list { padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; flex: 1; overflow-y: auto; }
+        .guidelines-footer {
+          padding: 10px 28px;
+          border-top: 1px solid;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #fefefe;
+          flex-shrink: 0;
+        }
+        .footer-brand { font-size: 10px; color: #94a3b8; letter-spacing: 1.5px; text-transform: uppercase; }
+        .footer-badges { display: flex; gap: 6px; }
+        .footer-badges span {
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 1px;
+          color: #64748b;
+          padding: 3px 8px;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          text-transform: uppercase;
+          background: #f8fafc;
+        }
       `}</style>
 
       {lightbox && (
         <Lightbox src={lightbox.src} title={lightbox.title} accent={page.accent} onClose={() => setLightbox(null)} />
       )}
 
-      {/* ── Full screen shell ── */}
-      <div style={{
-        position: "fixed", inset: 0, zIndex: 9999,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: "#f1f5f9",
-        fontFamily: "'DM Sans', sans-serif",
-      }}>
+      <div className="guidelines-container">
         <ParticleFish accent={page.accent} />
+        <div className="guidelines-backdrop" style={{ background: `radial-gradient(ellipse 60% 60% at 50% 50%, ${page.accent}08 0%, transparent 80%)` }} />
 
-        <div style={{
-          position: "absolute", inset: 0, pointerEvents: "none",
-          background: `radial-gradient(ellipse 60% 60% at 50% 50%, ${page.accent}08 0%, transparent 80%)`,
-          transition: "background 1s ease"
-        }} />
-
-        {/* ── Card ── */}
-        <div style={{
-          "--ac": page.accent,
-          width: "96vw", maxWidth: 1180,
-          height: "92vh", maxHeight: 840,
-          display: "flex", flexDirection: "column",
-          background: "#ffffff",
-          borderRadius: 24,
-          border: `1px solid ${page.accent}30`,
-          overflow: "hidden",
-          boxShadow: `0 20px 40px -12px rgba(0,0,0,.1), 0 0 0 1px ${page.accent}08, 0 0 0 3px rgba(255,255,255,.8)`,
-          position: "relative",
-          transition: "border-color .4s ease, box-shadow .4s ease"
-        }}>
+        <div className="guidelines-card" style={{ borderColor: `${page.accent}30`, boxShadow: `0 20px 40px -12px rgba(0,0,0,.1), 0 0 0 1px ${page.accent}08, 0 0 0 3px rgba(255,255,255,.8)` }}>
           <Noise />
           <Scanlines />
+          <div className="scanning-line" style={{ background: `linear-gradient(90deg, transparent, ${page.accent}80, transparent)` }} />
 
-          {/* Scanning line */}
-          <div style={{
-            position: "absolute", left: 0, right: 0, height: 2, zIndex: 10,
-            background: `linear-gradient(90deg, transparent, ${page.accent}80, transparent)`,
-            animation: "scanH 6s linear infinite",
-            pointerEvents: "none"
-          }} />
-
-          {/* ── Header ── */}
-          <div style={{
-            padding: "0 28px",
-            borderBottom: `1px solid ${page.accent}20`,
-            background: "#fefefe",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            gap: 16, flexShrink: 0, minHeight: 64, position: "relative", zIndex: 4
-          }}>
-            {/* Logo */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{
-                width: 36, height: 36,
-                background: `linear-gradient(135deg, ${page.accent}20, ${page.accent}05)`,
-                border: `1px solid ${page.accent}40`,
-                borderRadius: 10,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: `0 2px 6px ${page.accent}10`
-              }}>
+          <div className="guidelines-header" style={{ borderBottomColor: `${page.accent}20` }}>
+            <div className="logo-area">
+              <div className="logo-icon" style={{ background: `linear-gradient(135deg, ${page.accent}20, ${page.accent}05)`, borderColor: `${page.accent}40`, boxShadow: `0 2px 6px ${page.accent}10` }}>
                 <Icon name="fish" size={18} color={page.accent} />
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#0f172a", fontFamily: "'Syne', sans-serif", letterSpacing: -.3 }}>
-                  FishGo
-                </div>
-                <div style={{ fontSize: 9, color: "#6b7280", letterSpacing: 2, textTransform: "uppercase" }}>
-                  Smart Processing
-                </div>
+                <div className="logo-text">FishGo</div>
+                <div className="logo-sub">Smart Processing</div>
               </div>
             </div>
 
-            {/* Center: page dots */}
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <div className="page-dots">
               {PAGES.map((p, i) => (
-                <button key={p.id} onClick={() => goTo(i)} style={{
-                  width: i === pageIdx ? 28 : 8, height: 8, borderRadius: 4, border: "none",
-                  cursor: "pointer", padding: 0, transition: "all .35s cubic-bezier(.2,.8,.3,1)",
-                  background: i === pageIdx ? page.accent : i < pageIdx ? `${page.accent}70` : "rgba(0,0,0,.15)",
-                  boxShadow: i === pageIdx ? `0 0 6px ${page.accent}80` : "none"
-                }} title={p.title} />
+                <button
+                  key={p.id}
+                  onClick={() => goTo(i)}
+                  className="page-dot"
+                  style={{
+                    width: i === pageIdx ? 28 : 8,
+                    background: i === pageIdx ? page.accent : i < pageIdx ? `${page.accent}70` : "rgba(0,0,0,.15)",
+                    boxShadow: i === pageIdx ? `0 0 6px ${page.accent}80` : "none",
+                  }}
+                  title={p.title}
+                />
               ))}
             </div>
 
-            {/* Nav buttons */}
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {[
-                { label: "Back", icon: "chevron-left", action: handleBack, disabled: isFirst },
-                { label: isLast ? "Finish" : "Next", icon: isLast ? null : "chevron-right", action: handleNext, disabled: false, primary: true },
-                { label: "✕", action: handleCancel, disabled: false, close: true },
-              ].map((b, i) => (
-                <button key={i} onClick={b.action} disabled={b.disabled} className={b.disabled ? "" : "nb"} style={{
-                  padding: b.close ? "6px 10px" : "7px 16px",
-                  borderRadius: 10, fontSize: 12, fontWeight: 600,
-                  cursor: b.disabled ? "not-allowed" : "pointer",
-                  background: b.primary ? page.accent : b.close ? "#fee2e2" : "#f1f5f9",
-                  color: b.primary ? "#0f172a" : b.close ? "#b91c1c" : b.disabled ? "#cbd5e1" : "#1e293b",
-                  border: `1px solid ${b.primary ? page.accent : b.close ? "#fecaca" : "#e2e8f0"}`,
-                  transition: "all .2s",
-                  display: "flex", alignItems: "center", gap: 4,
-                  opacity: b.disabled ? 0.5 : 1,
-                  fontFamily: "'Syne', sans-serif"
-                }}>
-                  {b.icon === "chevron-left" && <Icon name="chevron-left" size={12} color="currentColor" />}
-                  {b.label}
-                  {b.icon === "chevron-right" && <Icon name="chevron-right" size={12} color="currentColor" />}
-                </button>
-              ))}
+            <div className="nav-buttons">
+              <button onClick={handleBack} disabled={isFirst} className={`nav-btn back ${isFirst ? "disabled" : ""}`}>
+                <Icon name="chevron-left" size={12} color="currentColor" />
+                Back
+              </button>
+              <button onClick={handleNext} className="nav-btn next" style={{ background: page.accent, borderColor: page.accent }}>
+                {isLast ? "Finish" : "Next"}
+                {!isLast && <Icon name="chevron-right" size={12} color="currentColor" />}
+              </button>
+              <button onClick={handleCancel} className="nav-btn close">✕</button>
             </div>
           </div>
 
-          {/* ── Progress bar ── */}
-          <div style={{ height: 2, background: "#eef2ff", flexShrink: 0, position: "relative", zIndex: 4 }}>
-            <div style={{
-              height: "100%", width: `${progress}%`,
-              background: `linear-gradient(90deg, ${page.accent}aa, ${page.accent})`,
-              transition: "width .5s cubic-bezier(.2,.8,.3,1), background .6s ease",
-              boxShadow: `0 0 6px ${page.accent}80`
-            }} />
+          <div className="progress-bar-bg">
+            <div className="progress-bar-fill" style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${page.accent}aa, ${page.accent})`, boxShadow: `0 0 6px ${page.accent}80` }} />
           </div>
 
-          {/* ── Pipeline step indicator ── */}
-          <div style={{ background: "#fafcff", borderBottom: `1px solid ${page.accent}15`, flexShrink: 0, zIndex: 4, position: "relative" }}>
+          <div className="pipeline-wrapper" style={{ borderBottomColor: `${page.accent}15` }}>
             <PipelineSteps currentIdx={pageIdx} accent={page.accent} />
-            <div style={{ height: 12 }} />
           </div>
 
-          {/* ── Body ── */}
-          <div className={`page-wrap${transitioning ? " out" : ""}`} style={{
-            flex: 1, display: "flex", gap: 0, overflow: "hidden", position: "relative", zIndex: 4
-          }}>
-            {/* Left: image */}
-            <div style={{ flex: "1.1", position: "relative", overflow: "hidden" }}>
+          <div className={`page-wrap${transitioning ? " out" : ""} guidelines-body`}>
+            <div className="image-panel">
               <img
                 src={imgSrc}
                 alt={page.title}
                 onLoad={() => setImgLoaded(true)}
                 onError={() => setImgErr(p => ({ ...p, [page.id]: true }))}
                 onClick={() => setLightbox({ src: imgSrc, title: page.title })}
-                style={{
-                  width: "100%", height: "100%", objectFit: "cover", display: "block",
-                  cursor: "zoom-in",
-                  filter: "brightness(0.95) saturate(1.05)",
-                  transition: "opacity .4s ease, transform .4s ease",
-                  opacity: imgLoaded ? 1 : 0,
-                  transform: imgLoaded ? "scale(1)" : "scale(1.02)"
-                }}
+                className={`main-image ${imgLoaded ? "loaded" : ""}`}
               />
-
-              {/* Gradient fades */}
-              <div style={{
-                position: "absolute", inset: 0, pointerEvents: "none",
-                background: "linear-gradient(90deg, transparent 40%, #ffffff 100%)"
-              }} />
-              <div style={{
-                position: "absolute", inset: 0, pointerEvents: "none",
-                background: "linear-gradient(to top, #ffffff 0%, transparent 40%)"
-              }} />
-
-              {/* Step badge */}
-              <div style={{
-                position: "absolute", top: 20, left: 20,
-                background: "#ffffffcc",
-                border: `1px solid ${page.accent}50`,
-                borderRadius: 40,
-                padding: "6px 14px",
-                display: "flex", alignItems: "center", gap: 8,
-                backdropFilter: "blur(8px)",
-                boxShadow: "0 1px 2px rgba(0,0,0,.05)"
-              }}>
-                <div style={{
-                  width: 6, height: 6, borderRadius: "50%", background: page.accent,
-                  boxShadow: `0 0 4px ${page.accent}`,
-                  animation: "pulse 2s infinite"
-                }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: page.accent, letterSpacing: 2, textTransform: "uppercase", fontFamily: "'Syne', sans-serif" }}>
-                  {page.tag}
-                </span>
+              <div className="image-gradient-overlay" />
+              <div className="image-gradient-top" />
+              <div className="step-badge" style={{ borderColor: `${page.accent}50` }}>
+                <div className="step-badge-dot" style={{ background: page.accent, boxShadow: `0 0 4px ${page.accent}` }} />
+                <span style={{ color: page.accent }}>{page.tag}</span>
               </div>
-
-              {/* Zoom hint */}
-              <div style={{
-                position: "absolute", bottom: 20, left: 20,
-                background: "rgba(255,255,255,.85)", border: "1px solid rgba(0,0,0,.1)",
-                borderRadius: 40, padding: "6px 14px",
-                fontSize: 11, color: "#334155",
-                backdropFilter: "blur(8px)",
-                display: "flex", alignItems: "center", gap: 6,
-                boxShadow: "0 1px 2px rgba(0,0,0,.05)"
-              }}>
-                🔍 Click to enlarge
-              </div>
-
-              {/* Page counter */}
-              <div style={{
-                position: "absolute", bottom: 20, right: 28,
-                fontSize: 11, color: "#94a3b8",
-                fontFamily: "'Syne', sans-serif"
-              }}>
+              <div className="zoom-hint">🔍 Click to enlarge</div>
+              <div className="page-counter">
                 {String(pageIdx + 1).padStart(2, "0")} / {String(PAGES.length).padStart(2, "0")}
               </div>
             </div>
 
-            {/* Right: info panel */}
-            <div style={{
-              width: 360, flexShrink: 0, display: "flex", flexDirection: "column",
-              borderLeft: `1px solid ${page.accent}20`,
-              overflow: "hidden",
-              background: "#ffffff"
-            }}>
-              {/* Title area */}
-              <div style={{ padding: "28px 24px 20px", flexShrink: 0 }}>
-                <div style={{
-                  fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: page.accent,
-                  textTransform: "uppercase", marginBottom: 10, fontFamily: "'Syne', sans-serif"
-                }}>
-                  {page.tag}
-                </div>
-                <h2 style={{
-                  fontSize: 22, fontWeight: 800, color: "#0f172a", lineHeight: 1.2,
-                  marginBottom: 12, fontFamily: "'Syne', sans-serif"
-                }}>
-                  {page.title}
-                </h2>
-                <p style={{ fontSize: 12.5, color: "#475569", lineHeight: 1.7 }}>
-                  {page.subtitle}
-                </p>
+            <div className="info-panel" style={{ borderLeftColor: `${page.accent}20` }}>
+              <div className="info-title-area">
+                <div className="info-tag" style={{ color: page.accent }}>{page.tag}</div>
+                <h2 className="info-heading">{page.title}</h2>
+                <p className="info-subtitle">{page.subtitle}</p>
               </div>
-
-              {/* Divider */}
-              <div style={{ height: 1, background: `linear-gradient(90deg, ${page.accent}30, transparent)`, marginLeft: 24, marginRight: 24 }} />
-
-              {/* Features list */}
-              <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10, flex: 1, overflowY: "auto" }}>
+              <div className="info-divider" style={{ background: `linear-gradient(90deg, ${page.accent}30, transparent)` }} />
+              <div className="features-list">
                 {page.features.map((f, i) => (
                   <FeatureCard key={f.label} f={f} idx={i} />
                 ))}
               </div>
-
-              {/* Stats bar */}
-              <div style={{ flexShrink: 0 }}>
-                <StatsBar accent={page.accent} />
-              </div>
+              <StatsBar accent={page.accent} />
             </div>
           </div>
 
-          {/* ── Footer ── */}
-          <div style={{
-            padding: "10px 28px",
-            borderTop: `1px solid ${page.accent}15`,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            background: "#fefefe", flexShrink: 0, position: "relative", zIndex: 4
-          }}>
-            <span style={{ fontSize: 10, color: "#94a3b8", letterSpacing: 1.5, textTransform: "uppercase" }}>
-              FishGo™ Smart Processing System
-            </span>
-            <div style={{ display: "flex", gap: 6 }}>
-              {["HACCP", "ISO 22000", "CE Marked"].map(tag => (
-                <span key={tag} style={{
-                  fontSize: 9, fontWeight: 700, letterSpacing: 1,
-                  color: "#64748b", padding: "3px 8px",
-                  border: "1px solid #e2e8f0", borderRadius: 6,
-                  textTransform: "uppercase", background: "#f8fafc"
-                }}>{tag}</span>
-              ))}
+          <div className="guidelines-footer" style={{ borderTopColor: `${page.accent}15` }}>
+            <span className="footer-brand">FishGo™ Smart Processing System</span>
+            <div className="footer-badges">
+              <span>HACCP</span>
+              <span>ISO 22000</span>
+              <span>CE Marked</span>
             </div>
           </div>
         </div>
