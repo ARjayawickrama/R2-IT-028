@@ -7,14 +7,14 @@ const FontLink = () => (
   `}</style>
 );
 
-/* ─── Data (unchanged) ────────────────────────────────────────────────────── */
+/* ─── Data ────────────────────────────────────────────────────────────────── */
 const PAGES = [
   {
     id: 1,
-    title: "AI Fish Detection System",
-    tag: "VISION MODULE",
+    title: "Fish Identification",
+    tag: "STEP 1 — IDENTIFY",
     subtitle:
-      "The FishGo smart processing unit uses computer vision and automated controls to identify, count, and sterilise fish with zero manual intervention.",
+      "Incoming fish are scanned by the AI vision module at the intake conveyor. Each fish is identified by species, size, and freshness grade before entering the processing line.",
     image: "/conveyorbelt.png",
     fallback:
       "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=900&h=420&fit=crop",
@@ -23,135 +23,135 @@ const PAGES = [
     features: [
       {
         icon: "camera",
-        label: "Camera",
-        title: "AI fish detection",
-        desc: "Identify and count fish automatically",
+        label: "AI Vision",
+        title: "Automated fish detection",
+        desc: "Identifies species, size, and freshness in real time",
         color: "#00E5FF",
       },
       {
-        icon: "water",
-        label: "Boiling water",
-        title: "100 °C",
-        desc: "Keep water boiling for sterilisation",
-        color: "#FF6B35",
+        icon: "scale",
+        label: "Intake Weighing",
+        title: "Calibrated at entry",
+        desc: "Each batch weighed and logged with supplier ID",
+        color: "#06D6A0",
       },
       {
-        icon: "snowflake",
-        label: "Thermal control",
-        title: "Maintain boiling temperature",
-        desc: "Precision thermal control 24 / 7",
+        icon: "check",
+        label: "Species Check",
+        title: "99 % accuracy rate",
+        desc: "Vision model trained on 40 + local fish species",
         color: "#A78BFA",
       },
     ],
   },
   {
     id: 2,
-    title: "Quality Grading Standards",
-    tag: "GRADING ENGINE",
+    title: "Boiling System",
+    tag: "STEP 2 — BOIL",
     subtitle:
-      "Every batch is graded in real time by the AI vision module. Four quality tiers — Premium, Good, Processing, and Reject — ensure full traceability from intake to dispatch.",
+      "Identified fish are transferred into the pressurised boiling chamber. Water is maintained at 100 °C with precision thermal controls to ensure full sterilisation and coagulation before drying.",
     image: "/WaterSalinityControl.png",
     fallback:
       "https://images.unsplash.com/photo-1543168268-1e3b5ed6d4b8?w=900&h=420&fit=crop",
-    accent: "#FFD166",
-    accentDark: "#6a5200",
+    accent: "#FF6B35",
+    accentDark: "#7a2200",
     features: [
       {
-        icon: "star",
-        label: "Premium grade",
-        title: "Top 20 % of catch",
-        desc: "Bright eyes, firm flesh, fresh scent",
-        color: "#FFD166",
-      },
-      {
-        icon: "check",
-        label: "Good grade",
-        title: "Standard market quality",
-        desc: "Minor scale loss, pink gills acceptable",
-        color: "#06D6A0",
-      },
-      {
-        icon: "alert",
-        label: "Processing grade",
-        title: "For secondary products",
-        desc: "Soft texture, slight odour present",
-        color: "#FF9A3C",
-      },
-    ],
-  },
-  {
-    id: 3,
-    title: "Processing Workflow",
-    tag: "PIPELINE",
-    subtitle:
-      "Five sequential steps take fish from intake weighing through cleaning, temperature logging, and packaging into certified cold storage — all logged automatically.",
-    image: "/dryingoven.png",
-    fallback:
-      "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=900&h=420&fit=crop",
-    accent: "#06D6A0",
-    accentDark: "#024d38",
-    features: [
-      {
-        icon: "scale",
-        label: "Receipt & weigh",
-        title: "Step 1 — 5 to 10 min",
-        desc: "Calibrated scales, supplier logged",
-        color: "#06D6A0",
-      },
-      {
-        icon: "thermometer",
-        label: "Temp logging",
-        title: "Step 4 — critical",
-        desc: "≤ 2 °C within 30 min of cleaning",
+        icon: "water",
+        label: "Boiling Chamber",
+        title: "100 °C maintained",
+        desc: "Pressurised tank ensures consistent full boil",
         color: "#FF6B35",
       },
       {
-        icon: "box",
-        label: "Packaging",
-        title: "Step 5 — 10 to 15 min",
-        desc: "Batch ID, grade, date, operator ID",
+        icon: "thermometer",
+        label: "Thermal Logging",
+        title: "Logged every 30 sec",
+        desc: "Auto-alert if temperature drops below threshold",
+        color: "#FFD166",
+      },
+      {
+        icon: "snowflake",
+        label: "Salt Bath Option",
+        title: "Brine concentration",
+        desc: "Optional 8 – 12 % salt solution for Maldive fish prep",
         color: "#A78BFA",
       },
     ],
   },
   {
-    id: 4,
-    title: "Maintenance Schedule",
-    tag: "UPTIME",
+    id: 3,
+    title: "Maldive Fish Drying",
+    tag: "STEP 3 — DRY",
     subtitle:
-      "Daily, weekly, and monthly routines keep the FishGo unit running at peak hygiene and mechanical performance. All tasks are logged to the maintenance register.",
-    image: "/anju.jpg",
+      "After boiling, fish are transferred to the drying oven. Controlled airflow and temperature gradually reduce moisture content to below 20 %, producing firm, shelf-stable Maldive fish (umbalakada).",
+    image: "/dryingoven.png",
     fallback:
-      "https://images.unsplash.com/photo-1586733432416-e936eff5dc85?w=900&h=420&fit=crop",
-    accent: "#E879F9",
-    accentDark: "#5a0066",
+      "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=900&h=420&fit=crop",
+    accent: "#FFD166",
+    accentDark: "#6a5200",
     features: [
       {
-        icon: "calendar-day",
-        label: "Daily",
-        title: "6 hygiene checks",
-        desc: "Sanitise surfaces, flush drains, calibrate scales",
-        color: "#06D6A0",
+        icon: "thermometer",
+        label: "Drying Oven",
+        title: "55 – 65 °C airflow",
+        desc: "Forced hot-air circulation for uniform drying",
+        color: "#FFD166",
       },
       {
         icon: "calendar-week",
-        label: "Weekly",
-        title: "5 equipment tasks",
-        desc: "Deep-clean cold room, inspect bearings",
+        label: "Drying Duration",
+        title: "6 – 8 hours per batch",
+        desc: "Duration adjusted by fish size and moisture sensor",
         color: "#FF9A3C",
       },
       {
-        icon: "calendar-month",
-        label: "Monthly",
-        title: "3 audits",
-        desc: "Full safety audit, replace worn seals",
-        color: "#E879F9",
+        icon: "box",
+        label: "Moisture Target",
+        title: "< 20 % moisture",
+        desc: "Sensor confirms safe moisture before packaging",
+        color: "#06D6A0",
+      },
+    ],
+  },
+  {
+    id: 4,
+    title: "Quality Checking",
+    tag: "STEP 4 — QC",
+    subtitle:
+      "Dried Maldive fish pass through a final AI vision and manual inspection station. Each unit is graded — Premium, Good, or Processing — and batch-labelled before entering cold storage.",
+    image: "/anju.jpg",
+    fallback:
+      "https://images.unsplash.com/photo-1586733432416-e936eff5dc85?w=900&h=420&fit=crop",
+    accent: "#06D6A0",
+    accentDark: "#024d38",
+    features: [
+      {
+        icon: "star",
+        label: "Premium Grade",
+        title: "Top 20 % of batch",
+        desc: "Firm texture, deep colour, full shape intact",
+        color: "#06D6A0",
+      },
+      {
+        icon: "check",
+        label: "Good Grade",
+        title: "Standard export quality",
+        desc: "Minor surface cracks acceptable, no soft spots",
+        color: "#FFD166",
+      },
+      {
+        icon: "alert",
+        label: "Processing Grade",
+        title: "Secondary use",
+        desc: "Broken pieces redirected to powder / paste line",
+        color: "#FF6B35",
       },
     ],
   },
 ];
 
-/* ─── Icons (unchanged) ───────────────────────────────────────────────────── */
+/* ─── Icons ───────────────────────────────────────────────────────────────── */
 const Icon = ({ name, size = 20, color = "currentColor" }) => {
   const s = {
     width: size, height: size, fill: "none", stroke: color,
@@ -178,7 +178,7 @@ const Icon = ({ name, size = 20, color = "currentColor" }) => {
   }
 };
 
-/* ─── Animated number counter (unchanged) ─────────────────────────────────── */
+/* ─── Animated number counter ─────────────────────────────────────────────── */
 const Counter = ({ value, suffix = "" }) => {
   const [count, setCount] = useState(0);
   useEffect(() => {
@@ -197,7 +197,7 @@ const Counter = ({ value, suffix = "" }) => {
   return <span>{count}{suffix}</span>;
 };
 
-/* ─── Lightbox (light theme) ──────────────────────────────────────────────── */
+/* ─── Lightbox ────────────────────────────────────────────────────────────── */
 const Lightbox = ({ src, title, accent, onClose }) => {
   useEffect(() => {
     const h = (e) => e.key === "Escape" && onClose();
@@ -245,7 +245,7 @@ const Lightbox = ({ src, title, accent, onClose }) => {
   );
 };
 
-/* ─── Scanline overlay (light, subtle) ────────────────────────────────────── */
+/* ─── Scanline overlay ────────────────────────────────────────────────────── */
 const Scanlines = () => (
   <div style={{
     position: "absolute", inset: 0, pointerEvents: "none", zIndex: 3,
@@ -254,7 +254,7 @@ const Scanlines = () => (
   }} />
 );
 
-/* ─── Noise texture (very subtle on white) ───────────────────────────────── */
+/* ─── Noise texture ───────────────────────────────────────────────────────── */
 const Noise = () => (
   <div style={{
     position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2, opacity: .02,
@@ -263,7 +263,7 @@ const Noise = () => (
   }} />
 );
 
-/* ─── Floating particle fish (light theme – darker accents, lower opacity) ── */
+/* ─── Floating particle fish ──────────────────────────────────────────────── */
 const ParticleFish = ({ accent }) => {
   const fish = [
     { top: "12%", left: "8%", size: 52, delay: 0, dur: 18, dir: 1 },
@@ -303,7 +303,7 @@ const ParticleFish = ({ accent }) => {
   );
 };
 
-/* ─── Stats bar (light theme) ─────────────────────────────────────────────── */
+/* ─── Stats bar ───────────────────────────────────────────────────────────── */
 const STATS = [
   { label: "Fish / hr", val: "2400", suffix: "+" },
   { label: "Accuracy", val: "99", suffix: "%" },
@@ -333,7 +333,51 @@ const StatsBar = ({ accent }) => (
   </div>
 );
 
-/* ─── Feature card (light theme) ──────────────────────────────────────────── */
+/* ─── Step pipeline indicator ─────────────────────────────────────────────── */
+const PipelineSteps = ({ currentIdx, accent }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 0, padding: "10px 24px 0" }}>
+    {PAGES.map((p, i) => (
+      <React.Fragment key={p.id}>
+        <div style={{
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flex: 1
+        }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: "50%",
+            background: i < currentIdx ? accent : i === currentIdx ? accent : "#e2e8f0",
+            border: `2px solid ${i <= currentIdx ? accent : "#cbd5e1"}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 11, fontWeight: 800,
+            color: i <= currentIdx ? "#0f172a" : "#94a3b8",
+            fontFamily: "'Syne', sans-serif",
+            transition: "all .4s ease",
+            boxShadow: i === currentIdx ? `0 0 10px ${accent}60` : "none"
+          }}>
+            {i < currentIdx ? "✓" : i + 1}
+          </div>
+          <div style={{
+            fontSize: 8, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase",
+            color: i === currentIdx ? accent : i < currentIdx ? "#64748b" : "#cbd5e1",
+            textAlign: "center", lineHeight: 1.3, maxWidth: 60,
+            transition: "color .4s ease"
+          }}>
+            {p.tag.split("—")[1]?.trim() || p.tag}
+          </div>
+        </div>
+        {i < PAGES.length - 1 && (
+          <div style={{
+            flex: 2, height: 2, marginBottom: 18,
+            background: i < currentIdx
+              ? `linear-gradient(90deg, ${accent}, ${accent})`
+              : `linear-gradient(90deg, ${i === currentIdx ? accent : "#e2e8f0"}, #e2e8f0)`,
+            transition: "background .4s ease"
+          }} />
+        )}
+      </React.Fragment>
+    ))}
+  </div>
+);
+
+/* ─── Feature card ────────────────────────────────────────────────────────── */
 const FeatureCard = ({ f, idx }) => (
   <div style={{
     display: "flex", gap: 14, alignItems: "flex-start",
@@ -378,7 +422,7 @@ const FeatureCard = ({ f, idx }) => (
   </div>
 );
 
-/* ─── Main Component (White Theme) ────────────────────────────────────────── */
+/* ─── Main Component ──────────────────────────────────────────────────────── */
 export default function GuidelinesPage({ onClose, onFinish }) {
   const [pageIdx, setPageIdx] = useState(0);
   const [imgErr, setImgErr] = useState({});
@@ -432,7 +476,6 @@ export default function GuidelinesPage({ onClose, onFinish }) {
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
         @keyframes glow{0%,100%{box-shadow:0 0 20px var(--ac)33}50%{box-shadow:0 0 40px var(--ac)55}}
         @keyframes scanH{0%{top:-100%}100%{top:110%}}
-        @keyframes progressBar{from{width:0}to{width:100%}}
         .page-wrap{opacity:1;transition:opacity .22s ease,transform .22s ease}
         .page-wrap.out{opacity:0;transform:translateX(-16px)}
         .nb:hover{filter:brightness(1.02);transform:scale(1.02)!important}
@@ -442,28 +485,26 @@ export default function GuidelinesPage({ onClose, onFinish }) {
         <Lightbox src={lightbox.src} title={lightbox.title} accent={page.accent} onClose={() => setLightbox(null)} />
       )}
 
-      {/* ── Full screen shell (light background) ── */}
+      {/* ── Full screen shell ── */}
       <div style={{
         position: "fixed", inset: 0, zIndex: 9999,
         display: "flex", alignItems: "center", justifyContent: "center",
         background: "#f1f5f9",
         fontFamily: "'DM Sans', sans-serif",
       }}>
-        {/* Full-bg particle fish */}
         <ParticleFish accent={page.accent} />
 
-        {/* Radial glow (light version) */}
         <div style={{
           position: "absolute", inset: 0, pointerEvents: "none",
           background: `radial-gradient(ellipse 60% 60% at 50% 50%, ${page.accent}08 0%, transparent 80%)`,
           transition: "background 1s ease"
         }} />
 
-        {/* ── Card (white) ── */}
+        {/* ── Card ── */}
         <div style={{
           "--ac": page.accent,
           width: "96vw", maxWidth: 1180,
-          height: "92vh", maxHeight: 820,
+          height: "92vh", maxHeight: 840,
           display: "flex", flexDirection: "column",
           background: "#ffffff",
           borderRadius: 24,
@@ -476,7 +517,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           <Noise />
           <Scanlines />
 
-          {/* ── Scanning line effect (light) ── */}
+          {/* Scanning line */}
           <div style={{
             position: "absolute", left: 0, right: 0, height: 2, zIndex: 10,
             background: `linear-gradient(90deg, transparent, ${page.accent}80, transparent)`,
@@ -484,7 +525,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
             pointerEvents: "none"
           }} />
 
-          {/* ── Header (light) ── */}
+          {/* ── Header ── */}
           <div style={{
             padding: "0 28px",
             borderBottom: `1px solid ${page.accent}20`,
@@ -526,7 +567,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
               ))}
             </div>
 
-            {/* Nav buttons (light theme) */}
+            {/* Nav buttons */}
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {[
                 { label: "Back", icon: "chevron-left", action: handleBack, disabled: isFirst },
@@ -553,7 +594,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
             </div>
           </div>
 
-          {/* ── Progress bar (light) ── */}
+          {/* ── Progress bar ── */}
           <div style={{ height: 2, background: "#eef2ff", flexShrink: 0, position: "relative", zIndex: 4 }}>
             <div style={{
               height: "100%", width: `${progress}%`,
@@ -563,11 +604,17 @@ export default function GuidelinesPage({ onClose, onFinish }) {
             }} />
           </div>
 
+          {/* ── Pipeline step indicator ── */}
+          <div style={{ background: "#fafcff", borderBottom: `1px solid ${page.accent}15`, flexShrink: 0, zIndex: 4, position: "relative" }}>
+            <PipelineSteps currentIdx={pageIdx} accent={page.accent} />
+            <div style={{ height: 12 }} />
+          </div>
+
           {/* ── Body ── */}
           <div className={`page-wrap${transitioning ? " out" : ""}`} style={{
             flex: 1, display: "flex", gap: 0, overflow: "hidden", position: "relative", zIndex: 4
           }}>
-            {/* Left: image + overlay (light fade) */}
+            {/* Left: image */}
             <div style={{ flex: "1.1", position: "relative", overflow: "hidden" }}>
               <img
                 src={imgSrc}
@@ -585,19 +632,17 @@ export default function GuidelinesPage({ onClose, onFinish }) {
                 }}
               />
 
-              {/* Gradient right fade (white) */}
+              {/* Gradient fades */}
               <div style={{
                 position: "absolute", inset: 0, pointerEvents: "none",
                 background: "linear-gradient(90deg, transparent 40%, #ffffff 100%)"
               }} />
-
-              {/* Gradient bottom (white) */}
               <div style={{
                 position: "absolute", inset: 0, pointerEvents: "none",
                 background: "linear-gradient(to top, #ffffff 0%, transparent 40%)"
               }} />
 
-              {/* Tag badge (light) */}
+              {/* Step badge */}
               <div style={{
                 position: "absolute", top: 20, left: 20,
                 background: "#ffffffcc",
@@ -618,7 +663,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
                 </span>
               </div>
 
-              {/* Zoom hint (light) */}
+              {/* Zoom hint */}
               <div style={{
                 position: "absolute", bottom: 20, left: 20,
                 background: "rgba(255,255,255,.85)", border: "1px solid rgba(0,0,0,.1)",
@@ -631,7 +676,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
                 🔍 Click to enlarge
               </div>
 
-              {/* Page counter (light) */}
+              {/* Page counter */}
               <div style={{
                 position: "absolute", bottom: 20, right: 28,
                 fontSize: 11, color: "#94a3b8",
@@ -641,7 +686,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
               </div>
             </div>
 
-            {/* Right: info panel (light) */}
+            {/* Right: info panel */}
             <div style={{
               width: 360, flexShrink: 0, display: "flex", flexDirection: "column",
               borderLeft: `1px solid ${page.accent}20`,
@@ -684,7 +729,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
             </div>
           </div>
 
-          {/* ── Footer (light) ── */}
+          {/* ── Footer ── */}
           <div style={{
             padding: "10px 28px",
             borderTop: `1px solid ${page.accent}15`,
