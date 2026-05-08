@@ -155,18 +155,66 @@ const Layout = ({ children }) => {
         .dropdown-animate {
           animation: slideIn 0.18s cubic-bezier(0.4,0,0.2,1);
         }
+        @keyframes borderPulse {
+          0%, 100% { 
+            border-color: #000000;
+            box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.1);
+          }
+          50% { 
+            border-color: #333333;
+            box-shadow: 0 0 0 2px rgba(0, 0, 0, 0);
+          }
+        }
+        @keyframes borderGlow {
+          0%, 100% { 
+            box-shadow: 0 0 2px rgba(0, 0, 0, 0.2),
+                        0 0 4px rgba(0, 0, 0, 0.1),
+                        inset 0 0 2px rgba(0, 0, 0, 0.1);
+          }
+          50% { 
+            box-shadow: 0 0 3px rgba(0, 0, 0, 0.3),
+                        0 0 6px rgba(0, 0, 0, 0.2),
+                        inset 0 0 3px rgba(0, 0, 0, 0.1);
+          }
+        }
+        @keyframes borderWave {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        .animated-red-border {
+          border-color: #000000 !important;
+          animation: borderPulse 2s ease-in-out infinite;
+        }
+        .glow-red-border {
+          border-color: #000000 !important;
+          animation: borderGlow 3s ease-in-out infinite;
+        }
+        .wave-red-border {
+          position: relative;
+        }
+        .wave-red-border::before {
+          content: '';
+          position: absolute;
+          inset: -2px;
+          background: linear-gradient(90deg, #000000, #333333, #666666, #000000);
+          background-size: 300% 300%;
+          animation: borderWave 3s ease infinite;
+          border-radius: inherit;
+          z-index: -1;
+        }
       `}</style>
 
       <div className="flex-1 flex flex-col bg-white rounded-t-lg shadow-2xl overflow-hidden">
 
         {/* Desktop Menu Bar */}
-        <div className="bg-gray-100 border-b border-gray-300 px-2 py-1">
+        <div className="bg-gray-100 border-b-2 border-black px-2 py-1 animated-red-border">
           <div className="flex items-center space-x-1">
             {/* Tools Menu */}
             <div className="relative">
               <button
                 onClick={() => toggleDropdown("toolsMenu")}
-                className="dropdown-trigger px-3 py-1 text-sm text-gray-700 hover:bg-white hover:border border border-transparent hover:border-gray-300 rounded transition-colors font-medium"
+                className="dropdown-trigger px-3 py-1 text-sm text-gray-700 hover:bg-white hover:border border border-transparent hover:border-black rounded transition-colors font-medium"
               >
                 🛠️ Tools
               </button>
@@ -183,7 +231,7 @@ const Layout = ({ children }) => {
                         {item.icon} {item.label}
                       </button>
                     ))}
-                    <div className="border-t border-gray-100" />
+                    <div className="border-t border-black" />
                     {[
                       { icon: "📊", label: "Data Analytics" },
                       { icon: "📈", label: "Performance Monitor" },
@@ -193,7 +241,7 @@ const Layout = ({ children }) => {
                         {item.icon} {item.label}
                       </button>
                     ))}
-                    <div className="border-t border-gray-100" />
+                    <div className="border-t border-black" />
                     {[
                       { icon: "🛠️", label: "System Tools" },
                       { icon: "🧹", label: "Maintenance" },
@@ -212,7 +260,7 @@ const Layout = ({ children }) => {
             <div className="relative">
               <button
                 onClick={() => toggleDropdown("reports")}
-                className="dropdown-trigger px-3 py-1 text-sm text-gray-700 hover:bg-white hover:border border border-transparent hover:border-gray-300 rounded transition-colors font-medium"
+                className="dropdown-trigger px-3 py-1 text-sm text-gray-700 hover:bg-white hover:border border border-transparent hover:border-black rounded transition-colors font-medium"
               >
                 📊 Reports
               </button>
@@ -223,12 +271,12 @@ const Layout = ({ children }) => {
                       <button key={label} onClick={() => { handleNavigation("/dashboard"); setActiveDropdown(null); }}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{label}</button>
                     ))}
-                    <div className="border-t border-gray-100" />
+                    <div className="border-t border-black" />
                     {["📅 Daily Summary","📊 Weekly Analysis","📈 Monthly Report"].map((label) => (
                       <button key={label} onClick={() => { handleNavigation("/dashboard"); setActiveDropdown(null); }}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{label}</button>
                     ))}
-                    <div className="border-t border-gray-100" />
+                    <div className="border-t border-black" />
                     {["📤 Export Reports","📋 Report Templates"].map((label) => (
                       <button key={label} onClick={() => { handleNavigation("/dashboard"); setActiveDropdown(null); }}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{label}</button>
@@ -242,7 +290,7 @@ const Layout = ({ children }) => {
             <div className="relative">
               <button
                 onClick={() => toggleDropdown("helpMenu")}
-                className="dropdown-trigger px-3 py-1 text-sm text-gray-700 hover:bg-white hover:border border border-transparent hover:border-gray-300 rounded transition-colors font-medium"
+                className="dropdown-trigger px-3 py-1 text-sm text-gray-700 hover:bg-white hover:border border border-transparent hover:border-black rounded transition-colors font-medium"
               >
                 ❓ Help
               </button>
@@ -253,12 +301,12 @@ const Layout = ({ children }) => {
                       <button key={label} onClick={() => { handleNavigation("/dashboard"); setActiveDropdown(null); }}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{label}</button>
                     ))}
-                    <div className="border-t border-gray-100" />
+                    <div className="border-t border-black" />
                     {["💬 Contact Support","📧 Send Feedback"].map((label) => (
                       <button key={label} onClick={() => { handleNavigation("/dashboard"); setActiveDropdown(null); }}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{label}</button>
                     ))}
-                    <div className="border-t border-gray-100" />
+                    <div className="border-t border-black" />
                     {["ℹ️ About","🔄 Check Updates"].map((label) => (
                       <button key={label} onClick={() => { handleNavigation("/dashboard"); setActiveDropdown(null); }}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{label}</button>
@@ -271,7 +319,7 @@ const Layout = ({ children }) => {
         </div>
 
         {/* Status Bar */}
-        <div className="bg-gray-200 border-b border-gray-300 px-4 py-1 flex items-center justify-between">
+        <div className="bg-gray-200 border-b-2 border-black px-4 py-1 flex items-center justify-between glow-red-border">
           <div className="flex items-center space-x-4">
             <span className="text-xs text-gray-600">🐟 FishGo Professional</span>
             <span className="text-xs text-gray-500">|</span>
@@ -288,7 +336,7 @@ const Layout = ({ children }) => {
         </div>
 
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 shadow-sm">
+        <header className="bg-white border-b-2 border-black shadow-sm wave-red-border">
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center">
@@ -310,7 +358,7 @@ const Layout = ({ children }) => {
                   <span className="ml-2 text-xl font-bold text-gray-900">FishGo</span>
                 </div>
 
-                <div className="ml-8 relative pl-6 border-l-4 border-indigo-400 rounded-l-2xl">
+                <div className="ml-8 relative pl-6 border-l-4 border-black rounded-l-2xl">
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-extrabold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
@@ -357,9 +405,9 @@ const Layout = ({ children }) => {
                     </div>
                   </button>
                   {activeDropdown === "profile" && (
-                    <div className="dropdown-animate absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 border border-gray-100">
+                    <div className="dropdown-animate absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 border border-black">
                       <div className="py-1">
-                        <div className="px-4 py-3 text-sm text-gray-700 border-b border-gray-100 bg-gray-50">
+                        <div className="px-4 py-3 text-sm text-gray-700 border-b border-black bg-gray-50">
                           <div className="font-semibold text-gray-900 flex items-center gap-2">
                             <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                               <span className="text-xs font-medium text-white">
@@ -397,7 +445,7 @@ const Layout = ({ children }) => {
                             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
                             <span className="mr-3">⚙️</span>Account Settings
                           </button>
-                          <div className="border-t border-gray-100 my-1" />
+                          <div className="border-t border-black my-1" />
                           <button
                             onClick={() => { handleNavigation("/dashboard"); setActiveDropdown(null); }}
                             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
@@ -446,7 +494,7 @@ const Layout = ({ children }) => {
                             onClick={() => { handleNavigation(item.path); setIsSidebarOpen(false); }}
                             className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-all ${
                               active
-                                ? "bg-blue-50 text-blue-700 font-semibold border border-blue-200"
+                                ? "bg-blue-50 text-blue-700 font-semibold border border-black"
                                 : "text-gray-700 hover:text-gray-900 hover:bg-gray-50"
                             }`}>
                             {item.icon} {item.label}
@@ -455,7 +503,7 @@ const Layout = ({ children }) => {
                       })}
                     </nav>
                   </div>
-                  <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
+                  <div className="flex-shrink-0 flex border-t border-black p-4">
                     <div className="flex items-center">
                       <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
                         <span className="text-sm font-medium text-gray-700">{user?.name?.charAt(0).toUpperCase() || "U"}</span>
@@ -476,7 +524,7 @@ const Layout = ({ children }) => {
         <div className="flex flex-1 overflow-hidden">
 
           {/* Desktop Sidebar */}
-          <div className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col shadow-inner">
+          <div className="w-64 bg-gray-50 border-r-2 border-black flex flex-col shadow-inner animated-red-border">
 
             {/* Active Page Indicator Banner */}
             {activeItem && (
@@ -506,8 +554,8 @@ const Layout = ({ children }) => {
                     onMouseLeave={() => setHoveredNav(null)}
                     className={`nav-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-3 group ${
                       active
-                        ? `nav-btn-active ${styles.bg} ${styles.text} border ${styles.border} shadow-sm ${styles.glow} shadow-md`
-                        : "text-gray-600 hover:bg-white hover:text-gray-900 hover:shadow-sm border border-transparent"
+                        ? `nav-btn-active ${styles.bg} ${styles.text} border-2 border-black shadow-sm ${styles.glow} shadow-md glow-red-border`
+                        : "text-gray-600 hover:bg-white hover:text-gray-900 hover:shadow-sm border-2 border-transparent"
                     }`}
                   >
                     {/* Left accent bar */}
@@ -553,10 +601,10 @@ const Layout = ({ children }) => {
             </nav>
 
             {/* Sidebar Footer */}
-            <div className="bg-white border-t border-gray-200 p-3 mx-0">
+            <div className="bg-white border-t-2 border-black p-3 mx-0 wave-red-border">
               {/* Mini breadcrumb */}
               {activeItem && (
-                <div className="mb-2 px-2 py-1.5 rounded-md bg-gray-50 border border-gray-100">
+                <div className="mb-2 px-2 py-1.5 rounded-md bg-gray-50 border-2 border-black animated-red-border">
                   <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Current</p>
                   <p className="text-xs text-gray-700 font-semibold truncate mt-0.5">{activeItem.icon} {activeItem.label}</p>
                 </div>
@@ -585,7 +633,7 @@ const Layout = ({ children }) => {
           </div>
 
           {/* Main Content */}
-          <main className="flex-1 overflow-auto bg-gray-50">
+          <main className="flex-1 overflow-auto bg-gray-50 border-l-2 border-black glow-red-border">
             {children}
           </main>
         </div>
