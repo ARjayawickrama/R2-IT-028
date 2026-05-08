@@ -120,7 +120,7 @@ const PAGES = [
     tag: "STEP 4 — QC",
     subtitle:
       "Dried Maldive fish pass through a final AI vision and manual inspection station. Each unit is graded — Premium, Good, or Processing — and batch-labelled before entering cold storage.",
-    image: "/anju.jpg",
+    image: "/Quality.png",
     fallback:
       "https://images.unsplash.com/photo-1586733432416-e936eff5dc85?w=900&h=420&fit=crop",
     accent: "#06D6A0",
