@@ -11,6 +11,7 @@ import {
   MechanicalPage,
   WaterSalinityControl
 } from "./features";
+import GuidelinesPage from "./GuidelinesPage";
 
 export default function FishBoilingDetectionApp() {
   const fileInputRef = useRef(null);
@@ -33,6 +34,7 @@ export default function FishBoilingDetectionApp() {
 
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showGuidelines, setShowGuidelines] = useState(false);
   const [captureHistory, setCaptureHistory] = useState([]);
   const [clock, setClock] = useState(new Date().toLocaleTimeString());
 
@@ -259,6 +261,17 @@ export default function FishBoilingDetectionApp() {
           <span className={`w-1.5 h-1.5 rounded-full ${mode === "chart" ? "bg-blue-600" : "bg-gray-400"}`} />
           Chart
         </button>
+         {/* <button 
+          className={`px-3.5 h-[34px] rounded-t-lg text-xs font-medium flex items-center gap-2 transition-all ${
+            mode === "guidelines" 
+              ? "bg-gray-50 border border-gray-200 border-b-transparent text-blue-600" 
+              : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+          }`} 
+          onClick={() => { setMode("guidelines"); setShowGuidelines(true); }}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${mode === "guidelines" ? "bg-blue-600" : "bg-gray-400"}`} />
+          Guidelines
+        </button> */}
       </div>
 
       {/* Main Content Area */}
@@ -274,6 +287,7 @@ export default function FishBoilingDetectionApp() {
         {mode === "sensors" && <SensorPage />}
         {mode === "mechanical" && <MechanicalPage />}
         {mode === "Water" && <WaterSalinityControl />}
+        {mode === "guidelines" && <div className="p-4 text-center text-gray-500">Click Guidelines button to view guidelines</div>}
       </div>
 
       {/* Status Bar */}
@@ -427,6 +441,14 @@ export default function FishBoilingDetectionApp() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Guidelines Page Modal */}
+      {showGuidelines && (
+        <GuidelinesPage 
+          onClose={() => setShowGuidelines(false)}
+          onFinish={() => setShowGuidelines(false)}
+        />
       )}
 
     </div>

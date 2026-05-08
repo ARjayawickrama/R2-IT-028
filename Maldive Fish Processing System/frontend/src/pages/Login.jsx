@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import GuidelinesPage from './MechanicalSaltOptimization/GuidelinesPage';
 
 // Custom CSS for animations
 const customStyles = `
@@ -46,8 +47,18 @@ const customStyles = `
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
+  const [showGuidelines, setShowGuidelines] = useState(false);
   const { login, error: authError, loading } = useAuth();
   const navigate = useNavigate();
+
+  // Auto-open GuidelinesPage when component mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowGuidelines(true);
+    }, 1000); // Open after 1 second
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const validateForm = () => {
     const newErrors = {};
@@ -357,6 +368,14 @@ const Login = () => {
           </div>
         </div>
       </footer>
+
+      {/* Auto-open GuidelinesPage Modal */}
+      {showGuidelines && (
+        <GuidelinesPage 
+          onClose={() => setShowGuidelines(false)}
+          onFinish={() => setShowGuidelines(false)}
+        />
+      )}
     </>
   );
 };
