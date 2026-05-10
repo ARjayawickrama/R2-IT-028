@@ -206,7 +206,9 @@ const Login = () => {
                   <div className="w-4 h-4 bg-white/30 rounded-full animate-pulse delay-75"></div>
                   <div className="w-4 h-4 bg-white/30 rounded-full animate-pulse delay-150"></div>
                   <div className="w-4 h-4 bg-white/30 rounded-full animate-pulse delay-300"></div>
-                  <span className="text-2xl font-bold ml-3">FishGo Admin</span>
+                 <div className="flex items-center">
+
+</div>
                 </div>
               </div>
               <h1 className="text-2xl font-bold text-center">Welcome Back</h1>
@@ -349,7 +351,7 @@ const Login = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <span>📍</span>
-                  <span>Malé, Maldives</span>
+                  <span>Srilanaka Maldive Fish </span>
                 </div>
               </div>
             </div>
@@ -358,7 +360,7 @@ const Login = () => {
           {/* Bottom Bar */}
           <div className="border-t border-gray-700 mt-6 pt-4">
             <div className="flex flex-col md:flex-row justify-between items-center text-sm text-gray-400">
-              <div>© 2024 Maldive Fish Processing System. All rights reserved.</div>
+              <div>© 2026 Maldive Fish Processing System. All rights reserved.</div>
               <div className="flex gap-4 mt-2 md:mt-0">
                 <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
                 <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
