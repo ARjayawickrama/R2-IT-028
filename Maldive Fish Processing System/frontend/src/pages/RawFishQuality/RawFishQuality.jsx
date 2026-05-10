@@ -23,9 +23,7 @@ const RawFishQuality = () => {
   const [currentCaption, setCurrentCaption] = useState('');
   const autoCaptionIntervalRef = useRef(null);
 
-  const [speciesData] = useState([
-    { species: 'Alagoduwa', batches: 5, avgQuality: 89.6, totalQuantity: 1400 }
-  ]);
+
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -327,26 +325,7 @@ const RawFishQuality = () => {
               </button>
               <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Batch ID</label>
-                <input
-                  type="text"
-                  value={batchId}
-                  onChange={(e) => setBatchId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Species</label>
-                <select
-                  value={species}
-                  onChange={(e) => setSpecies(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                >
-                  <option value="Alagoduwa">Alagoduwa</option>
-                </select>
-              </div>
+           
             </div>
 
             {/* Centre: Preview */}
@@ -389,22 +368,7 @@ const RawFishQuality = () => {
                       <p className="text-xs font-semibold">Quality Label</p>
                       <p className="text-xl font-bold">{latestResult.qualityLabel || 'unknown'}</p>
                     </div>
-                    <div className="p-4 rounded-xl bg-blue-50 text-blue-700">
-                      <p className="text-xs font-semibold">Freshness Score</p>
-                      <p className="text-xl font-bold">{latestResult.freshnessScore ?? 0}%</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-slate-50 border">
-                      <p className="text-xs font-semibold text-slate-500">Total Detections</p>
-                      <p className="text-xl font-bold">{latestResult.assessment?.total_detections ?? 0}</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-slate-50 border">
-                      <p className="text-xs font-semibold text-slate-500">Source</p>
-                      <p className="text-xl font-bold capitalize">{latestResult.source || 'upload'}</p>
-                    </div>
-                    <div className="p-3 rounded-xl bg-slate-50 border text-xs text-slate-500">
-                      <p className="font-semibold mb-1">Status</p>
-                      <p>{feedback}</p>
-                    </div>
+                    
                   </div>
                 )
               ) : (
@@ -468,33 +432,7 @@ const RawFishQuality = () => {
                 {autoCaptionActive ? '⏹ Stop Auto Caption' : '🔄 Auto Caption'}
               </button>
 
-              <div className="bg-white border rounded-xl p-4 space-y-3">
-                <p className="text-xs tracking-[3px] text-slate-400">BATCH INFO</p>
-                <div>
-                  <label className="text-xs text-slate-500">Batch ID</label>
-                  <input
-                    type="text"
-                    value={batchId}
-                    onChange={(e) => setBatchId(e.target.value)}
-                    className="mt-1 w-full text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500">Species</label>
-                  <select
-                    value={species}
-                    onChange={(e) => setSpecies(e.target.value)}
-                    className="mt-1 w-full text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400"
-                  >
-                    <option value="Alagoduwa">Alagoduwa</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="bg-white border rounded-xl p-4">
-                <p className="text-xs tracking-[3px] text-slate-400 mb-2">STATUS</p>
-                <p className="text-sm text-slate-600">{feedback}</p>
-              </div>
+              
             </div>
 
             {/* Live preview */}
@@ -549,14 +487,7 @@ const RawFishQuality = () => {
                       <p className="text-xs font-semibold">Label</p>
                       <p className="text-sm font-bold mt-1">{latestResult.qualityLabel}</p>
                     </div>
-                    <div className="p-3 rounded-xl bg-blue-50 text-blue-700">
-                      <p className="text-xs font-semibold">Score</p>
-                      <p className="text-lg font-bold mt-1">{latestResult.freshnessScore}%</p>
-                    </div>
-                    <div className="p-3 rounded-xl bg-slate-100 border">
-                      <p className="text-xs font-semibold text-slate-500">Detections</p>
-                      <p className="text-lg font-bold mt-1">{latestResult.assessment?.total_detections ?? 0}</p>
-                    </div>
+                    
                   </>
                 ) : (
                   <p className="text-xs tracking-[4px] text-slate-400 text-center mt-32">AWAITING INPUT</p>
@@ -584,8 +515,8 @@ const RawFishQuality = () => {
                     <div className="p-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="font-bold text-slate-800">{record.batchId}</h3>
-                          <p className="text-xs text-slate-500">{record.species} • {new Date(record.analysisDate).toLocaleString()}</p>
+                          
+                          <p className="text-xs text-slate-500"> {new Date(record.analysisDate).toLocaleString()}</p>
                         </div>
                         <button
                           onClick={() => deleteAssessment(record._id)}
@@ -602,21 +533,9 @@ const RawFishQuality = () => {
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getLabelBadgeColor(record.qualityLabel)}`}>
                           {record.qualityLabel}
                         </span>
-                        <span className="rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 text-slate-600 capitalize">
-                          {record.source}
-                        </span>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <div className="p-2 rounded-lg bg-slate-50 border">
-                          <p className="text-xs text-slate-400">Score</p>
-                          <p className={`text-lg font-bold ${getQualityColor(record.freshnessScore)}`}>{record.freshnessScore}%</p>
-                        </div>
-                        <div className="p-2 rounded-lg bg-slate-50 border">
-                          <p className="text-xs text-slate-400">Detections</p>
-                          <p className="text-lg font-bold text-slate-700">{record.assessment?.total_detections ?? 0}</p>
-                        </div>
-                      </div>
+
                     </div>
                   </div>
                 ))}
@@ -673,69 +592,10 @@ const RawFishQuality = () => {
                 )}
               </div>
 
-              {/* Bar chart */}
-              <div className="bg-white rounded-2xl shadow p-6">
-                <h2 className="text-xl font-bold mb-2">Freshness Level vs Quantity</h2>
-                <p className="text-slate-500 text-sm mb-4">Batch count per freshness category</p>
-                <svg viewBox="0 0 500 320" className="w-full h-[280px] bg-slate-50 rounded-xl border">
-                  {[0,1,2,3,4].map((line) => {
-                    const maxVal = Math.max(stats.veryFresh, stats.fresh, stats.spoiled, 1);
-                    const y = 250 - line * 50;
-                    const val = Math.round((maxVal / 4) * line);
-                    return (
-                      <g key={line}>
-                        <line x1="50" y1={y} x2="470" y2={y} stroke="#e2e8f0" strokeWidth="1" />
-                        <text x="40" y={y + 4} textAnchor="end" fontSize="11" fill="#94a3b8">{val}</text>
-                      </g>
-                    );
-                  })}
-                  <line x1="50" y1="50" x2="50" y2="250" stroke="#94a3b8" strokeWidth="2" />
-                  <line x1="50" y1="250" x2="470" y2="250" stroke="#94a3b8" strokeWidth="2" />
-                  {[
-                    { label: 'Very Fresh', value: stats.veryFresh, color: '#10B981', x: 90 },
-                    { label: 'Fresh',      value: stats.fresh,     color: '#3B82F6', x: 220 },
-                    { label: 'Spoiled',    value: stats.spoiled,   color: '#EF4444', x: 350 },
-                  ].map((bar) => {
-                    const maxVal = Math.max(stats.veryFresh, stats.fresh, stats.spoiled, 1);
-                    const barH = (bar.value / maxVal) * 180;
-                    const y = 250 - barH;
-                    return (
-                      <g key={bar.label}>
-                        <rect x={bar.x} y={y} width={80} height={barH} rx="8" fill={bar.color} />
-                        <text x={bar.x + 40} y={bar.value === 0 ? 240 : y - 8} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#1e293b">{bar.value}</text>
-                        <text x={bar.x + 40} y="268" textAnchor="middle" fontSize="11" fill="#475569">{bar.label}</text>
-                        <text x={bar.x + 40} y="283" textAnchor="middle" fontSize="10" fill="#94a3b8">
-                          {stats.total > 0 ? `${Math.round((bar.value / stats.total) * 100)}%` : '0%'}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-              </div>
+              
             </div>
 
-            {/* Species overview */}
-            <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-xl font-bold mb-4">Species Overview</h2>
-              <div className="grid md:grid-cols-3 gap-4">
-                {speciesData.map((s) => (
-                  <div key={s.species} className="p-4 rounded-xl bg-slate-50 border">
-                    <div className="flex justify-between items-center">
-                      <p className="font-semibold text-slate-800">{s.species}</p>
-                      <span className="text-xs text-slate-500 bg-slate-200 px-2 py-1 rounded-full">{s.batches} batches</span>
-                    </div>
-                    <div className="mt-3 flex justify-between text-sm text-slate-600">
-                      <span>Avg quality</span>
-                      <span className={getQualityColor(s.avgQuality)}>{s.avgQuality}%</span>
-                    </div>
-                    <div className="mt-3 flex justify-between text-sm text-slate-600">
-                      <span>Total quantity</span>
-                      <span className="font-medium text-slate-800">{s.totalQuantity} units</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            
           </div>
         )}
 
