@@ -3,44 +3,439 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import GuidelinesPage from './MechanicalSaltOptimization/GuidelinesPage';
 
-// Custom CSS for animations
 const customStyles = `
-  @keyframes float {
-    0%, 100% {
-      transform: translateY(0px) translateX(0px);
-      opacity: 0.3;
-    }
-    25% {
-      transform: translateY(-20px) translateX(10px);
-      opacity: 0.6;
-    }
-    50% {
-      transform: translateY(-10px) translateX(-10px);
-      opacity: 0.4;
-    }
-    75% {
-      transform: translateY(-30px) translateX(5px);
-      opacity: 0.7;
-    }
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+  * { box-sizing: border-box; }
+
+  /* ==============================
+     CSS Variables for Theming
+     ============================== */
+  .mf-root {
+    --bg-primary: #FFFFFF;
+    --bg-secondary: #F8FAFE;
+    --bg-tertiary: #F1F5F9;
+    --bg-overlay: rgba(255,255,255,0.7);
+    --bg-panel: rgba(245,248,250,0.85);
+    --text-primary: #0F172A;
+    --text-secondary: #334155;
+    --text-muted: #64748B;
+    --accent-primary: #0F6E56;
+    --accent-secondary: #1EA082;
+    --accent-glow: rgba(30,160,130,0.2);
+    --border-light: rgba(0,0,0,0.08);
+    --border-medium: rgba(0,0,0,0.12);
+    --card-bg: #FFFFFF;
+    --input-bg: #FFFFFF;
+    --shadow-sm: 0 4px 12px rgba(0,0,0,0.04);
+    --shadow-md: 0 8px 24px rgba(0,0,0,0.06);
+    --gradient-hero: linear-gradient(135deg, #1EA082 0%, #5BD4B8 60%, #378ADD 100%);
   }
-  
-  @keyframes swim {
-    0%, 100% {
-      transform: translateX(0px) translateY(0px) rotate(0deg);
-    }
-    25% {
-      transform: translateX(30px) translateY(-15px) rotate(5deg);
-    }
-    50% {
-      transform: translateX(-20px) translateY(-25px) rotate(-3deg);
-    }
-    75% {
-      transform: translateX(40px) translateY(-10px) rotate(7deg);
-    }
+
+  .mf-root.theme-dark {
+    --bg-primary: #020C18;
+    --bg-secondary: #05101C;
+    --bg-tertiary: #0A1524;
+    --bg-overlay: rgba(2,11,24,0.95);
+    --bg-panel: rgba(5,16,28,0.7);
+    --text-primary: #E8F4F8;
+    --text-secondary: #7BA8A0;
+    --text-muted: #5BA89A;
+    --accent-primary: #1EA082;
+    --accent-secondary: #0C6E56;
+    --accent-glow: rgba(30,160,130,0.2);
+    --border-light: rgba(255,255,255,0.08);
+    --border-medium: rgba(255,255,255,0.12);
+    --card-bg: #05101C;
+    --input-bg: rgba(255,255,255,0.04);
+    --shadow-sm: 0 4px 12px rgba(0,0,0,0.2);
+    --shadow-md: 0 8px 24px rgba(0,0,0,0.3);
+    --gradient-hero: linear-gradient(135deg, #1EA082, #5BD4B8);
   }
-  
-  .animate-swim {
-    animation: swim 15s ease-in-out infinite;
+
+  .mf-root {
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* ── Header ── */
+  .mf-header {
+    background: var(--bg-overlay);
+    border-bottom: 1px solid var(--border-light);
+    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .mf-header-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px; height: 60px;
+  }
+  .mf-logo-mark {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Sora', sans-serif;
+    font-weight: 700; font-size: 13px; color: #fff;
+    letter-spacing: -0.5px;
+    flex-shrink: 0;
+  }
+  .mf-brand-text h1 {
+    font-family: 'Sora', sans-serif;
+    font-size: 15px; font-weight: 600; margin: 0; color: var(--text-primary);
+    letter-spacing: -0.3px;
+  }
+  .mf-brand-text p {
+    font-size: 11px; color: var(--text-muted); margin: 0; font-weight: 300;
+  }
+  .mf-status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent-primary);
+    box-shadow: 0 0 8px var(--accent-glow);
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+  @keyframes pulse-glow {
+    0%,100% { box-shadow: 0 0 6px var(--accent-glow); }
+    50% { box-shadow: 0 0 14px var(--accent-primary); }
+  }
+  .mf-header-right {
+    display: flex; align-items: center; gap: 20px;
+  }
+  .mf-header-time {
+    font-size: 12px; color: var(--text-muted); letter-spacing: 0.5px;
+  }
+  .mf-header-actions {
+    display: flex; gap: 4px;
+  }
+  .mf-win-btn {
+    width: 28px; height: 28px; border-radius: 6px;
+    border: 1px solid var(--border-light);
+    background: rgba(255,255,255,0.04);
+    color: var(--text-muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; transition: all 0.15s;
+  }
+  .mf-win-btn:hover { background: var(--accent-glow); color: var(--accent-primary); }
+  .mf-win-btn.close:hover { background: rgba(200,50,50,0.4); color: #FF8080; border-color: rgba(200,50,50,0.4); }
+
+  /* Theme Toggle Button */
+  .mf-theme-toggle {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-light);
+    border-radius: 20px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-secondary);
+  }
+  .mf-theme-toggle:hover {
+    background: var(--accent-glow);
+    color: var(--accent-primary);
+    transform: scale(1.02);
+  }
+
+  /* ── Nav Bar ── */
+  .mf-nav {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-light);
+    padding: 0 28px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 4px;
+    height: 38px;
+  }
+  .mf-nav-btn {
+    font-size: 12px; color: var(--text-muted);
+    padding: 4px 10px; border-radius: 5px;
+    border: none; background: transparent; cursor: pointer;
+    transition: all 0.15s; letter-spacing: 0.2px;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .mf-nav-btn:hover { background: var(--accent-glow); color: var(--accent-primary); }
+
+  /* ── Hero Section ── */
+  .mf-body {
+    flex: 1; display: grid;
+    grid-template-columns: 1fr 480px;
+    position: relative; overflow: hidden;
+  }
+
+  .mf-hero {
+    position: relative; padding: 60px 64px;
+    display: flex; flex-direction: column; justify-content: center;
+    overflow: hidden;
+  }
+
+  .mf-ocean-bg {
+    position: absolute; inset: 0; overflow: hidden;
+  }
+
+  /* Animated gradient orbs */
+  .mf-orb {
+    position: absolute; border-radius: 50%;
+    filter: blur(80px); opacity: 0.12;
+    animation: drift 20s ease-in-out infinite;
+  }
+  .theme-dark .mf-orb {
+    opacity: 0.12;
+  }
+  .theme-light .mf-orb {
+    opacity: 0.08;
+  }
+  .mf-orb-1 { width: 500px; height: 500px; background: var(--accent-primary); top: -100px; left: -100px; animation-delay: 0s; }
+  .mf-orb-2 { width: 400px; height: 400px; background: var(--accent-secondary); bottom: -80px; right: -60px; animation-delay: -7s; }
+  .mf-orb-3 { width: 300px; height: 300px; background: #378ADD; top: 40%; left: 30%; animation-delay: -14s; }
+  @keyframes drift {
+    0%,100% { transform: translate(0,0) scale(1); }
+    33% { transform: translate(40px,-30px) scale(1.05); }
+    66% { transform: translate(-20px,50px) scale(0.95); }
+  }
+
+  /* Grid lines */
+  .mf-grid-overlay {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(var(--accent-glow) 1px, transparent 1px),
+      linear-gradient(90deg, var(--accent-glow) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .mf-hero-content { position: relative; z-index: 2; }
+
+  .mf-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 500;
+    color: var(--accent-primary); letter-spacing: 2px; text-transform: uppercase;
+    margin-bottom: 20px;
+    padding: 5px 12px;
+    border: 1px solid var(--accent-glow);
+    border-radius: 100px;
+    background: var(--accent-glow);
+  }
+  .mf-eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-primary); }
+
+  .mf-hero-title {
+    font-family: 'Sora', sans-serif;
+    font-size: clamp(28px, 3.5vw, 46px);
+    font-weight: 700; line-height: 1.12;
+    letter-spacing: -1.5px; color: var(--text-primary);
+    margin: 0 0 18px;
+  }
+  .mf-hero-title span {
+    background: var(--gradient-hero);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .mf-hero-sub {
+    font-size: 15px; color: var(--text-secondary); line-height: 1.65;
+    max-width: 480px; margin-bottom: 40px; font-weight: 300;
+  }
+
+  /* Stats row */
+  .mf-stats {
+    display: flex; gap: 28px; margin-bottom: 48px;
+  }
+  .mf-stat {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .mf-stat-num {
+    font-family: 'Sora', sans-serif;
+    font-size: 24px; font-weight: 700; color: var(--accent-primary); letter-spacing: -1px;
+  }
+  .mf-stat-label {
+    font-size: 11px; color: var(--text-muted); letter-spacing: 0.5px;
+  }
+  .mf-stat-divider {
+    width: 1px; background: var(--border-medium); margin: 4px 0;
+  }
+
+  /* Feature pills */
+  .mf-features { display: flex; flex-wrap: wrap; gap: 10px; }
+  .mf-feature-pill {
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 14px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-overlay);
+    font-size: 12px; color: var(--text-secondary);
+    transition: all 0.2s;
+  }
+  .mf-feature-pill:hover { border-color: var(--accent-primary); color: var(--accent-primary); background: var(--accent-glow); }
+
+  /* ── Login Panel ── */
+  .mf-panel {
+    background: var(--bg-panel);
+    backdrop-filter: blur(20px);
+    border-left: 1px solid var(--border-light);
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px 44px;
+  }
+
+  .mf-form-card {
+    width: 100%; max-width: 380px;
+  }
+
+  .mf-form-header { margin-bottom: 36px; }
+  .mf-form-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 26px; font-weight: 700; letter-spacing: -0.8px;
+    color: var(--text-primary); margin: 0 0 8px;
+  }
+  .mf-form-subtitle {
+    font-size: 13px; color: var(--text-muted); font-weight: 300;
+  }
+
+  /* Form elements */
+  .mf-field { margin-bottom: 20px; }
+  .mf-label {
+    display: block; font-size: 12px; font-weight: 500;
+    color: var(--text-secondary); margin-bottom: 8px;
+    letter-spacing: 0.3px;
+  }
+  .mf-input-wrap { position: relative; }
+  .mf-input {
+    width: 100%; padding: 12px 14px 12px 42px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    color: var(--text-primary); font-size: 14px; font-family: inherit;
+    transition: all 0.2s; outline: none;
+  }
+  .mf-input::placeholder { color: var(--text-muted); opacity: 0.4; }
+  .mf-input:hover { border-color: var(--accent-primary); background: var(--accent-glow); }
+  .mf-input:focus {
+    border-color: var(--accent-primary);
+    background: var(--input-bg);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .mf-input.error { border-color: rgba(220,80,80,0.5); }
+  .mf-input-icon {
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); font-size: 16px; pointer-events: none;
+    transition: color 0.2s;
+  }
+  .mf-input:focus ~ .mf-input-icon { color: var(--accent-primary); }
+
+  .mf-error-text {
+    font-size: 11px; color: #E24B4A; margin-top: 5px;
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  /* Auth error banner */
+  .mf-auth-error {
+    background: rgba(220,80,80,0.08);
+    border: 1px solid rgba(220,80,80,0.25);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 13px; color: #F09595;
+    margin-bottom: 20px; display: flex; align-items: center; gap: 8px;
+  }
+
+  /* Remember + forgot */
+  .mf-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 28px;
+  }
+  .mf-checkbox-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text-secondary); cursor: pointer;
+  }
+  .mf-checkbox {
+    width: 15px; height: 15px;
+    accent-color: var(--accent-primary);
+    cursor: pointer;
+  }
+  .mf-forgot {
+    font-size: 12px; color: var(--accent-primary); text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .mf-forgot:hover { opacity: 0.7; }
+
+  /* Submit button */
+  .mf-submit {
+    width: 100%; padding: 13px;
+    background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary));
+    border: none; border-radius: 10px;
+    color: #fff; font-family: 'Sora', sans-serif;
+    font-size: 14px; font-weight: 600; letter-spacing: 0.3px;
+    cursor: pointer; position: relative; overflow: hidden;
+    transition: all 0.2s;
+  }
+  .mf-submit::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, var(--accent-primary), #5BD4B8);
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .mf-submit:hover::before { opacity: 1; }
+  .mf-submit:active { transform: scale(0.98); }
+  .mf-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .mf-submit span { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+  .mf-spinner {
+    width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Signup link */
+  .mf-signup-text {
+    text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 22px;
+  }
+  .mf-signup-text a { color: var(--accent-primary); text-decoration: none; font-weight: 500; }
+  .mf-signup-text a:hover { text-decoration: underline; }
+
+  /* Divider */
+  .mf-divider {
+    display: flex; align-items: center; gap: 10px; margin: 24px 0;
+  }
+  .mf-divider-line { flex: 1; height: 1px; background: var(--border-light); }
+  .mf-divider-text { font-size: 11px; color: var(--text-muted); letter-spacing: 0.5px; opacity: 0.6; }
+
+  /* Security badge */
+  .mf-security {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 11px; color: var(--text-muted); margin-top: 18px;
+    opacity: 0.7;
+  }
+
+  /* ── Footer ── */
+  .mf-footer {
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-light);
+    padding: 36px 28px 24px;
+  }
+  .mf-footer-grid {
+    display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 32px; margin-bottom: 28px;
+  }
+  .mf-footer-head { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 14px; letter-spacing: 1px; text-transform: uppercase; }
+  .mf-footer-links { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .mf-footer-links li a { font-size: 13px; color: var(--text-muted); text-decoration: none; transition: color 0.15s; opacity: 0.7; }
+  .mf-footer-links li a:hover { color: var(--accent-primary); opacity: 1; }
+  .mf-footer-brand p { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-top: 10px; opacity: 0.8; }
+  .mf-footer-contact-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; opacity: 0.8; }
+  .mf-footer-bottom {
+    border-top: 1px solid var(--border-light); padding-top: 18px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .mf-footer-copy { font-size: 12px; color: var(--text-muted); opacity: 0.6; }
+  .mf-footer-legal { display: flex; gap: 20px; }
+  .mf-footer-legal a { font-size: 12px; color: var(--text-muted); text-decoration: none; opacity: 0.6; }
+  .mf-footer-legal a:hover { color: var(--accent-primary); opacity: 1; }
+
+  @media (max-width: 900px) {
+    .mf-body { grid-template-columns: 1fr; }
+    .mf-hero { padding: 40px 32px; }
+    .mf-panel { border-left: none; border-top: 1px solid var(--border-light); }
+    .mf-footer-grid { grid-template-columns: 1fr 1fr; }
   }
 `;
 
@@ -48,33 +443,47 @@ const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
   const [showGuidelines, setShowGuidelines] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    // Check localStorage or system preference
+    const saved = localStorage.getItem('theme');
+    if (saved) return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
   const { login, error: authError, loading } = useAuth();
   const navigate = useNavigate();
+  const [time, setTime] = useState(new Date());
 
-  // Auto-open GuidelinesPage when component mounts
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowGuidelines(true);
-    }, 1000); // Open after 1 second
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setShowGuidelines(true), 1000);
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+    document.documentElement.style.colorScheme = theme;
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
   const validateForm = () => {
     const newErrors = {};
-
     if (!formData.email) {
       newErrors.email = 'Email is required';
     } else if (!/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email';
     }
-
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -82,16 +491,12 @@ const Login = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!validateForm()) return;
-
     try {
       await login(formData.email, formData.password);
       navigate('/dashboard');
@@ -100,280 +505,259 @@ const Login = () => {
     }
   };
 
+  const features = [
+    { icon: '🤖', label: 'AI Quality Assessment' },
+    { icon: '📡', label: 'IoT Monitoring' },
+    { icon: '🧂', label: 'Smart Salt Optimization' },
+    { icon: '📊', label: 'Multi-Sensor Analysis' },
+  ];
+
   return (
     <>
       <style>{customStyles}</style>
-      {/* Desktop Application Header */}
-      <div className="bg-gradient-to-r from-blue-800 to-blue-900 text-white">
-        <div className="flex items-center justify-between px-4 py-2">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
-                <span className="text-blue-800 font-bold text-sm">MF</span>
-              </div>
-              <div>
-                <h1 className="text-lg font-bold">Maldive Fish Processing System</h1>
-                <p className="text-xs text-blue-200">Enterprise Control Panel v2.0</p>
+      <div className={`mf-root theme-${theme}`}>
+        {/* ── Header ── */}
+        <header className="mf-header">
+          <div className="mf-header-inner">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="mf-logo-mark">MF</div>
+              <div className="mf-brand-text">
+                <h1>Maldive Fish Processing System</h1>
+                <p>Enterprise Control Panel v2.0</p>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-sm">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span>System Online</span>
+            <div className="mf-header-right">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div className="mf-status-dot" />
+                <span style={{ fontSize: 12, color: 'var(--accent-primary)' }}>System Online</span>
+              </div>
+              <div className="mf-header-time">
+                {time.toLocaleDateString()} &nbsp; {time.toLocaleTimeString()}
+              </div>
+              <button className="mf-theme-toggle" onClick={toggleTheme} aria-label="Toggle theme">
+                {theme === 'dark' ? '☀️' : '🌙'}
+              </button>
+              <div className="mf-header-actions">
+                <button className="mf-win-btn">▁</button>
+                <button className="mf-win-btn">□</button>
+                <button className="mf-win-btn close">✕</button>
+              </div>
             </div>
-            <div className="text-sm text-blue-200">
-              {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}
+          </div>
+        </header>
+
+        {/* ── Nav ── */}
+        <nav className="mf-nav">
+          <button className="mf-nav-btn">⚙ Settings</button>
+          <button className="mf-nav-btn">🔔 Notifications</button>
+          <button className="mf-nav-btn">👤 Admin</button>
+        </nav>
+
+        {/* ── Body ── */}
+        <main className="mf-body">
+          {/* Hero left */}
+          <div className="mf-hero">
+            <div className="mf-ocean-bg">
+              <div className="mf-orb mf-orb-1" />
+              <div className="mf-orb mf-orb-2" />
+              <div className="mf-orb mf-orb-3" />
+              <div className="mf-grid-overlay" />
             </div>
-            <div className="flex gap-1">
-              <button className="px-3 py-1 bg-blue-700 hover:bg-blue-600 rounded text-sm">Minimize</button>
-              <button className="px-3 py-1 bg-blue-700 hover:bg-blue-600 rounded text-sm">Maximize</button>
-              <button className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-sm">Close</button>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Desktop Menu Bar */}
-      <div className="bg-gray-800 text-white border-b border-gray-700">
-        <div className="flex items-center px-2 py-1">
-          
-          <div className="ml-auto flex items-center gap-2">
-            <button className="px-2 py-1 hover:bg-gray-700 rounded text-xs">⚙️ Settings</button>
-            <button className="px-2 py-1 hover:bg-gray-700 rounded text-xs">🔔 Notifications</button>
-            <button className="px-2 py-1 hover:bg-gray-700 rounded text-xs">👤 Admin</button>
-          </div>
-        </div>
-      </div>
+            <div className="mf-hero-content">
+              <div className="mf-eyebrow">
+                <div className="mf-eyebrow-dot" />
+                AI-Powered Processing Platform
+              </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex bg-gray-100 min-h-screen relative overflow-hidden">
-        {/* Animated Background */}
-        <div className="absolute inset-0">
-          {/* Floating Bubbles */}
-          <div className="absolute top-20 left-10 w-32 h-32 bg-blue-200 rounded-full opacity-20 animate-pulse"></div>
-          <div className="absolute top-40 right-20 w-24 h-24 bg-cyan-200 rounded-full opacity-15 animate-bounce"></div>
-          <div className="absolute bottom-20 left-1/4 w-40 h-40 bg-teal-200 rounded-full opacity-10 animate-pulse"></div>
-          <div className="absolute top-1/3 right-1/3 w-28 h-28 bg-blue-300 rounded-full opacity-20 animate-bounce"></div>
-          
-          {/* Floating Fish Icons */}
-          <div className="absolute top-10 left-1/2 text-6xl text-blue-300 opacity-30 animate-swim">🐟</div>
-          <div className="absolute top-1/4 right-10 text-4xl text-cyan-300 opacity-25 animate-swim" style={{ animationDelay: '2s' }}>🐠</div>
-          <div className="absolute bottom-1/3 left-20 text-5xl text-teal-300 opacity-20 animate-swim" style={{ animationDelay: '4s' }}>🐡</div>
-          <div className="absolute top-1/2 left-10 text-3xl text-blue-200 opacity-30 animate-swim" style={{ animationDelay: '6s' }}>🦈</div>
-          
-          {/* Wave Animation */}
-          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-blue-100 to-transparent opacity-50">
-            <svg className="absolute bottom-0 w-full h-16" viewBox="0 0 1200 120" preserveAspectRatio="none">
-              <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" 
-                    fill="rgba(59, 130, 246, 0.1)" 
-                    className="animate-pulse">
-                <animate attributeName="d" 
-                  values="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z;
-                          M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z;
-                          M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
-                  dur="8s" 
-                  repeatCount="indefinite"/>
-              </path>
-            </svg>
-          </div>
-          
-          {/* Particle Effects */}
-          <div className="absolute top-0 left-0 w-full h-full">
-            {[...Array(20)].map((_, i) => (
-              <div
-                key={i}
-                className="absolute w-1 h-1 bg-blue-400 rounded-full opacity-30"
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                  animation: `float ${5 + Math.random() * 10}s ease-in-out infinite`,
-                  animationDelay: `${Math.random() * 5}s`
-                }}
-              ></div>
-            ))}
-          </div>
-        </div>
+              <h2 className="mf-hero-title">
+                Intelligent Fish<br />
+                <span>Quality Control</span><br />
+                for the Maldives
+              </h2>
 
-        {/* Login Form Container */}
-        <div className="flex-1 flex items-center justify-center p-8 relative z-10">
-          <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-gray-200">
-            {/* Login Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-6 rounded-t-xl">
-              <div className="flex justify-center mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-white/30 rounded-full animate-pulse"></div>
-                  <div className="w-4 h-4 bg-white/30 rounded-full animate-pulse delay-75"></div>
-                  <div className="w-4 h-4 bg-white/30 rounded-full animate-pulse delay-150"></div>
-                  <div className="w-4 h-4 bg-white/30 rounded-full animate-pulse delay-300"></div>
-                 <div className="flex items-center">
+              <p className="mf-hero-sub">
+                Transforming traditional fish processing through AI-based quality assessment,
+                IoT environmental monitoring, and smart salt optimization — ensuring
+                export-grade consistency every batch.
+              </p>
 
-</div>
+              <div className="mf-stats">
+                <div className="mf-stat">
+                  <span className="mf-stat-num">98.4%</span>
+                  <span className="mf-stat-label">Quality Accuracy</span>
+                </div>
+                <div className="mf-stat-divider" />
+                <div className="mf-stat">
+                  <span className="mf-stat-num">3.2×</span>
+                  <span className="mf-stat-label">Faster Inspection</span>
+                </div>
+                <div className="mf-stat-divider" />
+                <div className="mf-stat">
+                  <span className="mf-stat-num">40%</span>
+                  <span className="mf-stat-label">Cost Reduction</span>
                 </div>
               </div>
-              <h1 className="text-2xl font-bold text-center">Welcome Back</h1>
-              <p className="text-center text-blue-100 text-sm mt-1">Manage your fish processing system with ease</p>
-            </div>
 
-            {/* Login Form */}
-            <div className="p-6">
-              {authError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                    {authError}
+              <div className="mf-features">
+                {features.map(f => (
+                  <div key={f.label} className="mf-feature-pill">
+                    <span className="mf-feature-icon">{f.icon}</span>
+                    {f.label}
                   </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Login panel right */}
+          <div className="mf-panel">
+            <div className="mf-form-card">
+              <div className="mf-form-header">
+                <h3 className="mf-form-title">Welcome back</h3>
+                <p className="mf-form-subtitle">Sign in to your processing dashboard</p>
+              </div>
+
+              {authError && (
+                <div className="mf-auth-error">
+                  <span>⚠</span> {authError}
                 </div>
               )}
 
-              <form onSubmit={handleSubmit}>
-                <div className="mb-5">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
-                  <div className="relative">
+              <form onSubmit={handleSubmit} noValidate>
+                {/* Email */}
+                <div className="mf-field">
+                  <label className="mf-label">Email address</label>
+                  <div className="mf-input-wrap">
                     <input
                       type="email"
                       name="email"
                       value={formData.email}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 pl-11 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                      placeholder="Enter your email"
+                      placeholder="you@example.com"
+                      className={`mf-input${errors.email ? ' error' : ''}`}
+                      autoComplete="email"
                     />
-                    <svg className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    <svg className="mf-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
                     </svg>
                   </div>
-                  {errors.email && <p className="text-red-500 text-sm mt-1 flex items-center"><svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>{errors.email}</p>}
+                  {errors.email && <p className="mf-error-text">⚡ {errors.email}</p>}
                 </div>
 
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
-                  <div className="relative">
+                {/* Password */}
+                <div className="mf-field">
+                  <label className="mf-label">Password</label>
+                  <div className="mf-input-wrap">
                     <input
                       type="password"
                       name="password"
                       value={formData.password}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 pl-11 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                      placeholder="Enter your password"
+                      placeholder="••••••••"
+                      className={`mf-input${errors.password ? ' error' : ''}`}
+                      autoComplete="current-password"
                     />
-                    <svg className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    <svg className="mf-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                     </svg>
                   </div>
-                  {errors.password && <p className="text-red-500 text-sm mt-1 flex items-center"><svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>{errors.password}</p>}
+                  {errors.password && <p className="mf-error-text">⚡ {errors.password}</p>}
                 </div>
 
-                <div className="flex items-center justify-between mb-8">
-                  <label className="flex items-center cursor-pointer">
-                    <input type="checkbox" className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
-                    <span className="ml-2 text-sm text-gray-700">Remember me</span>
+                {/* Remember / Forgot */}
+                <div className="mf-row">
+                  <label className="mf-checkbox-label">
+                    <input type="checkbox" className="mf-checkbox" />
+                    Remember me
                   </label>
-                  <Link to="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors">Forgot password?</Link>
+                  <Link to="/forgot-password" className="mf-forgot">Forgot password?</Link>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold py-3 px-4 rounded-lg hover:from-blue-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  {loading ? (
-                    <span className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Logging in...
-                    </span>
-                  ) : (
-                    'Sign In'
-                  )}
+                {/* Submit */}
+                <button type="submit" className="mf-submit" disabled={loading}>
+                  <span>
+                    {loading ? (
+                      <>
+                        <div className="mf-spinner" />
+                        Signing in…
+                      </>
+                    ) : 'Sign In to Dashboard'}
+                  </span>
                 </button>
               </form>
 
-              <p className="text-center text-gray-700 text-sm mt-6">
-                Don't have an account? <Link to="/signup" className="text-blue-600 hover:text-blue-700 font-semibold transition-colors">Sign up for free</Link>
+              <div className="mf-divider">
+                <div className="mf-divider-line" />
+                <span className="mf-divider-text">OR</span>
+                <div className="mf-divider-line" />
+              </div>
+
+              <p className="mf-signup-text">
+                Don't have an account?{' '}
+                <Link to="/signup">Create one free</Link>
               </p>
+
+              <div className="mf-security">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                256-bit encrypted · ISO 22000 compliant
+              </div>
             </div>
           </div>
-        </div>
+        </main>
+
+        {/* ── Footer ── */}
+        <footer className="mf-footer">
+          <div className="mf-footer-grid">
+            <div className="mf-footer-brand">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="mf-logo-mark" style={{ width: 32, height: 32, fontSize: 11 }}>MF</div>
+                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)' }}>Maldive Fish</span>
+              </div>
+              <p>Leading fish processing automation system for the Maldives fishing industry — quality, consistency, and export excellence.</p>
+            </div>
+
+            <div>
+              <div className="mf-footer-head">Platform</div>
+              <ul className="mf-footer-links">
+                {['Dashboard', 'Processing', 'Quality Control', 'Reports'].map(l => (
+                  <li key={l}><a href="#">{l}</a></li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <div className="mf-footer-head">Support</div>
+              <ul className="mf-footer-links">
+                {['Documentation', 'API Reference', 'Contact Support', 'System Status'].map(l => (
+                  <li key={l}><a href="#">{l}</a></li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <div className="mf-footer-head">Contact</div>
+              <div className="mf-footer-contact-item">📧 support@maldivefish.com</div>
+              <div className="mf-footer-contact-item">📞 +960 123-4567</div>
+              <div className="mf-footer-contact-item">📍 Sri Lanka · Maldive Fish</div>
+            </div>
+          </div>
+
+          <div className="mf-footer-bottom">
+            <span className="mf-footer-copy">© 2026 Maldive Fish Processing System. All rights reserved.</span>
+            <div className="mf-footer-legal">
+              <a href="#">Privacy Policy</a>
+              <a href="#">Terms of Service</a>
+              <a href="#">Cookie Policy</a>
+            </div>
+          </div>
+        </footer>
       </div>
 
-      {/* Footer */}
-      <footer className="bg-gray-800 text-white border-t border-gray-700">
-        <div className="px-4 py-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {/* Company Info */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
-                  <span className="text-blue-800 font-bold text-sm">MF</span>
-                </div>
-                <h3 className="font-semibold">Maldive Fish</h3>
-              </div>
-              <p className="text-gray-300 text-sm">Leading fish processing automation system for the Maldives fishing industry.</p>
-            </div>
-
-            {/* Quick Links */}
-            <div>
-              <h4 className="font-semibold mb-3">Quick Links</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Dashboard</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Processing</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Quality Control</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Reports</a></li>
-              </ul>
-            </div>
-
-            {/* Support */}
-            <div>
-              <h4 className="font-semibold mb-3">Support</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Documentation</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">API Reference</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Contact Support</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">System Status</a></li>
-              </ul>
-            </div>
-
-            {/* Contact */}
-            <div>
-              <h4 className="font-semibold mb-3">Contact</h4>
-              <div className="space-y-2 text-sm text-gray-300">
-                <div className="flex items-center gap-2">
-                  <span>📧</span>
-                  <span>support@maldivefish.com</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>📞</span>
-                  <span>+960 123-4567</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>📍</span>
-                  <span>Srilanaka Maldive Fish </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Bar */}
-          <div className="border-t border-gray-700 mt-6 pt-4">
-            <div className="flex flex-col md:flex-row justify-between items-center text-sm text-gray-400">
-              <div>© 2026 Maldive Fish Processing System. All rights reserved.</div>
-              <div className="flex gap-4 mt-2 md:mt-0">
-                <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
-                <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
-                <a href="#" className="hover:text-white transition-colors">Cookie Policy</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      {/* Auto-open GuidelinesPage Modal */}
       {showGuidelines && (
-        <GuidelinesPage 
+        <GuidelinesPage
           onClose={() => setShowGuidelines(false)}
           onFinish={() => setShowGuidelines(false)}
         />

@@ -142,7 +142,7 @@ const Lightbox = ({ src, title, accent, onClose }) => {
             <span>{title}</span>
           </div>
           <button onClick={onClose} className="lightbox-close">
-            <Icon name="x" size={16} color="#64748b" />
+            <Icon name="x" size={16} color="var(--text-muted)" />
           </button>
         </div>
         <div className="lightbox-body">
@@ -197,7 +197,12 @@ const ParticleFish = ({ accent }) => {
 
 const StatsBar = ({ accent }) => (
   <div className="stats-bar">
-    
+    {STATS.map((stat, i) => (
+      <div key={stat.label} className="stat-item">
+        <div className="stat-value" style={{ color: accent }}>{stat.val}{stat.suffix}</div>
+        <div className="stat-label">{stat.label}</div>
+      </div>
+    ))}
   </div>
 );
 
@@ -209,16 +214,17 @@ const PipelineSteps = ({ currentIdx, accent }) => (
           <div
             className={`step-circle ${i < currentIdx ? "completed" : i === currentIdx ? "active" : ""}`}
             style={{
-              background: i < currentIdx ? accent : i === currentIdx ? accent : "#e2e8f0",
-              borderColor: i <= currentIdx ? accent : "#cbd5e1",
+              background: i < currentIdx ? accent : i === currentIdx ? accent : "var(--bg-tertiary)",
+              borderColor: i <= currentIdx ? accent : "var(--border-medium)",
               boxShadow: i === currentIdx ? `0 0 10px ${accent}60` : "none",
+              color: i <= currentIdx ? "#fff" : "var(--text-muted)",
             }}
           >
             {i < currentIdx ? "✓" : i + 1}
           </div>
           <div
             className="step-label"
-            style={{ color: i === currentIdx ? accent : i < currentIdx ? "#64748b" : "#cbd5e1" }}
+            style={{ color: i === currentIdx ? accent : i < currentIdx ? "var(--text-secondary)" : "var(--text-muted)" }}
           >
             {p.tag.split("—")[1]?.trim() || p.tag}
           </div>
@@ -229,7 +235,7 @@ const PipelineSteps = ({ currentIdx, accent }) => (
             style={{
               background: i < currentIdx
                 ? `linear-gradient(90deg, ${accent}, ${accent})`
-                : `linear-gradient(90deg, ${i === currentIdx ? accent : "#e2e8f0"}, #e2e8f0)`,
+                : `linear-gradient(90deg, ${i === currentIdx ? accent : "var(--border-medium)"}, var(--border-medium))`,
             }}
           />
         )}
@@ -257,11 +263,25 @@ export default function GuidelinesPage({ onClose, onFinish }) {
   const [lightbox, setLightbox] = useState(null);
   const [transitioning, setTransitioning] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved) return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
 
   const page = PAGES[pageIdx];
   const isFirst = pageIdx === 0;
   const isLast = pageIdx === PAGES.length - 1;
   const imgSrc = imgErr[page.id] ? page.fallback : page.image;
+
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+    document.documentElement.style.colorScheme = theme;
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   const goTo = useCallback((idx) => {
     if (idx === pageIdx || transitioning) return;
@@ -292,9 +312,56 @@ export default function GuidelinesPage({ onClose, onFinish }) {
 
   const progress = ((pageIdx + 1) / PAGES.length) * 100;
 
+  const currentAccent = theme === 'dark' ? (page.accentDark || page.accent) : page.accent;
+
   return (
     <>
       <style>{`
+        /* ==============================
+           CSS Variables for Theming
+           ============================== */
+        .guidelines-root {
+          --bg-primary: #FFFFFF;
+          --bg-secondary: #F8FAFE;
+          --bg-tertiary: #F1F5F9;
+          --bg-overlay: rgba(255,255,255,0.7);
+          --bg-panel: rgba(245,248,250,0.85);
+          --text-primary: #0F172A;
+          --text-secondary: #334155;
+          --text-muted: #64748B;
+          --accent-primary: #0F6E56;
+          --accent-secondary: #1EA082;
+          --accent-glow: rgba(30,160,130,0.2);
+          --border-light: rgba(0,0,0,0.08);
+          --border-medium: rgba(0,0,0,0.12);
+          --card-bg: #FFFFFF;
+          --input-bg: #FFFFFF;
+          --shadow-sm: 0 4px 12px rgba(0,0,0,0.04);
+          --shadow-md: 0 8px 24px rgba(0,0,0,0.06);
+          --gradient-hero: linear-gradient(135deg, #1EA082 0%, #5BD4B8 60%, #378ADD 100%);
+        }
+
+        .guidelines-root.theme-dark {
+          --bg-primary: #020C18;
+          --bg-secondary: #05101C;
+          --bg-tertiary: #0A1524;
+          --bg-overlay: rgba(2,11,24,0.95);
+          --bg-panel: rgba(5,16,28,0.7);
+          --text-primary: #E8F4F8;
+          --text-secondary: #7BA8A0;
+          --text-muted: #5BA89A;
+          --accent-primary: #1EA082;
+          --accent-secondary: #0C6E56;
+          --accent-glow: rgba(30,160,130,0.2);
+          --border-light: rgba(255,255,255,0.08);
+          --border-medium: rgba(255,255,255,0.12);
+          --card-bg: #05101C;
+          --input-bg: rgba(255,255,255,0.04);
+          --shadow-sm: 0 4px 12px rgba(0,0,0,0.2);
+          --shadow-md: 0 8px 24px rgba(0,0,0,0.3);
+          --gradient-hero: linear-gradient(135deg, #1EA082, #5BD4B8);
+        }
+
         * {
           box-sizing: border-box;
           margin: 0;
@@ -357,6 +424,9 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.02) 2px, rgba(0,0,0,.02) 4px);
           border-radius: inherit;
         }
+        .theme-dark .scanlines {
+          background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,.02) 2px, rgba(255,255,255,.02) 4px);
+        }
 
         .noise {
           position: absolute;
@@ -381,7 +451,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           animation: lbFadeIn 0.2s ease;
         }
         .lightbox-content {
-          background: #ffffff;
+          background: var(--card-bg);
           border-radius: 16px;
           overflow: hidden;
           max-width: 900px;
@@ -389,8 +459,8 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           animation: lbSlide 0.25s cubic-bezier(0.2, 0.8, 0.3, 1);
         }
         .lightbox-header {
-          background: #fafcff;
-          border-bottom: 1px solid;
+          background: var(--bg-secondary);
+          border-bottom: 1px solid var(--border-light);
           padding: 12px 16px;
           display: flex;
           align-items: center;
@@ -402,7 +472,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           gap: 10px;
           font-size: 13px;
           font-weight: 600;
-          color: #1a202c;
+          color: var(--text-primary);
           font-family: 'Syne', sans-serif;
         }
         .lightbox-accent-dot {
@@ -421,7 +491,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
         }
         .lightbox-close:hover { background: rgba(0,0,0,.1); }
         .lightbox-body {
-          background: #f8fafc;
+          background: var(--bg-tertiary);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -438,14 +508,14 @@ export default function GuidelinesPage({ onClose, onFinish }) {
         .stats-bar {
           display: flex;
           gap: 0;
-          border-top: 1px solid rgba(0,0,0,.08);
-          background: #f8fafc;
+          border-top: 1px solid var(--border-light);
+          background: var(--bg-secondary);
         }
         .stat-item {
           flex: 1;
           padding: 14px 0;
           text-align: center;
-          border-right: 1px solid rgba(0,0,0,.06);
+          border-right: 1px solid var(--border-light);
         }
         .stat-item:last-child { border-right: none; }
         .stat-value {
@@ -456,7 +526,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
         }
         .stat-label {
           font-size: 10px;
-          color: #4b5563;
+          color: var(--text-muted);
           margin-top: 4px;
           letter-spacing: 1px;
           text-transform: uppercase;
@@ -486,12 +556,8 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           font-size: 11px;
           font-weight: 800;
           font-family: 'Syne', sans-serif;
-          color: #0f172a;
           transition: all 0.4s ease;
         }
-        .step-circle.completed { color: #0f172a; }
-        .step-circle.active { color: #0f172a; }
-        .step-circle:not(.completed):not(.active) { background: #e2e8f0; color: #94a3b8; }
         .step-label {
           font-size: 8px;
           font-weight: 700;
@@ -514,17 +580,17 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           gap: 14px;
           align-items: flex-start;
           padding: 16px 20px;
-          background: #ffffff;
-          border: 1px solid rgba(0,0,0,.08);
+          background: var(--card-bg);
+          border: 1px solid var(--border-light);
           border-left-width: 3px;
           border-radius: 12px;
           transition: background 0.2s, transform 0.2s;
           animation: cardIn 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) both;
           cursor: default;
-          box-shadow: 0 1px 2px rgba(0,0,0,.02);
+          box-shadow: var(--shadow-sm);
         }
         .feature-card:hover {
-          background: #f9f9ff;
+          background: var(--bg-secondary);
           transform: translateX(4px);
         }
         .feature-icon {
@@ -548,13 +614,13 @@ export default function GuidelinesPage({ onClose, onFinish }) {
         .feature-title {
           font-size: 14px;
           font-weight: 700;
-          color: #1e293b;
+          color: var(--text-primary);
           line-height: 1.2;
           font-family: 'Syne', sans-serif;
         }
         .feature-desc {
           font-size: 11px;
-          color: #5b6b8c;
+          color: var(--text-muted);
           line-height: 1.5;
           margin-top: 4px;
         }
@@ -575,7 +641,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: #f1f5f9;
+          background: var(--bg-primary);
           font-family: 'DM Sans', sans-serif;
         }
         .guidelines-backdrop {
@@ -591,12 +657,13 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           max-height: 840px;
           display: flex;
           flex-direction: column;
-          background: #ffffff;
+          background: var(--card-bg);
           border-radius: 24px;
-          border: 1px solid;
+          border: 1px solid var(--border-light);
           overflow: hidden;
           position: relative;
           transition: border-color 0.4s ease, box-shadow 0.4s ease;
+          box-shadow: var(--shadow-md);
         }
         .scanning-line {
           position: absolute;
@@ -609,8 +676,8 @@ export default function GuidelinesPage({ onClose, onFinish }) {
         }
         .guidelines-header {
           padding: 0 28px;
-          border-bottom: 1px solid;
-          background: #fefefe;
+          border-bottom: 1px solid var(--border-light);
+          background: var(--bg-secondary);
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -623,14 +690,14 @@ export default function GuidelinesPage({ onClose, onFinish }) {
         .logo-icon {
           width: 36px;
           height: 36px;
-          border: 1px solid;
+          border: 1px solid var(--border-light);
           border-radius: 10px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
-        .logo-text { font-size: 14px; font-weight: 800; color: #0f172a; font-family: 'Syne', sans-serif; letter-spacing: -0.3px; }
-        .logo-sub { font-size: 9px; color: #6b7280; letter-spacing: 2px; text-transform: uppercase; }
+        .logo-text { font-size: 14px; font-weight: 800; color: var(--text-primary); font-family: 'Syne', sans-serif; letter-spacing: -0.3px; }
+        .logo-sub { font-size: 9px; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; }
         .page-dots { display: flex; gap: 10px; align-items: center; }
         .page-dot {
           height: 8px;
@@ -647,9 +714,9 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           font-size: 12px;
           font-weight: 600;
           cursor: pointer;
-          background: #f1f5f9;
-          color: #1e293b;
-          border: 1px solid #e2e8f0;
+          background: var(--bg-tertiary);
+          color: var(--text-secondary);
+          border: 1px solid var(--border-light);
           transition: all 0.2s;
           display: flex;
           align-items: center;
@@ -657,12 +724,13 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           font-family: 'Syne', sans-serif;
         }
         .nav-btn.back.disabled { opacity: 0.5; cursor: not-allowed; }
-        .nav-btn.next { color: #0f172a; }
-        .nav-btn.close { padding: 6px 10px; background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+        .nav-btn.next { color: #fff; }
+        .nav-btn.close { background: rgba(220,80,80,0.1); color: #E24B4A; border-color: rgba(220,80,80,0.25); }
+        .nav-btn.close:hover { background: rgba(220,80,80,0.2); }
         .nav-btn:hover:not(.disabled) { filter: brightness(1.02); transform: scale(1.02); }
-        .progress-bar-bg { height: 2px; background: #eef2ff; flex-shrink: 0; }
+        .progress-bar-bg { height: 2px; background: var(--bg-tertiary); flex-shrink: 0; }
         .progress-bar-fill { height: 100%; transition: width 0.5s cubic-bezier(0.2, 0.8, 0.3, 1), background 0.6s ease; }
-        .pipeline-wrapper { background: #fafcff; border-bottom: 1px solid; flex-shrink: 0; z-index: 4; }
+        .pipeline-wrapper { background: var(--bg-secondary); border-bottom: 1px solid var(--border-light); flex-shrink: 0; z-index: 4; }
         .guidelines-body { flex: 1; display: flex; gap: 0; overflow: hidden; position: relative; z-index: 4; }
         .image-panel { flex: 1.1; position: relative; overflow: hidden; }
         .main-image {
@@ -681,39 +749,39 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           position: absolute;
           inset: 0;
           pointer-events: none;
-          background: linear-gradient(90deg, transparent 40%, #ffffff 100%);
+          background: linear-gradient(90deg, transparent 40%, var(--card-bg) 100%);
         }
         .image-gradient-top {
           position: absolute;
           inset: 0;
           pointer-events: none;
-          background: linear-gradient(to top, #ffffff 0%, transparent 40%);
+          background: linear-gradient(to top, var(--card-bg) 0%, transparent 40%);
         }
         .step-badge {
           position: absolute;
           top: 20px;
           left: 20px;
-          background: #ffffffcc;
-          border: 1px solid;
+          background: var(--bg-overlay);
+          border: 1px solid var(--border-light);
           border-radius: 40px;
           padding: 6px 14px;
           display: flex;
           align-items: center;
           gap: 8px;
           backdrop-filter: blur(8px);
-          box-shadow: 0 1px 2px rgba(0,0,0,.05);
+          box-shadow: var(--shadow-sm);
         }
         .step-badge-dot { width: 6px; height: 6px; border-radius: 50%; animation: pulse 2s infinite; }
         .zoom-hint {
           position: absolute;
           bottom: 20px;
           left: 20px;
-          background: rgba(255,255,255,.85);
-          border: 1px solid rgba(0,0,0,.1);
+          background: var(--bg-overlay);
+          border: 1px solid var(--border-light);
           border-radius: 40px;
           padding: 6px 14px;
           font-size: 11px;
-          color: #334155;
+          color: var(--text-secondary);
           backdrop-filter: blur(8px);
           display: flex;
           align-items: center;
@@ -724,7 +792,7 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           bottom: 20px;
           right: 28px;
           font-size: 11px;
-          color: #94a3b8;
+          color: var(--text-muted);
           font-family: 'Syne', sans-serif;
         }
         .info-panel {
@@ -732,145 +800,178 @@ export default function GuidelinesPage({ onClose, onFinish }) {
           flex-shrink: 0;
           display: flex;
           flex-direction: column;
-          border-left: 1px solid;
+          border-left: 1px solid var(--border-light);
           overflow: hidden;
-          background: #ffffff;
+          background: var(--card-bg);
         }
         .info-title-area { padding: 28px 24px 20px; flex-shrink: 0; }
         .info-tag { font-size: 9px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 10px; font-family: 'Syne', sans-serif; }
-        .info-heading { font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.2; margin-bottom: 12px; font-family: 'Syne', sans-serif; }
-        .info-subtitle { font-size: 12.5px; color: #475569; line-height: 1.7; }
-        .info-divider { height: 1px; margin-left: 24px; margin-right: 24px; }
+        .info-heading { font-size: 22px; font-weight: 800; color: var(--text-primary); line-height: 1.2; margin-bottom: 12px; font-family: 'Syne', sans-serif; }
+        .info-subtitle { font-size: 12.5px; color: var(--text-secondary); line-height: 1.7; }
+        .info-divider { height: 1px; margin-left: 24px; margin-right: 24px; background: linear-gradient(90deg, var(--border-light), transparent); }
         .features-list { padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; flex: 1; overflow-y: auto; }
         .guidelines-footer {
           padding: 10px 28px;
-          border-top: 1px solid;
+          border-top: 1px solid var(--border-light);
           display: flex;
           align-items: center;
           justify-content: space-between;
-          background: #fefefe;
+          background: var(--bg-secondary);
           flex-shrink: 0;
         }
-        .footer-brand { font-size: 10px; color: #94a3b8; letter-spacing: 1.5px; text-transform: uppercase; }
+        .footer-brand { font-size: 10px; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; }
         .footer-badges { display: flex; gap: 6px; }
         .footer-badges span {
           font-size: 9px;
           font-weight: 700;
           letter-spacing: 1px;
-          color: #64748b;
+          color: var(--text-muted);
           padding: 3px 8px;
-          border: 1px solid #e2e8f0;
+          border: 1px solid var(--border-light);
           border-radius: 6px;
           text-transform: uppercase;
-          background: #f8fafc;
+          background: var(--bg-tertiary);
+        }
+
+        .theme-toggle-btn {
+          background: var(--bg-tertiary);
+          border: 1px solid var(--border-light);
+          border-radius: 20px;
+          width: 34px;
+          height: 34px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: var(--text-secondary);
+          font-size: 16px;
+        }
+        .theme-toggle-btn:hover {
+          background: var(--accent-glow);
+          color: var(--accent-primary);
+          transform: scale(1.02);
+        }
+
+        @media (max-width: 900px) {
+          .guidelines-body { flex-direction: column; }
+          .info-panel { width: 100%; }
+          .image-panel { min-height: 280px; }
+          .guidelines-header { padding: 0 16px; flex-wrap: wrap; height: auto; gap: 10px; padding: 12px 16px; }
+          .nav-buttons { margin-left: auto; }
         }
       `}</style>
 
       {lightbox && (
-        <Lightbox src={lightbox.src} title={lightbox.title} accent={page.accent} onClose={() => setLightbox(null)} />
+        <Lightbox src={lightbox.src} title={lightbox.title} accent={currentAccent} onClose={() => setLightbox(null)} />
       )}
 
-      <div className="guidelines-container">
-        <ParticleFish accent={page.accent} />
-        <div className="guidelines-backdrop" style={{ background: `radial-gradient(ellipse 60% 60% at 50% 50%, ${page.accent}08 0%, transparent 80%)` }} />
+      <div className={`guidelines-root theme-${theme}`}>
+        <div className="guidelines-container">
+          <ParticleFish accent={currentAccent} />
+          <div className="guidelines-backdrop" style={{ background: `radial-gradient(ellipse 60% 60% at 50% 50%, ${currentAccent}08 0%, transparent 80%)` }} />
 
-        <div className="guidelines-card" style={{ borderColor: `${page.accent}30`, boxShadow: `0 20px 40px -12px rgba(0,0,0,.1), 0 0 0 1px ${page.accent}08, 0 0 0 3px rgba(255,255,255,.8)` }}>
-          <Noise />
-          <Scanlines />
-          <div className="scanning-line" style={{ background: `linear-gradient(90deg, transparent, ${page.accent}80, transparent)` }} />
+          <div className="guidelines-card" style={{ borderColor: `${currentAccent}30`, boxShadow: `0 20px 40px -12px rgba(0,0,0,.1), 0 0 0 1px ${currentAccent}08` }}>
+            <Noise />
+            <Scanlines />
+            <div className="scanning-line" style={{ background: `linear-gradient(90deg, transparent, ${currentAccent}80, transparent)` }} />
 
-          <div className="guidelines-header" style={{ borderBottomColor: `${page.accent}20` }}>
-            <div className="logo-area">
-              <div className="logo-icon" style={{ background: `linear-gradient(135deg, ${page.accent}20, ${page.accent}05)`, borderColor: `${page.accent}40`, boxShadow: `0 2px 6px ${page.accent}10` }}>
-                <Icon name="fish" size={18} color={page.accent} />
+            <div className="guidelines-header">
+              <div className="logo-area">
+                <div className="logo-icon" style={{ background: `linear-gradient(135deg, ${currentAccent}20, ${currentAccent}05)`, borderColor: `${currentAccent}40` }}>
+                  <Icon name="fish" size={18} color={currentAccent} />
+                </div>
+                <div>
+                  <div className="logo-text">FishGo</div>
+                  <div className="logo-sub">Smart Processing</div>
+                </div>
               </div>
-              <div>
-                <div className="logo-text">FishGo</div>
-                <div className="logo-sub">Smart Processing</div>
-              </div>
-            </div>
 
-            <div className="page-dots">
-              {PAGES.map((p, i) => (
-                <button
-                  key={p.id}
-                  onClick={() => goTo(i)}
-                  className="page-dot"
-                  style={{
-                    width: i === pageIdx ? 28 : 8,
-                    background: i === pageIdx ? page.accent : i < pageIdx ? `${page.accent}70` : "rgba(0,0,0,.15)",
-                    boxShadow: i === pageIdx ? `0 0 6px ${page.accent}80` : "none",
-                  }}
-                  title={p.title}
-                />
-              ))}
-            </div>
-
-            <div className="nav-buttons">
-              <button onClick={handleBack} disabled={isFirst} className={`nav-btn back ${isFirst ? "disabled" : ""}`}>
-                <Icon name="chevron-left" size={12} color="currentColor" />
-                Back
-              </button>
-              <button onClick={handleNext} className="nav-btn next" style={{ background: page.accent, borderColor: page.accent }}>
-                {isLast ? "Finish" : "Next"}
-                {!isLast && <Icon name="chevron-right" size={12} color="currentColor" />}
-              </button>
-              <button onClick={handleCancel} className="nav-btn close">✕</button>
-            </div>
-          </div>
-
-          <div className="progress-bar-bg">
-            <div className="progress-bar-fill" style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${page.accent}aa, ${page.accent})`, boxShadow: `0 0 6px ${page.accent}80` }} />
-          </div>
-
-          <div className="pipeline-wrapper" style={{ borderBottomColor: `${page.accent}15` }}>
-            <PipelineSteps currentIdx={pageIdx} accent={page.accent} />
-          </div>
-
-          <div className={`page-wrap${transitioning ? " out" : ""} guidelines-body`}>
-            <div className="image-panel">
-              <img
-                src={imgSrc}
-                alt={page.title}
-                onLoad={() => setImgLoaded(true)}
-                onError={() => setImgErr(p => ({ ...p, [page.id]: true }))}
-                onClick={() => setLightbox({ src: imgSrc, title: page.title })}
-                className={`main-image ${imgLoaded ? "loaded" : ""}`}
-              />
-              <div className="image-gradient-overlay" />
-              <div className="image-gradient-top" />
-              <div className="step-badge" style={{ borderColor: `${page.accent}50` }}>
-                <div className="step-badge-dot" style={{ background: page.accent, boxShadow: `0 0 4px ${page.accent}` }} />
-                <span style={{ color: page.accent }}>{page.tag}</span>
-              </div>
-              <div className="zoom-hint">🔍 Click to enlarge</div>
-              <div className="page-counter">
-                {String(pageIdx + 1).padStart(2, "0")} / {String(PAGES.length).padStart(2, "0")}
-              </div>
-            </div>
-
-            <div className="info-panel" style={{ borderLeftColor: `${page.accent}20` }}>
-              <div className="info-title-area">
-                <div className="info-tag" style={{ color: page.accent }}>{page.tag}</div>
-                <h2 className="info-heading">{page.title}</h2>
-                <p className="info-subtitle">{page.subtitle}</p>
-              </div>
-              <div className="info-divider" style={{ background: `linear-gradient(90deg, ${page.accent}30, transparent)` }} />
-              <div className="features-list">
-                {page.features.map((f, i) => (
-                  <FeatureCard key={f.label} f={f} idx={i} />
+              <div className="page-dots">
+                {PAGES.map((p, i) => (
+                  <button
+                    key={p.id}
+                    onClick={() => goTo(i)}
+                    className="page-dot"
+                    style={{
+                      width: i === pageIdx ? 28 : 8,
+                      background: i === pageIdx ? currentAccent : i < pageIdx ? `${currentAccent}70` : "var(--border-medium)",
+                      boxShadow: i === pageIdx ? `0 0 6px ${currentAccent}80` : "none",
+                    }}
+                    title={p.title}
+                  />
                 ))}
               </div>
-              <StatsBar accent={page.accent} />
-            </div>
-          </div>
 
-          <div className="guidelines-footer" style={{ borderTopColor: `${page.accent}15` }}>
-            <span className="footer-brand">FishGo™ Smart Processing System</span>
-            <div className="footer-badges">
-              <span>HACCP</span>
-              <span>ISO 22000</span>
-              <span>CE Marked</span>
+              <div className="nav-buttons">
+                <button onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle theme">
+                  {theme === 'dark' ? '☀️' : '🌙'}
+                </button>
+                <button onClick={handleBack} disabled={isFirst} className={`nav-btn back ${isFirst ? "disabled" : ""}`}>
+                  <Icon name="chevron-left" size={12} color="currentColor" />
+                  Back
+                </button>
+                <button onClick={handleNext} className="nav-btn next" style={{ background: currentAccent, borderColor: currentAccent }}>
+                  {isLast ? "Finish" : "Next"}
+                  {!isLast && <Icon name="chevron-right" size={12} color="currentColor" />}
+                </button>
+                <button onClick={handleCancel} className="nav-btn close">✕</button>
+              </div>
+            </div>
+
+            <div className="progress-bar-bg">
+              <div className="progress-bar-fill" style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${currentAccent}aa, ${currentAccent})`, boxShadow: `0 0 6px ${currentAccent}80` }} />
+            </div>
+
+            <div className="pipeline-wrapper">
+              <PipelineSteps currentIdx={pageIdx} accent={currentAccent} />
+            </div>
+
+            <div className={`page-wrap${transitioning ? " out" : ""} guidelines-body`}>
+              <div className="image-panel">
+                <img
+                  src={imgSrc}
+                  alt={page.title}
+                  onLoad={() => setImgLoaded(true)}
+                  onError={() => setImgErr(p => ({ ...p, [page.id]: true }))}
+                  onClick={() => setLightbox({ src: imgSrc, title: page.title })}
+                  className={`main-image ${imgLoaded ? "loaded" : ""}`}
+                />
+                <div className="image-gradient-overlay" />
+                <div className="image-gradient-top" />
+                <div className="step-badge" style={{ borderColor: `${currentAccent}50` }}>
+                  <div className="step-badge-dot" style={{ background: currentAccent, boxShadow: `0 0 4px ${currentAccent}` }} />
+                  <span style={{ color: currentAccent }}>{page.tag}</span>
+                </div>
+                <div className="zoom-hint">🔍 Click to enlarge</div>
+                <div className="page-counter">
+                  {String(pageIdx + 1).padStart(2, "0")} / {String(PAGES.length).padStart(2, "0")}
+                </div>
+              </div>
+
+              <div className="info-panel">
+                <div className="info-title-area">
+                  <div className="info-tag" style={{ color: currentAccent }}>{page.tag}</div>
+                  <h2 className="info-heading">{page.title}</h2>
+                  <p className="info-subtitle">{page.subtitle}</p>
+                </div>
+                <div className="info-divider" />
+                <div className="features-list">
+                  {page.features.map((f, i) => (
+                    <FeatureCard key={f.label} f={f} idx={i} />
+                  ))}
+                </div>
+                <StatsBar accent={currentAccent} />
+              </div>
+            </div>
+
+            <div className="guidelines-footer">
+              <span className="footer-brand">FishGo™ Smart Processing System</span>
+              <div className="footer-badges">
+                <span>HACCP</span>
+                <span>ISO 22000</span>
+                <span>CE Marked</span>
+              </div>
             </div>
           </div>
         </div>
