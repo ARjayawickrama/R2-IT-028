@@ -498,7 +498,7 @@ function UploadTab({ fileRef, handleUpload, preview, isLoading }) {
                 />
 
                 <Result
-                  title="Quality Score"
+                  title="Confidence Score"
                   value={`${preview.score}%`}
                   color="blue"
                 />
