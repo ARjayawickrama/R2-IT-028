@@ -216,7 +216,7 @@ export default function FishBoilingDetectionApp() {
           Upload Image
         </button>
        
-        <button 
+        {/* <button 
           className={`px-3.5 h-[34px] rounded-t-lg text-xs font-medium flex items-center gap-2 transition-all ${
             mode === "sensors" 
               ? "bg-gray-50 border border-gray-200 border-b-transparent text-blue-600" 
@@ -226,7 +226,7 @@ export default function FishBoilingDetectionApp() {
         >
           <span className={`w-1.5 h-1.5 rounded-full ${mode === "sensors" ? "bg-orange-500" : "bg-gray-400"}`} />
           Sensor Data
-        </button>
+        </button> */}
         <button 
           className={`px-3.5 h-[34px] rounded-t-lg text-xs font-medium flex items-center gap-2 transition-all ${
             mode === "mechanical" 

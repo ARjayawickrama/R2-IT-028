@@ -97,20 +97,17 @@ export default function BoilerDashboard() {
   }, []);
 
   // --- Scientific Calculations ---
-  
-  // 1. මාළුවා යටවීමට අවශ්‍ය අවම උස (Thickness + 2cm buffer)
+
   const requiredHeight = (activeTank.thickness / 10) + 2; 
   
-  // 2. ටැංකියේ වර්ගඵලය මත පදනම්ව අවශ්‍ය ජල පරිමාව (Volume = L * W * H)
   const volumeBasedWater = (activeTank.length * activeTank.width * requiredHeight) / 1000;
   
-  // 3. 1:2 Ratio එක මත පදනම්ව අවශ්‍ය ජල පරිමාව (3kg නම් 6L)
+
   const weightBasedWater = activeTank.fishWeight * 2;
-  
-  // 4. අවසාන ජල ප්‍රමාණය (මේ දෙකෙන් වැඩි අගය තෝරාගැනීම වඩාත් ආරක්ෂිතයි)
+
   const finalWaterLiters = Math.max(volumeBasedWater, weightBasedWater);
   
-  // 5. ලුණු ප්‍රමාණය (3% සාන්ද්‍රණය)
+  
   const requiredSalt = finalWaterLiters * 1000 * 0.03;
 
   const waterPct = Math.min((finalWaterLiters / 50) * 100, 100);
