@@ -4,7 +4,7 @@ const AI_API_BASE_URL = 'http://localhost:8000';
 
 const aiAxiosInstance = axios.create({
   baseURL: AI_API_BASE_URL,
-  timeout: 30000, // 30 second timeout for ML predictions
+  timeout: 30000, 
 });
 
 export const aiService = {

@@ -4,13 +4,23 @@ import axios from "axios";
 import FormData from "form-data";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import FishQualityBatch from "../models/FishQualityBatch.js";
 
 const router = express.Router();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsDir = path.join(__dirname, "..", "uploads");
+
+// Ensure uploads directory exists
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "uploads/");
+    cb(null, uploadsDir);
   },
 
   filename: function (req, file, cb) {
@@ -149,10 +159,14 @@ router.delete("/batches/:id", async (req, res) => {
     }
 
     if (batch.imageUrl) {
-      const imagePath = path.join(process.cwd(), batch.imageUrl);
+      const imagePath = path.join(__dirname, "..", batch.imageUrl);
 
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
+      try {
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
+      } catch (error) {
+        console.warn("Warning: Could not delete image file:", error.message);
       }
     }
 
