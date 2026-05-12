@@ -1,245 +1,402 @@
-import { useState } from "react";
+import React, { useState, useEffect } from 'react';
+import { Scale, Droplets, Timer, CheckCircle, Play, RotateCcw, AlertCircle, FileDown, Flame, Fish } from 'lucide-react';
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
-const DRY_FISH_DATA = [
-  { id: 1, name: "Dried Anchovy",      weight: 2.35, moisture: 12.4, temp: 78.6, quality: "Grade A", status: "DRYING",   color: "#f97316", batch: "B-001" },
-  { id: 2, name: "Salted Mackerel",    weight: 3.10, moisture: 15.1, temp: 74.2, quality: "Grade A", status: "DRYING",   color: "#ef4444", batch: "B-002" },
-  { id: 3, name: "Dried Sardine",      weight: 1.85, moisture: 10.8, temp: 82.1, quality: "Grade B", status: "COMPLETE", color: "#22c55e", batch: "B-003" },
-  { id: 4, name: "Smoked Tuna",        weight: 4.20, moisture: 8.3,  temp: 90.5, quality: "Grade A", status: "COMPLETE", color: "#22c55e", batch: "B-004" },
-  { id: 5, name: "Dried Squid",        weight: 0.95, moisture: 18.2, temp: 65.3, quality: "Grade C", status: "PENDING",  color: "#8b5cf6", batch: "B-005" },
-  { id: 6, name: "Sun-dried Herring",  weight: 2.60, moisture: 14.5, temp: 71.8, quality: "Grade B", status: "DRYING",   color: "#f97316", batch: "B-006" },
+// ── Sample batch data ──────────────────────────────────────────────
+const INITIAL_BATCHES = [
+  {
+    id: 'B-001', name: 'Dried Anchovy', status: 'drying',
+    weight: 2350, temp: 78.6, quality: 'Grade A',
+    initialMoisture: 78.67, targetMoisture: 20,
+    moistureTrend: [22, 20, 18, 17, 15, 14, 12.4],
+  },
+  {
+    id: 'B-002', name: 'Salted Mackerel', status: 'drying',
+    weight: 3100, temp: 74.2, quality: 'Grade A',
+    initialMoisture: 78.67, targetMoisture: 20,
+    moistureTrend: [28, 25, 22, 19, 17, 16, 15.1],
+  },
+  {
+    id: 'B-003', name: 'Dried Sardine', status: 'complete',
+    weight: 1850, temp: 82.1, quality: 'Grade B',
+    initialMoisture: 78.67, targetMoisture: 20,
+    moistureTrend: [18, 15, 13, 12, 11, 11, 10.8],
+  },
+  {
+    id: 'B-004', name: 'Dried Tuna', status: 'pending',
+    weight: 4200, temp: 0, quality: 'Grade A',
+    initialMoisture: 78.67, targetMoisture: 20,
+    moistureTrend: [78, 78, 78, 78, 78, 78, 78.67],
+  },
+  {
+    id: 'B-005', name: 'Dried Prawns', status: 'complete',
+    weight: 980, temp: 79.0, quality: 'Grade A',
+    initialMoisture: 78.67, targetMoisture: 20,
+    moistureTrend: [20, 17, 14, 12, 11, 10, 9.5],
+  },
+  {
+    id: 'B-006', name: 'Dried Squid', status: 'pending',
+    weight: 1560, temp: 0, quality: 'Grade B',
+    initialMoisture: 78.67, targetMoisture: 20,
+    moistureTrend: [78, 78, 78, 78, 78, 78, 78.67],
+  },
 ];
 
-const STATUS_COLORS = {
-  DRYING:   { bg: "#fff7ed", text: "#c2410c", dot: "#f97316" },
-  COMPLETE: { bg: "#f0fdf4", text: "#15803d", dot: "#22c55e" },
-  PENDING:  { bg: "#f5f3ff", text: "#6d28d9", dot: "#8b5cf6" },
-};
-
-const QUALITY_COLORS = {
-  "Grade A": "#22c55e",
-  "Grade B": "#f59e0b",
-  "Grade C": "#ef4444",
-};
-
-function rnd(min, max) { return +(min + Math.random() * (max - min)).toFixed(1); }
-function genSpark(len, min, max) {
-  const a = [rnd(min, max)];
-  for (let i = 1; i < len; i++) {
-    const p = a[i-1], n = p + (Math.random()-0.48)*(max-min)*0.15;
-    a.push(+(Math.min(max, Math.max(min, n)).toFixed(1)));
-  }
-  return a;
+// ── Helpers ────────────────────────────────────────────────────────
+function calcMoisture(batch) {
+  const dryMatter = (batch.initialWeight ?? batch.weight) * (1 - batch.initialMoisture / 100);
+  return ((batch.weight - dryMatter) / batch.weight) * 100;
 }
 
-const SPARKS = DRY_FISH_DATA.map(f => genSpark(16, f.moisture - 3, f.moisture + 3));
+function calcProgress(batch) {
+  const mc = calcMoisture(batch);
+  return Math.min(100, Math.max(0,
+    ((batch.initialMoisture - mc) / (batch.initialMoisture - batch.targetMoisture)) * 100
+  ));
+}
 
-// ─── Sparkline ────────────────────────────────────────────────────────────────
-function Sparkline({ data, color, w = 80, h = 28 }) {
+// Sparkline SVG
+function Sparkline({ data, color }) {
+  const w = 120, h = 36, pad = 4;
   const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
   const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((v - min) / (max - min || 1)) * (h - 4) - 2;
+    const x = pad + (i / (data.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((v - min) / range) * (h - pad * 2);
     return `${x},${y}`;
-  }).join(" ");
+  }).join(' ');
   return (
-    <svg width={w} height={h} style={{ display: "block" }}>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.6}
-        strokeLinejoin="round" strokeLinecap="round" />
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-// ─── Moisture Bar ─────────────────────────────────────────────────────────────
-function MoistureBar({ value, max = 25 }) {
-  const pct = Math.min(value / max, 1);
-  const color = value < 12 ? "#22c55e" : value < 18 ? "#f59e0b" : "#ef4444";
+// Status badge
+function StatusBadge({ status }) {
+  const map = {
+    drying:   { label: 'DRYING',   bg: 'bg-orange-500/15', text: 'text-orange-400', dot: 'bg-orange-400' },
+    complete: { label: 'COMPLETE', bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400'  },
+    pending:  { label: 'PENDING',  bg: 'bg-gray-500/15',   text: 'text-gray-400',   dot: 'bg-gray-500'   },
+  };
+  const s = map[status] ?? map.pending;
   return (
-    <div style={{ width: "100%", height: 6, background: "#f0f0f0", borderRadius: 4, overflow: "hidden" }}>
-      <div style={{ width: `${pct * 100}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.4s" }} />
-    </div>
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-black tracking-widest px-2.5 py-1 rounded-full ${s.bg} ${s.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${status === 'drying' ? 'animate-pulse' : ''}`} />
+      {s.label}
+    </span>
   );
 }
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-function StatCard({ icon, label, value, unit, color, bg }) {
-  return (
-    <div style={{ background: "#fff", borderRadius: 14, padding: "14px 18px", boxShadow: "0 1px 8px rgba(0,0,0,0.055)", display: "flex", alignItems: "center", gap: 14 }}>
-      <div style={{ width: 44, height: 44, borderRadius: 12, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-        {icon}
-      </div>
-      <div>
-        <div style={{ fontSize: 10, color: "#9ca3af" }}>{label}</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1.2 }}>
-          {value} <span style={{ fontSize: 12, fontWeight: 500 }}>{unit}</span>
-        </div>
-      </div>
-    </div>
+// ── Main Component ─────────────────────────────────────────────────
+export default function DryFishMonitor() {
+  const INITIAL_MOISTURE_REF = 78.67;
+  const TARGET_MOISTURE = 20.0;
+
+  // Initialise batches with saved initialWeight
+  const [batches, setBatches] = useState(() =>
+    INITIAL_BATCHES.map(b => ({ ...b, initialWeight: b.weight }))
   );
-}
+  const [filter, setFilter] = useState('all');
+  const [isDrying, setIsDrying] = useState(false);
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
-export default function DryFish() {
-  const [filter, setFilter] = useState("All");
-  const [selected, setSelected] = useState(null);
+  // AquaSense single-unit simulation
+  const [initialWeight] = useState(1000);
+  const [currentWeight, setCurrentWeight] = useState(1000);
+  const dryMatter = initialWeight * (1 - INITIAL_MOISTURE_REF / 100);
+  const currentMoisture = ((currentWeight - dryMatter) / currentWeight) * 100;
+  const progress = Math.min(100, Math.max(0,
+    ((INITIAL_MOISTURE_REF - currentMoisture) / (INITIAL_MOISTURE_REF - TARGET_MOISTURE)) * 100
+  ));
 
-  const filters = ["All", "DRYING", "COMPLETE", "PENDING"];
-  const visible = filter === "All" ? DRY_FISH_DATA : DRY_FISH_DATA.filter(f => f.status === filter);
+  // Simulate drying across all "drying" batches
+  useEffect(() => {
+    if (!isDrying) return;
+    const interval = setInterval(() => {
+      setBatches(prev => prev.map(b => {
+        if (b.status !== 'drying') return b;
+        const mc = calcMoisture(b);
+        if (mc <= b.targetMoisture) return { ...b, status: 'complete' };
+        const minWeight = (b.initialWeight * (1 - b.initialMoisture / 100)) / (1 - b.targetMoisture / 100);
+        const next = Math.max(b.weight - 1.5, minWeight);
+        return { ...b, weight: next };
+      }));
+      // AquaSense unit
+      setCurrentWeight(prev => {
+        const next = prev - 0.5;
+        const min = dryMatter / (1 - TARGET_MOISTURE / 100);
+        return next > min ? next : prev;
+      });
+    }, 80);
+    return () => clearInterval(interval);
+  }, [isDrying, dryMatter]);
 
-  const totalWeight = DRY_FISH_DATA.reduce((a, f) => a + f.weight, 0).toFixed(2);
-  const avgMoisture = (DRY_FISH_DATA.reduce((a, f) => a + f.moisture, 0) / DRY_FISH_DATA.length).toFixed(1);
-  const drying   = DRY_FISH_DATA.filter(f => f.status === "DRYING").length;
-  const complete = DRY_FISH_DATA.filter(f => f.status === "COMPLETE").length;
+  // Summary stats
+  const totalWeight = batches.reduce((s, b) => s + b.weight, 0);
+  const dryingBatches = batches.filter(b => b.status === 'drying');
+  const completedBatches = batches.filter(b => b.status === 'complete');
+  const avgMoisture = batches.length
+    ? batches.reduce((s, b) => s + calcMoisture(b), 0) / batches.length
+    : 0;
+
+  const filtered = filter === 'all' ? batches : batches.filter(b => b.status === filter);
+
+  const handleStartStop = () => {
+    if (currentMoisture <= TARGET_MOISTURE) {
+      setCurrentWeight(initialWeight);
+      setBatches(INITIAL_BATCHES.map(b => ({ ...b, initialWeight: b.weight })));
+    }
+    setIsDrying(v => !v);
+  };
+
+  const tempColor = (t) => t >= 80 ? 'text-red-400' : t >= 70 ? 'text-orange-400' : t > 0 ? 'text-yellow-400' : 'text-gray-600';
+  const moistureBarColor = (mc) => mc <= 15 ? '#22c55e' : mc <= 25 ? '#f59e0b' : '#ef4444';
 
   return (
-    <div style={{ fontFamily: "'DM Sans','Segoe UI',sans-serif", background: "#f4f5fb", minHeight: "100vh", padding: "20px 24px", boxSizing: "border-box" }}>
+    <div className="min-h-screen bg-[#f0f2f8] text-gray-900 font-sans">
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#1a1d2e", display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 26 }}>🐟</span> Dry Fish Monitor
-          </h1>
-          <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 3 }}>Batch drying management · Live status</div>
+      {/* ── Top Nav ── */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
+            <Fish size={18} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-black text-gray-900 leading-none">Dry Fish Monitor</h1>
+            <p className="text-[11px] text-gray-400 mt-0.5">Batch drying management · Live status</p>
+          </div>
         </div>
-        <button style={{ padding: "9px 20px", borderRadius: 10, background: "#3b82f6", color: "#fff", fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 7 }}>
-          <span>📤</span> Export Report
-        </button>
-      </div>
-
-      {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 18 }}>
-        <StatCard icon="⚖️"  label="Total Weight"     value={totalWeight} unit="kg"    color="#1a1d2e" bg="#f0f9ff" />
-        <StatCard icon="💧"  label="Avg Moisture"     value={avgMoisture} unit="%"     color="#3b82f6" bg="#eff6ff" />
-        <StatCard icon="🔥"  label="Currently Drying" value={drying}      unit="batch" color="#f97316" bg="#fff7ed" />
-        <StatCard icon="✅"  label="Completed"        value={complete}    unit="batch" color="#22c55e" bg="#f0fdf4" />
-      </div>
-
-      {/* Filter tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        {filters.map(f => {
-          const active = filter === f;
-          const sc = f !== "All" ? STATUS_COLORS[f] : null;
-          return (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              style={{
-                padding: "7px 18px", borderRadius: 20,
-                background: active ? (sc ? sc.bg : "#1a1d2e") : "#fff",
-                color: active ? (sc ? sc.text : "#fff") : "#6b7280",
-                border: active ? `1.5px solid ${sc ? sc.dot : "#1a1d2e"}` : "1.5px solid #e5e7eb",
-                fontWeight: active ? 700 : 500,
-                fontSize: 12, cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 6,
-              }}
-            >
-              {sc && <span style={{ width: 7, height: 7, borderRadius: "50%", background: active ? sc.dot : "#ccc", display: "inline-block" }} />}
-              {f === "All" ? "🐟 All dry fish" : f.charAt(0) + f.slice(1).toLowerCase()}
-            </button>
-          );
-        })}
-        <div style={{ marginLeft: "auto", fontSize: 12, color: "#9ca3af", alignSelf: "center" }}>
-          {visible.length} batch{visible.length !== 1 ? "es" : ""}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleStartStop}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+              isDrying
+                ? 'bg-red-100 text-red-600 border border-red-200'
+                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200'
+            }`}
+          >
+            {isDrying ? <RotateCcw size={15} /> : <Play size={15} />}
+            {isDrying ? 'Stop' : currentMoisture <= TARGET_MOISTURE ? 'Reset' : 'Start Drying'}
+          </button>
+          <button className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all">
+            <FileDown size={15} />
+            Export Report
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Fish grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 16 }}>
-        {visible.map((fish, idx) => {
-          const sc = STATUS_COLORS[fish.status];
-          const isSelected = selected === fish.id;
-          return (
-            <div
-              key={fish.id}
-              onClick={() => setSelected(isSelected ? null : fish.id)}
-              style={{
-                background: "#fff", borderRadius: 14, padding: "16px 18px",
-                boxShadow: isSelected ? `0 0 0 2px ${sc.dot}, 0 4px 16px rgba(0,0,0,0.08)` : "0 1px 8px rgba(0,0,0,0.055)",
-                cursor: "pointer", transition: "box-shadow 0.2s",
-              }}
-            >
-              {/* Top row */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: "#1a1d2e" }}>{fish.name}</div>
-                  <div style={{ fontSize: 11, color: "#9ca3af" }}>Batch {fish.batch}</div>
-                </div>
-                <span style={{
-                  padding: "3px 10px", borderRadius: 20,
-                  background: sc.bg, color: sc.text,
-                  fontSize: 10, fontWeight: 700,
-                  display: "flex", alignItems: "center", gap: 4,
-                }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: sc.dot, display: "inline-block" }} />
-                  {fish.status}
-                </span>
+      <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+
+        {/* ── Summary Cards ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            {
+              icon: <Scale size={22} className="text-blue-600" />,
+              iconBg: 'bg-blue-50',
+              label: 'Total Weight',
+              value: (totalWeight / 1000).toFixed(2),
+              unit: 'kg',
+              valueClass: 'text-gray-900',
+            },
+            {
+              icon: <Droplets size={22} className="text-blue-500" />,
+              iconBg: 'bg-blue-50',
+              label: 'Avg Moisture',
+              value: avgMoisture.toFixed(1),
+              unit: '%',
+              valueClass: 'text-blue-500',
+            },
+            {
+              icon: <Flame size={22} className="text-orange-500" />,
+              iconBg: 'bg-orange-50',
+              label: 'Currently Drying',
+              value: dryingBatches.length,
+              unit: 'batch',
+              valueClass: 'text-orange-500',
+            },
+            {
+              icon: <CheckCircle size={22} className="text-green-500" />,
+              iconBg: 'bg-green-50',
+              label: 'Completed',
+              value: completedBatches.length,
+              unit: 'batch',
+              valueClass: 'text-green-500',
+            },
+          ].map((c, i) => (
+            <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-xl ${c.iconBg} flex items-center justify-center shrink-0`}>
+                {c.icon}
               </div>
-
-              {/* Metrics */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
-                {[
-                  { label: "Weight", val: `${fish.weight} kg`, color: "#1a1d2e" },
-                  { label: "Temp", val: `${fish.temp}°C`, color: "#ef4444" },
-                  { label: "Quality", val: fish.quality, color: QUALITY_COLORS[fish.quality] },
-                ].map(m => (
-                  <div key={m.label} style={{ background: "#f9fafb", borderRadius: 8, padding: "7px 10px" }}>
-                    <div style={{ fontSize: 9, color: "#9ca3af" }}>{m.label}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: m.color }}>{m.val}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Moisture */}
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#6b7280", marginBottom: 4 }}>
-                  <span>Moisture Level</span>
-                  <span style={{ fontWeight: 700 }}>{fish.moisture}%</span>
-                </div>
-                <MoistureBar value={fish.moisture} />
-              </div>
-
-              {/* Sparkline */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 10, color: "#9ca3af" }}>Moisture trend</div>
-                <Sparkline data={SPARKS[fish.id - 1]} color={sc.dot} w={90} h={26} />
+              <div>
+                <p className="text-[11px] text-gray-400 font-semibold mb-0.5">{c.label}</p>
+                <p className={`text-2xl font-black ${c.valueClass} leading-none`}>
+                  {c.value}<span className="text-sm font-semibold text-gray-400 ml-1">{c.unit}</span>
+                </p>
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
 
-      {/* Detail panel */}
-      {selected && (() => {
-        const fish = DRY_FISH_DATA.find(f => f.id === selected);
-        const sc = STATUS_COLORS[fish.status];
-        return (
-          <div style={{ background: "#fff", borderRadius: 14, padding: "18px 22px", boxShadow: "0 1px 8px rgba(0,0,0,0.055)", borderTop: `3px solid ${sc.dot}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontWeight: 800, fontSize: 16, color: "#1a1d2e" }}>
-                🐟 {fish.name} — Batch {fish.batch}
-              </div>
-              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#9ca3af" }}>✕</button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 12 }}>
-              {[
-                ["Weight",   `${fish.weight} kg`, "#1a1d2e"],
-                ["Temp",     `${fish.temp}°C`,    "#ef4444"],
-                ["Moisture", `${fish.moisture}%`, "#3b82f6"],
-                ["Quality",  fish.quality,        QUALITY_COLORS[fish.quality]],
-                ["Status",   fish.status,         sc.dot],
-                ["Batch",    fish.batch,          "#8b5cf6"],
-              ].map(([l,v,c]) => (
-                <div key={l} style={{ background: "#f9fafb", borderRadius: 10, padding: "10px 14px" }}>
-                  <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 2 }}>{l}</div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: c }}>{v}</div>
-                </div>
-              ))}
+        {/* ── AquaSense Live Panel ── */}
+        <div className="bg-gray-950 text-gray-100 rounded-3xl p-6 border border-gray-800 shadow-xl">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-blue-400 font-black text-lg flex items-center gap-2">
+                <div className={`w-2.5 h-2.5 rounded-full bg-blue-400 ${isDrying ? 'animate-ping' : ''}`} />
+                AQUASENSE LIVE
+              </h2>
+              <p className="text-gray-500 text-xs mt-0.5">Real-time Mass-Balance Monitoring</p>
             </div>
           </div>
-        );
-      })()}
 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* Moisture Gauge */}
+            <div className="bg-gray-900 rounded-[28px] border border-gray-800 p-6 flex flex-col items-center justify-center relative overflow-hidden">
+              <p className="text-gray-500 uppercase tracking-widest text-[10px] font-bold mb-2 relative z-10">Current Moisture</p>
+              <h3 className={`text-5xl font-black relative z-10 transition-colors duration-500 ${currentMoisture <= TARGET_MOISTURE ? 'text-green-400' : 'text-white'}`}>
+                {currentMoisture.toFixed(1)}<span className="text-xl text-gray-600">%</span>
+              </h3>
+              <p className="text-gray-500 text-xs mt-2 flex items-center gap-1.5 relative z-10">
+                <Droplets size={12} className="text-blue-400" /> Wet Basis (MCwb)
+              </p>
+              <div
+                className="absolute bottom-0 left-0 w-full bg-blue-600/10 transition-all duration-1000 ease-linear"
+                style={{ height: `${currentMoisture}%` }}
+              />
+            </div>
+
+            {/* Weight */}
+            <div className="bg-gray-900 rounded-[28px] border border-gray-800 p-6 flex flex-col justify-center">
+              <p className="text-gray-500 text-[10px] font-bold uppercase mb-1">Current Weight</p>
+              <h3 className="text-4xl font-black">{currentWeight.toFixed(1)}<span className="text-lg text-gray-600">g</span></h3>
+              <Scale size={28} className="text-gray-700 mt-3" />
+            </div>
+
+            {/* Progress */}
+            <div className={`rounded-[28px] border p-6 transition-all duration-500 ${currentMoisture <= TARGET_MOISTURE ? 'bg-green-500/10 border-green-500/20' : 'bg-gray-900 border-gray-800'}`}>
+              <p className="text-gray-500 text-[10px] font-bold uppercase mb-1">Drying Progress</p>
+              <h3 className={`text-4xl font-black ${currentMoisture <= TARGET_MOISTURE ? 'text-green-400' : 'text-blue-400'}`}>
+                {progress.toFixed(0)}%
+              </h3>
+              <div className="mt-4 h-2.5 bg-gray-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%`, boxShadow: '0 0 10px rgba(59,130,246,0.6)' }}
+                />
+              </div>
+              <div className="flex justify-between text-[9px] text-gray-600 mt-2 font-bold">
+                <span>78.7%</span><span>20.0%</span>
+              </div>
+              <div className={`mt-3 flex items-center gap-2 text-sm font-bold ${currentMoisture <= TARGET_MOISTURE ? 'text-green-400' : 'text-gray-400'}`}>
+                {currentMoisture <= TARGET_MOISTURE ? <><CheckCircle size={16} /> SAFE TO STORE</> : <><Timer size={16} className="animate-spin" /> DRYING...</>}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 bg-blue-500/5 border border-blue-500/10 p-3 rounded-xl flex gap-2 items-start">
+            <AlertCircle className="text-blue-400 shrink-0 mt-0.5" size={15} />
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+              <span className="text-blue-300 font-bold">Calculation Logic:</span> Constant Dry Matter of{' '}
+              <span className="text-white">{dryMatter.toFixed(1)}g</span>. As water evaporates, mass decreases and MCwb is recalculated in real-time. Reference: Babiker et al. 2016.
+            </p>
+          </div>
+        </div>
+
+        {/* ── Batch Table ── */}
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Filter tabs */}
+          <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              {[
+                { key: 'all', label: 'All dry fish' },
+                { key: 'drying', label: 'Drying' },
+                { key: 'complete', label: 'Complete' },
+                { key: 'pending', label: 'Pending' },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                    filter === f.key
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {f.key !== 'all' && (
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      f.key === 'drying' ? 'bg-orange-400' : f.key === 'complete' ? 'bg-green-400' : 'bg-gray-400'
+                    }`} />
+                  )}
+                  {f.key === 'all' && <Fish size={13} />}
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-gray-400 font-semibold">{filtered.length} batches</span>
+          </div>
+
+          {/* Cards grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 p-6">
+            {filtered.map(batch => {
+              const mc = calcMoisture(batch);
+              const barColor = moistureBarColor(mc);
+              const sparkColor = batch.status === 'complete' ? '#22c55e' : '#f59e0b';
+              return (
+                <div key={batch.id} className="border border-gray-100 rounded-2xl p-5 hover:shadow-md hover:border-gray-200 transition-all bg-white group">
+                  {/* Card Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="font-black text-gray-900 text-base">{batch.name}</h3>
+                      <p className="text-[11px] text-gray-400 font-medium mt-0.5">Batch {batch.id}</p>
+                    </div>
+                    <StatusBadge status={batch.status} />
+                  </div>
+
+                  {/* Stats row */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-semibold mb-0.5">Weight</p>
+                      <p className="text-sm font-bold text-gray-800">{(batch.weight / 1000).toFixed(2)} kg</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-semibold mb-0.5">Temp</p>
+                      <p className={`text-sm font-bold ${tempColor(batch.temp)}`}>
+                        {batch.temp > 0 ? `${batch.temp}°C` : '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-semibold mb-0.5">Quality</p>
+                      <p className={`text-sm font-bold ${batch.quality === 'Grade A' ? 'text-green-500' : 'text-orange-400'}`}>
+                        {batch.quality}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Moisture bar */}
+                  <div className="mb-3">
+                    <div className="flex justify-between text-[10px] font-semibold text-gray-400 mb-1.5">
+                      <span>Moisture Level</span>
+                      <span className="text-gray-700 font-bold">{mc.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{ width: `${(mc / 80) * 100}%`, background: barColor }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Trend sparkline */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-400 font-semibold">Moisture trend</span>
+                    <Sparkline data={batch.moistureTrend} color={sparkColor} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+      </main>
     </div>
   );
 }
