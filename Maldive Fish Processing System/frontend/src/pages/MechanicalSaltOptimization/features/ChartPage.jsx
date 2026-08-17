@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceArea, ReferenceLine, ResponsiveContainer
+  ReferenceArea, ResponsiveContainer
 } from "recharts";
 
 // ── Raw Data ────────────────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ const AnomalyDot = (props) => {
   );
 };
 
-const StatCard = ({ label, value, unit, color, icon }) => (
+const StatCard = ({ label, value, unit, color }) => (
   <div style={{ background: "white", padding: "20px", borderRadius: "12px", borderLeft: `5px solid ${color}`, boxShadow: "0 4px 6px rgba(0,0,0,0.05)", flex: 1 }}>
     <div style={{ color: "#718096", fontSize: "12px", fontWeight: "bold", textTransform: "uppercase" }}>{label}</div>
     <div style={{ display: "flex", alignItems: "baseline", gap: "5px", marginTop: "5px" }}>
@@ -48,7 +48,6 @@ export default function WaterSalinityControl() {
   useEffect(() => {
     if (!isAIActive) return;
     const interval = setInterval(() => {
-      // AI Adjustments: targets WL 240, SAL 60
       setWlValue(prev => prev < 240 ? prev + 0.5 : prev - 0.3);
       setSalValue(prev => prev < 60 ? prev + 0.2 : prev - 0.1);
     }, 2000);
@@ -77,7 +76,7 @@ export default function WaterSalinityControl() {
       </div>
 
       {/* Stats Row */}
-      <div style={{ display: "flex", gap: "20px", marginBottom: "25px" }}>
+      <div style={{ display: "flex", gap: "20px", marginBottom: "25px", flexWrap: "wrap" }}>
         <StatCard label="Current Water Level" value={wlValue.toFixed(1)} unit="Liters" color="#1a3a6e" />
         <StatCard label="Salinity Density" value={salValue.toFixed(1)} unit="ppt" color="#00bcd4" />
         <StatCard label="AI Confidence" value={isAIActive ? "98.2" : "0.0"} unit="%" color="#667eea" />
@@ -88,18 +87,57 @@ export default function WaterSalinityControl() {
         
         {/* Main Chart Card */}
         <div style={{ background: "white", padding: "20px", borderRadius: "15px", boxShadow: "0 10px 15px rgba(0,0,0,0.05)" }}>
-          <h3 style={{ marginTop: 0, color: "#2d3748", fontSize: "16px" }}>Historical Data Analysis</h3>
+          <h3 style={{ marginTop: 0, color: "#2d3748", fontSize: "16px" }}>Historical Data Analysis (Dual Scale)</h3>
           <div style={{ width: "100%", height: 400 }}>
             <ResponsiveContainer>
-              <LineChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+              <LineChart data={data} margin={{ top: 20, right: 30, left: 10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
-                <ReferenceArea y1={200} y2={270} fill="#1a3a6e" fillOpacity={0.05} />
-                <ReferenceArea y1={40} y2={95} fill="#00bcd4" fillOpacity={0.05} />
                 <XAxis dataKey="t" tick={{fontSize: 12, fill: "#718096"}} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 300]} tick={{fontSize: 12, fill: "#718096"}} axisLine={false} tickLine={false} />
+                
+                {/* Left Y-Axis for Water Level (wl) */}
+                <YAxis 
+                  yAxisId="left" 
+                  domain={[0, 300]} 
+                  tick={{fontSize: 12, fill: "#1a3a6e"}} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  unit="L"
+                />
+
+                {/* Right Y-Axis for Salinity (sal) */}
+                <YAxis 
+                  yAxisId="right" 
+                  orientation="right" 
+                  domain={[0, 100]} 
+                  tick={{fontSize: 12, fill: "#00bcd4"}} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  unit="ppt"
+                />
+
                 <Tooltip />
-                <Line type="monotone" dataKey="wl" stroke="#1a3a6e" strokeWidth={3} dot={<AnomalyDot />} />
-                <Line type="monotone" dataKey="sal" stroke="#00bcd4" strokeWidth={3} dot={<AnomalyDot />} />
+                
+                {/* Water Level Line */}
+                <Line 
+                  yAxisId="left" 
+                  type="monotone" 
+                  dataKey="wl" 
+                  name="Water Level" 
+                  stroke="#1a3a6e" 
+                  strokeWidth={3} 
+                  dot={<AnomalyDot />} 
+                />
+
+                {/* Salinity Line */}
+                <Line 
+                  yAxisId="right" 
+                  type="monotone" 
+                  dataKey="sal" 
+                  name="Salinity" 
+                  stroke="#00bcd4" 
+                  strokeWidth={3} 
+                  dot={<AnomalyDot />} 
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -139,7 +177,6 @@ export default function WaterSalinityControl() {
             </div>
           </div>
 
-        
         </div>
 
       </div>

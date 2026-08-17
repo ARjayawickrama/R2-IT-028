@@ -30,13 +30,13 @@ const GaugeArc = ({ value, max, color, unit, label }) => {
   );
 };
 
-// --- Boiler Visual with Animation ---
+// --- Boiler Visual for Tank A ---
 const BoilerIcon = ({ waterPct, isBoiling }) => {
   const fillH = (waterPct / 100) * 85;
   const waterColor = isBoiling ? '#6F42C1' : '#A5A6F6';
 
   return (
-    <svg width="140" height="160" viewBox="0 0 120 150">
+    <svg width="100" height="130" viewBox="0 0 120 150">
       <rect x="30" y="40" width="60" height="85" rx="15" fill="none" stroke="#B4B4A8" strokeWidth="2" />
       <rect x="22" y="65" width="8" height="30" rx="3" fill="none" stroke="#B4B4A8" strokeWidth="2" />
       <rect x="90" y="65" width="8" height="30" rx="3" fill="none" stroke="#B4B4A8" strokeWidth="2" />
@@ -56,16 +56,31 @@ const BoilerIcon = ({ waterPct, isBoiling }) => {
           </circle>
         </g>
       )}
-      <rect x="30" y={125 - fillH} width="60" height="4" fill="#6F42C1" opacity="0.3" clipPath="url(#boilerClip)" />
+    </svg>
+  );
+};
+
+// --- Salt Tank Visual for Salt A ---
+const SaltIcon = ({ saltPct }) => {
+  const fillH = (saltPct / 100) * 85;
+  return (
+    <svg width="100" height="130" viewBox="0 0 120 150">
+      <rect x="30" y="40" width="60" height="85" rx="15" fill="none" stroke="#D97706" strokeWidth="2" />
+      <rect x="22" y="65" width="8" height="30" rx="3" fill="none" stroke="#D97706" strokeWidth="2" />
+      <rect x="90" y="65" width="8" height="30" rx="3" fill="none" stroke="#D97706" strokeWidth="2" />
+      <path d="M45 40 Q60 20 75 40" fill="none" stroke="#D97706" strokeWidth="2" />
+      <clipPath id="saltClip"><rect x="30" y="40" width="60" height="85" rx="15" /></clipPath>
+      <rect x="30" y={125 - fillH} width="60" height={fillH} fill="#F59E0B" opacity="0.5" clipPath="url(#saltClip)" />
     </svg>
   );
 };
 
 export default function BoilerDashboard() {
   const [tanks, setTanks] = useState([
-    { id: 1, name: 'Boiler Tank 1', length: 60, width: 40, thickness: 25, fishWeight: 3, temp: 22.0, isCycling: false }
+    { id: 1, name: 'Boiler Tank 1', fishWeight: 3, thickness: 4.5, temp: 100.0, isCycling: false }
   ]);
   const [activeId, setActiveId] = useState(1);
+  const [cookingTime, setCookingTime] = useState(45); 
 
   const activeTank = tanks.find(t => t.id === activeId);
 
@@ -77,7 +92,7 @@ export default function BoilerDashboard() {
 
   const addTank = () => {
     const newId = tanks.length + 1;
-    setTanks([...tanks, { id: newId, name: `Boiler Tank ${newId}`, length: 60, width: 40, thickness: 25, fishWeight: 3, temp: 22.0, isCycling: false }]);
+    setTanks([...tanks, { id: newId, name: `Boiler Tank ${newId}`, fishWeight: 3, thickness: 4.5, temp: 100.0, isCycling: false }]);
     setActiveId(newId);
   };
 
@@ -85,11 +100,31 @@ export default function BoilerDashboard() {
     setTanks(prev => prev.map(t => t.id === activeId ? { ...t, isCycling: !t.isCycling } : t));
   };
 
+  // --- Canadian 10-Minute Rule Formula Implementation ---
+  const calculateCookingTime = () => {
+    const widthCm = activeTank.thickness / 10; // mm to cm
+    const baseTime = (widthCm / 2.54) * 10;
+    
+    // වතුර උෂ්ණත්වය 100°C වන විට Temp Factor = 1 වේ
+    const tWater = Math.max(activeTank.temp, 20);
+    const tempFactor = (100 - 20) / (tWater - 20);
+    
+    const weightGrams = activeTank.fishWeight * 1000; // kg to g
+    const weightFactor = Math.pow((weightGrams / 300), 0.15);
+    
+    const totalTime = baseTime * tempFactor * weightFactor;
+    setCookingTime(Math.round(totalTime));
+  };
+
   useEffect(() => {
     const timer = setInterval(() => {
       setTanks(prev => prev.map(t => {
-        if (t.isCycling && t.temp < 100) return { ...t, temp: t.temp + 0.5 };
-        if (!t.isCycling && t.temp > 22) return { ...t, temp: t.temp - 0.2 };
+        if (t.isCycling && t.temp < 100) {
+          const tankLoad = t.fishWeight + t.thickness;
+          const speed = Math.max(0.1, 0.6 - (tankLoad * 0.02));
+          return { ...t, temp: Math.min(100, t.temp + speed) };
+        }
+        if (!t.isCycling && t.temp > 100) return { ...t, temp: Math.max(100, t.temp - 0.3) };
         return t;
       }));
     }, 1000);
@@ -97,20 +132,12 @@ export default function BoilerDashboard() {
   }, []);
 
   // --- Scientific Calculations ---
-
-  const requiredHeight = (activeTank.thickness / 10) + 2; 
-  
-  const volumeBasedWater = (activeTank.length * activeTank.width * requiredHeight) / 1000;
-  
-
-  const weightBasedWater = activeTank.fishWeight * 2;
-
-  const finalWaterLiters = Math.max(volumeBasedWater, weightBasedWater);
-  
-  
-  const requiredSalt = finalWaterLiters * 1000 * 0.03;
-
-  const waterPct = Math.min((finalWaterLiters / 50) * 100, 100);
+  const finalWaterLiters = activeTank.thickness; // 1:1 thickness ratio
+  const requiredSaltGrams = finalWaterLiters * 1000 * 0.03; // 3% salt in grams
+  const requiredSaltKg = requiredSaltGrams / 1000; 
+  const saltWaterMl = requiredSaltGrams; 
+  const waterPct = Math.min((finalWaterLiters / 20) * 100, 100);
+  const saltPct = Math.min((requiredSaltKg / 2) * 100, 100);
 
   return (
     <div style={{ backgroundColor: '#F1EFE8', minHeight: '100vh', padding: '20px', fontFamily: "'Courier New', monospace" }}>
@@ -129,37 +156,48 @@ export default function BoilerDashboard() {
       <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
         
         {/* INPUT PANEL */}
-        <div style={{ flex: '1', minWidth: '300px', background: 'white', padding: '20px', borderRadius: '20px', border: '1px solid #D3D1C7', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
-          <div style={{ fontSize: '11px', color: '#1D9E75', fontWeight: 'black', marginBottom: '20px', letterSpacing: '1px' }}>SCIENTIFIC INPUTS</div>
-          
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ fontSize: '10px', color: '#999', display: 'block', marginBottom: '5px' }}>FISH BATCH WEIGHT (kg)</label>
-            <input type="number" value={activeTank.fishWeight} onChange={(e) => handleInputChange('fishWeight', e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #EEE', borderRadius: '10px', background: '#F8F8F6', fontWeight: 'bold' }} />
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '10px', color: '#999', display: 'block', marginBottom: '5px' }}>LENGTH (cm)</label>
-              <input type="number" value={activeTank.length} onChange={(e) => handleInputChange('length', e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #EEE', borderRadius: '10px', background: '#F8F8F6' }} />
+        <div style={{ flex: '1', minWidth: '280px', background: 'white', padding: '20px', borderRadius: '20px', border: '1px solid #D3D1C7', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: '11px', color: '#1D9E75', fontWeight: 'black', marginBottom: '20px', letterSpacing: '1px' }}>SCIENTIFIC INPUTS</div>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ fontSize: '10px', color: '#999', display: 'block', marginBottom: '5px' }}>FISH BATCH WEIGHT (kg)</label>
+              <input type="number" step="0.1" value={activeTank.fishWeight} onChange={(e) => handleInputChange('fishWeight', e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #EEE', borderRadius: '10px', background: '#F8F8F6', fontWeight: 'bold' }} />
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '10px', color: '#999', display: 'block', marginBottom: '5px' }}>WIDTH (cm)</label>
-              <input type="number" value={activeTank.width} onChange={(e) => handleInputChange('width', e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #EEE', borderRadius: '10px', background: '#F8F8F6' }} />
+
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ fontSize: '10px', color: '#999', display: 'block', marginBottom: '5px' }}>MAX FISH THICKNESS (mm) [1:1 Water Ratio]</label>
+              <input type="number" step="0.1" value={activeTank.thickness} onChange={(e) => handleInputChange('thickness', e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #EEE', borderRadius: '10px', background: '#F8F8F6', fontWeight: 'bold' }} />
             </div>
           </div>
 
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ fontSize: '10px', color: '#999', display: 'block', marginBottom: '5px' }}>MAX FISH THICKNESS (mm)</label>
-            <input type="number" value={activeTank.thickness} onChange={(e) => handleInputChange('thickness', e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #EEE', borderRadius: '10px', background: '#F8F8F6' }} />
-          </div>
+          <button onClick={calculateCookingTime} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: '#FF3B30', color: 'white', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', marginTop: '20px', boxShadow: '0 4px 10px rgba(255, 59, 48, 0.3)' }}>
+            claculate Cookin time
+          </button>
         </div>
 
-        {/* STATUS PANEL */}
-        <div style={{ flex: '1.2', background: 'white', padding: '20px', borderRadius: '20px', border: '1px solid #D3D1C7', textAlign: 'center', position: 'relative' }}>
-          <div style={{ fontSize: '11px', color: '#888', marginBottom: '10px' }}>BOILER STATUS — {activeTank.name}</div>
-          <BoilerIcon waterPct={waterPct} isBoiling={activeTank.isCycling} />
-          <div style={{ fontSize: '42px', color: '#333', fontWeight: 'black', marginTop: '10px' }}>{activeTank.temp.toFixed(1)}°C</div>
-          <div style={{ fontSize: '10px', color: activeTank.isCycling ? '#E11D48' : '#AAA', letterSpacing: '4px', fontWeight: 'bold' }}>{activeTank.isCycling ? 'ACTIVE BOILING' : 'SYSTEM STANDBY'}</div>
+        {/* STATUS PANEL (Tank A & Salt A side by side) */}
+        <div style={{ flex: '1.2', background: 'white', padding: '20px', borderRadius: '20px', border: '1px solid #D3D1C7', textAlign: 'center' }}>
+          <div style={{ fontSize: '11px', color: '#888', marginBottom: '15px' }}>BOILER STATUS — {activeTank.name}</div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginTop: '10px' }}>
+            <div>
+              <BoilerIcon waterPct={waterPct} isBoiling={activeTank.isCycling} />
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#333', marginTop: '5px' }}>Tank A</div>
+              <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#666' }}>{finalWaterLiters.toFixed(2)} L</div>
+            </div>
+
+            <div>
+              <SaltIcon saltPct={saltPct} />
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#333', marginTop: '5px' }}>Salt A</div>
+              <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#666' }}>{saltWaterMl.toFixed(0)} ml</div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: '32px', color: '#333', fontWeight: 'black', marginTop: '20px' }}>{activeTank.temp.toFixed(1)}°C</div>
+          <div style={{ fontSize: '10px', color: activeTank.isCycling ? '#E11D48' : '#AAA', letterSpacing: '2px', fontWeight: 'bold' }}>
+            {activeTank.isCycling ? 'ACTIVE BOILING' : 'SYSTEM STANDBY'}
+          </div>
         </div>
 
         {/* CALCULATION & SENSORS PANEL */}
@@ -170,31 +208,37 @@ export default function BoilerDashboard() {
             <div style={{ fontSize: '11px', color: '#888', textAlign: 'center', marginBottom: '15px' }}>REAL-TIME PARAMETERS</div>
             <div style={{ display: 'flex', justifyContent: 'space-around' }}>
               <GaugeArc value={activeTank.fishWeight} max={20} color="#1D9E75" unit="kg" label="BATCH" />
-              <GaugeArc value={finalWaterLiters} max={50} color="#6F42C1" unit="L" label="WATER" />
-              <GaugeArc value={requiredSalt} max={1000} color="#BA7517" unit="g" label="SALT" />
+              <GaugeArc value={finalWaterLiters} max={20} color="#6F42C1" unit="L" label="WATER" />
+              <GaugeArc value={requiredSaltGrams} max={500} color="#BA7517" unit="g" label="SALT" />
             </div>
           </div>
 
-          {/* Results Summary */}
-          <div style={{ background: '#4A3AFF', padding: '25px', borderRadius: '20px', color: 'white', boxShadow: '0 10px 20px rgba(74, 58, 255, 0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Results Summary with Cooking Time Badge */}
+          <div style={{ background: '#4A3AFF', padding: '20px 25px', borderRadius: '20px', color: 'white', boxShadow: '0 10px 20px rgba(74, 58, 255, 0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <div style={{ fontSize: '10px', opacity: '0.8', letterSpacing: '1px' }}>TOTAL WATER REQUIRED</div>
-                <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{finalWaterLiters.toFixed(2)} L</div>
+                <div style={{ fontSize: '9px', opacity: '0.8', letterSpacing: '1px' }}>TOTAL WATER (1:1 Thickness)</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold' }}>{finalWaterLiters.toFixed(2)} L</div>
               </div>
+
+              <div style={{ background: '#FF3B30', padding: '8px 15px', borderRadius: '8px', color: 'white', fontWeight: 'bold', fontSize: '14px', boxShadow: '0 4px 8px rgba(0,0,0,0.2)' }}>
+                Cooking time :{cookingTime} minit
+              </div>
+
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '10px', opacity: '0.8', letterSpacing: '1px' }}>SALT (3%)</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{requiredSalt.toFixed(0)}g</div>
+                <div style={{ fontSize: '9px', opacity: '0.8', letterSpacing: '1px' }}>SALT (3%)</div>
+                <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{requiredSaltGrams.toFixed(0)}g</div>
               </div>
             </div>
+
             <div style={{ height: '1px', background: 'rgba(255,255,255,0.2)', margin: '15px 0' }} />
             <div style={{ fontSize: '9px', opacity: '0.7', fontStyle: 'italic' }}>
-              Target Submersion Height: {requiredHeight.toFixed(1)} cm | Based on Codex CXC 52-2003
+              Canadian 10-Min Rule applied at 100°C boiling temperature state.
             </div>
           </div>
 
           {/* Control Button */}
-          <button onClick={toggleCycle} style={{ width: '100%', padding: '18px', borderRadius: '15px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', background: activeTank.isCycling ? '#FFF1F2' : '#1D9E75', transition: 'all 0.3s' }}>
+          <button onClick={toggleCycle} style={{ width: '100%', padding: '16px', borderRadius: '15px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', background: activeTank.isCycling ? '#FFF1F2' : '#1D9E75', transition: 'all 0.3s' }}>
             {activeTank.isCycling ? 
               <div style={{ width: 12, height: 12, background: '#E11D48' }} /> : 
               <div style={{ borderLeft: '12px solid white', borderTop: '8px solid transparent', borderBottom: '8px solid transparent' }} />
