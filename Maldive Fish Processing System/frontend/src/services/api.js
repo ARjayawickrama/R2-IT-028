@@ -34,7 +34,6 @@ export const rawFishService = {
   deleteAssessment: (id) => axiosInstance.delete(`/raw-fish/${id}`),
 };
 
-export default axiosInstance;
 export const qualityService = {
   analyzeImage: (formData) =>
     axiosInstance.post('/quality/analyze', formData, {
