@@ -228,6 +228,7 @@ export default function FishDetectionApp() {
             <span className="text-[9px] font-mono text-slate-400 tracking-wider">{captureHistory.length} captures</span>
           )}
         </div>
+    
 
         {/* ── Main Layout ── */}
         <div className="flex flex-1 overflow-hidden">
@@ -309,7 +310,7 @@ export default function FishDetectionApp() {
               )}
 
               {/* Thresholds */}
-              <div className="p-4 border-b border-slate-100">
+              {/* <div className="p-4 border-b border-slate-100">
                 <p className="text-[9px] font-mono tracking-widest text-slate-400 uppercase mb-4">Thresholds</p>
                 <div className="flex flex-col gap-4">
                   {[{ key: "confidence", label: "Confidence" }, { key: "overlap", label: "Overlap" }, { key: "opacity", label: "Opacity" }].map(({ key, label }) => (
@@ -339,9 +340,9 @@ export default function FishDetectionApp() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </div> */}
 
-              {/* Presets */}
+              {/* Presets
               <div className="p-4">
                 <p className="text-[9px] font-mono tracking-widest text-slate-400 uppercase mb-3">Presets</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -358,7 +359,7 @@ export default function FishDetectionApp() {
                     >{label}</button>
                   ))}
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
 

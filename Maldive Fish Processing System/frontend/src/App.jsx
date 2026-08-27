@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import BoileControl from './pages/MechanicalSaltOptimization/BoileControl';
 import DriedFishQuality from './pages/DriedFishQuality/DriedFishQuality';
 import EnvironmentalMonitoring from './pages/EnvironmentalMonitoring/EnvironmentalMonitoring';
+import DryFish from './pages/EnvironmentalMonitoring/dry_fish';
 import RawFishQuality from './pages/RawFishQuality/RawFishQuality';
 import SystemSettings from './pages/SystemSettings/SystemSettings';
 
@@ -59,6 +60,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <EnvironmentalMonitoring />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/environmental-monitoring/dry-fish"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <DryFish />
                 </Layout>
               </ProtectedRoute>
             }
