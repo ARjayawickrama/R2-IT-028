@@ -32,7 +32,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 const generateBatchData = (mlResponse, file) => {
-  let score = Math.round(mlResponse.confidence * 100);
+  let score = Math.round((mlResponse.confidence || 0) * 100);
 
   let color = "rose";
   let level = "Low Quality";
@@ -51,7 +51,7 @@ const generateBatchData = (mlResponse, file) => {
     color = "rose";
     score = score < 70 ? score : 55 + Math.floor(Math.random() * 14);
   } else {
-    level = mlResponse.class;
+    level = mlResponse.class || "Low Quality";
     color = "rose";
     score = 0;
   }
@@ -75,11 +75,11 @@ const generateBatchData = (mlResponse, file) => {
   return {
     imageName: file.originalname,
     imageUrl: `/uploads/${file.filename}`,
-    qualityClass: mlResponse.class,
-    confidence: mlResponse.confidence,
-    probabilities: mlResponse.probabilities,
-    status: mlResponse.status,
-    rawClass: mlResponse.class,
+    qualityClass: mlResponse.class || "Unknown",
+    confidence: mlResponse.confidence || 0,
+    probabilities: mlResponse.probabilities || {},
+    status: mlResponse.status || "OK",
+    rawClass: mlResponse.class || "Unknown",
     score,
     level,
     voc,
@@ -104,8 +104,10 @@ router.post("/analyze", upload.single("image"), async (req, res) => {
       req.file.originalname
     );
 
+    const mlApiUrl = process.env.QUALITY_API_URL || "http://localhost:8001/predict";
+
     const mlResponse = await axios.post(
-      "http://localhost:8000/predict",
+      mlApiUrl,
       formData,
       {
         headers: {

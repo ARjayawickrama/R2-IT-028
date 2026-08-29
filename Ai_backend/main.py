@@ -1,5 +1,13 @@
 import io
+import sys
 from contextlib import asynccontextmanager
+
+# Configure UTF-8 encoding for Windows stdout/stderr
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -153,4 +161,4 @@ async def predict_fish_quality(file: UploadFile = File(...)):
 
 if __name__ == "__main__": 
     import uvicorn 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)
