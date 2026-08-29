@@ -79,7 +79,7 @@ const generateBatchData = (mlResponse, file) => {
     confidence: mlResponse.confidence,
     probabilities: mlResponse.probabilities,
     status: mlResponse.status,
-    rawClass: mlResponse.raw_class,
+    rawClass: mlResponse.class,
     score,
     level,
     voc,

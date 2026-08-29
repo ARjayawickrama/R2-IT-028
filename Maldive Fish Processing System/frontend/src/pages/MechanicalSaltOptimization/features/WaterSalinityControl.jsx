@@ -1,63 +1,87 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Flame, Snowflake, Droplet, Thermometer, Scale, Ruler, Play, Square, Cpu, Gauge, CircleDot } from 'lucide-react';
+import {
+  Plus, Flame, Snowflake, Droplet, Thermometer, Scale, Ruler, Play, Square,
+  Cpu, Bell, FlaskConical, Gauge, CheckCircle2, Loader2, Waves, Timer, Box, Settings, X
+} from 'lucide-react';
 
-// ---------- Palette / Tokens ----------
+/* ---------------------------------------------------------------
+    TOKENS — Modern Industrial Dark-Accent Palette
+--------------------------------------------------------------- */
 const C = {
-  bg: '#ECEFF3',
-  panel: '#FFFFFF',
-  border: '#D6DCE3',
-  borderSoft: '#E4E8EC',
-  ink: '#17222C',
-  muted: '#78838F',
-  faint: '#B3BAC2',
-  teal: '#0E6F5C',
-  tealDark: '#0A5647',
-  steel: '#22507A',
-  amber: '#B4700D',
-  danger: '#B23A2E',
-  hazard: '#F2B705',
+  bg: '#F8FAFC',
+  cardBg: '#FFFFFF',
+  surface: '#F1F5F9',
+  border: '#E2E8F0',
+  borderFocus: '#0EA5E9',
+  ink: '#0F172A',
+  muted: '#64748B',
+  faint: '#94A3B8',
+  primary: '#0D9488',
+  primaryDark: '#0F766E',
+  primarySoft: '#CCFBF1',
+  water: '#0284C7',
+  waterSoft: '#E0F2FE',
+  salt: '#D97706',
+  saltSoft: '#FEF3C7',
+  danger: '#EF4444',
+  dangerSoft: '#FEE2E2',
 };
 
 const FONT_DISPLAY = "'Space Grotesk', 'Inter', sans-serif";
-const FONT_MONO = "'IBM Plex Mono', 'DM Mono', monospace";
-const FONT_BODY = "'Inter', -apple-system, sans-serif";
+const FONT_MONO = "'IBM Plex Mono', monospace";
+const FONT_BODY = "'Inter', sans-serif";
 
-// ---------- Decorative machined-panel rivet ----------
-const Rivet = ({ top, left, right, bottom }) => (
-  <div style={{
-    position: 'absolute', top, left, right, bottom,
-    width: 6, height: 6, borderRadius: '50%',
-    background: 'radial-gradient(circle at 35% 30%, #FAFBFC, #C7CED5 70%, #AEB6BF)',
-    boxShadow: 'inset 0 0 0 0.5px rgba(0,0,0,0.15)'
-  }} />
-);
+/* 5 STAGES — Including Heating */
+const STAGES = [
+  { key: 'STANDBY', label: 'Standby', icon: Snowflake },
+  { key: 'WATER_FILLING', label: 'Water Filling', icon: Droplet },
+  { key: 'SALT_ADDING', label: 'Salt Adding', icon: FlaskConical },
+  { key: 'HEATING', label: 'Heating', icon: Thermometer },
+  { key: 'BOILING_ACTIVE', label: 'Boiling', icon: Flame },
+];
 
-const Panel = ({ children, accent, style }) => (
+/* ---------------------------------------------------------------
+    PRIMITIVES
+--------------------------------------------------------------- */
+const Card = ({ children, style }) => (
   <div style={{
-    position: 'relative',
-    background: C.panel,
+    background: C.cardBg,
     border: `1px solid ${C.border}`,
-    borderRadius: '10px',
-    boxShadow: '0 1px 2px rgba(23,34,44,0.04), 0 8px 20px -14px rgba(23,34,44,0.15)',
+    borderRadius: 16,
+    boxShadow: '0 4px 6px -1px rgba(15, 23, 42, 0.02), 0 2px 4px -2px rgba(15, 23, 42, 0.02)',
+    transition: 'all 0.2s ease',
     ...style
   }}>
-    {accent && (
-      <div style={{
-        position: 'absolute', top: 0, left: 14, right: 14, height: 3,
-        borderRadius: '0 0 3px 3px', background: accent
-      }} />
-    )}
-    <Rivet top={8} left={8} /><Rivet top={8} right={8} />
-    <Rivet bottom={8} left={8} /><Rivet bottom={8} right={8} />
     {children}
   </div>
 );
 
-// --- Gauge Component ---
+const SectionLabel = ({ children, color = C.muted }) => (
+  <div style={{
+    fontSize: 11, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase',
+    color, fontFamily: FONT_DISPLAY, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
+  }}>
+    {children}
+  </div>
+);
+
+const FlowBar = ({ value, max, color, softColor }) => {
+  const pct = Math.max(0, Math.min(100, (value / (max || 1)) * 100));
+  return (
+    <div style={{ width: '100%' }}>
+      <div style={{ height: 10, borderRadius: 999, background: softColor, overflow: 'hidden', padding: 2 }}>
+        <div style={{
+          width: `${pct}%`, height: '100%', borderRadius: 999, background: color,
+          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        }} />
+      </div>
+    </div>
+  );
+};
+
 const GaugeArc = ({ value, max, color, unit, label }) => {
-  const pct = Math.min(value / max, 1);
-  const startAngle = -210;
-  const endAngle = 30;
+  const pct = Math.min(value / (max || 1), 1);
+  const startAngle = -210, endAngle = 30;
   const span = endAngle - startAngle;
   const angle = startAngle + pct * span;
   const toRad = (deg) => (deg * Math.PI) / 180;
@@ -69,382 +93,565 @@ const GaugeArc = ({ value, max, color, unit, label }) => {
   const fillD = pct > 0 ? `M${arcX(startAngle)} ${arcY(startAngle)} A${r} ${r} 0 ${pct * span > 180 ? 1 : 0} 1 ${arcX(angle)} ${arcY(angle)}` : null;
 
   return (
-    <div style={{ textAlign: 'center', width: 90 }}>
+    <div style={{ textAlign: 'center', width: 92 }}>
       <svg viewBox="0 0 100 80">
-        <path d={trackD} fill="none" stroke="#E4E8EC" strokeWidth="7" strokeLinecap="round" />
-        {fillD && <path d={fillD} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round" />}
-        {/* tick marks */}
-        {[0, 0.25, 0.5, 0.75, 1].map((t) => {
-          const a = startAngle + t * span;
-          return (
-            <line key={t} x1={cx + (r + 5) * Math.cos(toRad(a))} y1={cy + (r + 5) * Math.sin(toRad(a))}
-              x2={cx + (r + 9) * Math.cos(toRad(a))} y2={cy + (r + 9) * Math.sin(toRad(a))}
-              stroke="#CBD2D9" strokeWidth="1.5" />
-          );
-        })}
-        <text x="50" y="51" textAnchor="middle" fontSize="15" fontWeight="600" fill={C.ink} fontFamily={FONT_MONO}>
+        <path d={trackD} fill="none" stroke={C.surface} strokeWidth="8" strokeLinecap="round" />
+        {fillD && <path d={fillD} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round" />}
+        <text x="50" y="51" textAnchor="middle" fontSize="15" fontWeight="700" fill={C.ink} fontFamily={FONT_MONO}>
           {typeof value === 'number' ? value.toFixed(value < 1 ? 2 : 1) : value}
         </text>
-        <text x="50" y="64" textAnchor="middle" fontSize="8.5" fill={C.muted} fontFamily={FONT_MONO} letterSpacing="0.5">{unit}</text>
+        <text x="50" y="65" textAnchor="middle" fontSize="8.5" fill={C.muted} fontWeight="600" fontFamily={FONT_MONO}>{unit}</text>
       </svg>
-      <div style={{ fontSize: 10, color: C.muted, marginTop: 2, fontWeight: 700, letterSpacing: '1.4px', fontFamily: FONT_DISPLAY }}>{label}</div>
+      <div style={{ fontSize: 10, color: C.muted, marginTop: 2, fontWeight: 700, fontFamily: FONT_DISPLAY }}>{label}</div>
     </div>
   );
 };
 
-// --- Boiler Visual for Tank A ---
-const BoilerIcon = ({ waterPct, isBoiling }) => {
-  const fillH = (waterPct / 100) * 85;
-  const waterColor = isBoiling ? C.steel : '#8FB0D6';
-
+const ProcessRail = ({ processState, isCycling }) => {
+  const currentIndex = STAGES.findIndex(s => s.key === processState);
   return (
-    <svg width="92" height="118" viewBox="0 0 120 150">
-      <rect x="30" y="40" width="60" height="85" rx="12" fill="#F6F8FA" stroke={C.border} strokeWidth="2" />
-      <rect x="22" y="65" width="8" height="30" rx="3" fill="#F6F8FA" stroke={C.border} strokeWidth="2" />
-      <rect x="90" y="65" width="8" height="30" rx="3" fill="#F6F8FA" stroke={C.border} strokeWidth="2" />
-      <path d="M45 40 Q60 20 75 40" fill="none" stroke={C.border} strokeWidth="2" />
-      <clipPath id="boilerClip"><rect x="30" y="40" width="60" height="85" rx="12" /></clipPath>
-      <rect x="30" y={125 - fillH} width="60" height={fillH} fill={waterColor} opacity="0.85" clipPath="url(#boilerClip)" />
-      {/* gauge window band */}
-      <rect x="30" y="40" width="60" height="85" rx="12" fill="none" stroke={C.border} strokeWidth="1" />
-      <text x="60" y="136" textAnchor="middle" fontSize="8" fontFamily={FONT_MONO} fill={C.faint} letterSpacing="1">TANK A</text>
+    <div style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '4px 0' }}>
+      {STAGES.map((stage, i) => {
+        const Icon = stage.icon;
+        const isDone = i < currentIndex;
+        const isActive = i === currentIndex;
+        const isPending = i > currentIndex;
 
-      {isBoiling && (
-        <g>
-          <circle cx="50" cy={125 - fillH} r="2" fill="white">
-            <animate attributeName="cy" from={125 - fillH} to="45" dur="1s" repeatCount="indefinite" />
-            <animate attributeName="opacity" from="1" to="0" dur="1s" repeatCount="indefinite" />
-          </circle>
-          <circle cx="70" cy={125 - fillH} r="2" fill="white">
-            <animate attributeName="cy" from={125 - fillH} to="45" dur="1.4s" repeatCount="indefinite" />
-            <animate attributeName="opacity" from="1" to="0" dur="1.4s" repeatCount="indefinite" />
-          </circle>
-        </g>
-      )}
-    </svg>
+        const dotColor = isDone || isActive ? C.primary : C.border;
+        const bgColor = isDone || isActive ? C.primary : C.surface;
+        const iconColor = (isDone || isActive) ? '#FFFFFF' : C.faint;
+
+        return (
+          <React.Fragment key={stage.key}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 78 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: '12px',
+                background: bgColor,
+                border: `2px solid ${isActive && isCycling ? C.primaryDark : dotColor}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                position: 'relative',
+                boxShadow: isActive && isCycling ? `0 0 0 4px ${C.primarySoft}` : 'none',
+                transition: 'all 0.3s ease'
+              }}>
+                {isActive && isCycling
+                  ? <Loader2 size={20} color="#FFFFFF" style={{ animation: 'spin 1.4s linear infinite' }} />
+                  : (isDone || isActive)
+                    ? <CheckCircle2 size={20} color="#FFFFFF" />
+                    : <Icon size={20} color={iconColor} />}
+              </div>
+              <div style={{
+                fontSize: 11, fontWeight: 700, marginTop: 8, textAlign: 'center',
+                color: isPending ? C.faint : C.ink, fontFamily: FONT_DISPLAY
+              }}>
+                {stage.label}
+              </div>
+            </div>
+            {i < STAGES.length - 1 && (
+              <div style={{
+                flex: 1, height: 3,
+                background: i < currentIndex ? C.primary : C.border,
+                margin: '0 4px 22px', borderRadius: 4,
+                transition: 'background 0.3s ease'
+              }} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
   );
 };
 
-// --- Salt Tank Visual for Salt A ---
-const SaltIcon = ({ saltPct }) => {
-  const fillH = (saltPct / 100) * 85;
-  return (
-    <svg width="92" height="118" viewBox="0 0 120 150">
-      <rect x="30" y="40" width="60" height="85" rx="12" fill="#F6F8FA" stroke={C.border} strokeWidth="2" />
-      <rect x="22" y="65" width="8" height="30" rx="3" fill="#F6F8FA" stroke={C.border} strokeWidth="2" />
-      <rect x="90" y="65" width="8" height="30" rx="3" fill="#F6F8FA" stroke={C.border} strokeWidth="2" />
-      <path d="M45 40 Q60 20 75 40" fill="none" stroke={C.border} strokeWidth="2" />
-      <clipPath id="saltClip"><rect x="30" y="40" width="60" height="85" rx="12" /></clipPath>
-      <rect x="30" y={125 - fillH} width="60" height={fillH} fill={C.amber} opacity="0.55" clipPath="url(#saltClip)" />
-      <rect x="30" y="40" width="60" height="85" rx="12" fill="none" stroke={C.border} strokeWidth="1" />
-      <text x="60" y="136" textAnchor="middle" fontSize="8" fontFamily={FONT_MONO} fill={C.faint} letterSpacing="1">SALT A</text>
-    </svg>
-  );
-};
-
+/* ---------------------------------------------------------------
+    MAIN COMPONENT
+--------------------------------------------------------------- */
 export default function BoilerDashboard() {
   const [tanks, setTanks] = useState([
-    { id: 1, name: 'Boiler Tank 1', fishWeight: 3.5, thickness: 6.0, temp: 100.0, isCycling: false }
+    { id: 1, name: 'Tank Alpha', fishWeight: 3.5, thickness: 6.0, temp: 28.0, maxCapacity: 4.5, isCycling: false }
   ]);
   const [activeId, setActiveId] = useState(1);
   const [cookingTime, setCookingTime] = useState(45);
-  const [predictionStatus, setPredictionStatus] = useState('Ready for AI prediction');
+  const [predictionStatus, setPredictionStatus] = useState('AI Automation Ready');
+
+  const [aiWaterLiters, setAiWaterLiters] = useState(4.5);
+  const [aiSaltGrams, setAiSaltGrams] = useState(135.0);
+
+  const [currentWaterFlow, setCurrentWaterFlow] = useState(0.0);
+  const [currentSaltFlow, setCurrentSaltFlow] = useState(0.0);
+
+  const [processState, setProcessState] = useState('STANDBY');
+  const [toastMessage, setToastMessage] = useState(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const activeTank = tanks.find(t => t.id === activeId);
 
+  const showNotification = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
   const handleInputChange = (field, value) => {
+    const numValue = Number(value);
     setTanks(prev => prev.map(t =>
-      t.id === activeId ? { ...t, [field]: Number(value) } : t
+      t.id === activeId ? { ...t, [field]: numValue } : t
     ));
+
+    if (field === 'maxCapacity') {
+      setAiWaterLiters(prev => Math.min(prev, numValue));
+      setAiSaltGrams(prev => Math.min(prev, numValue * 1000 * 0.03));
+      showNotification(`⚙️ Tank Capacity updated to ${numValue} Liters`);
+    }
   };
 
   const addTank = () => {
     const newId = tanks.length + 1;
-    setTanks([...tanks, { id: newId, name: `Boiler Tank ${newId}`, fishWeight: 3.0, thickness: 5.0, temp: 100.0, isCycling: false }]);
+    setTanks([...tanks, { id: newId, name: `Tank 0${newId}`, fishWeight: 3.0, thickness: 5.0, temp: 28.0, maxCapacity: 4.5, isCycling: false }]);
     setActiveId(newId);
   };
 
-  const toggleCycle = () => {
-    setTanks(prev => prev.map(t => t.id === activeId ? { ...t, isCycling: !t.isCycling } : t));
-  };
+  const startAutomatedBoiling = async () => {
+    const nextState = !activeTank.isCycling;
 
-  const runAIModelPrediction = async () => {
-    setPredictionStatus('Running AI model...');
-    try {
-      const response = await fetch('http://localhost:5000/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fish_weight: activeTank.fishWeight,
-          thickness: activeTank.thickness,
-          temperature: activeTank.temp
-        })
-      });
-      if (!response.ok) throw new Error('AI model server error');
-      const data = await response.json();
-      setCookingTime(data.predicted_cooking_time);
-      setPredictionStatus('AI model prediction successful');
-    } catch (error) {
-      console.warn('Backend connection failed. Using client-side estimation.', error);
-      const estimated = (activeTank.fishWeight * 5) + (activeTank.thickness * 3) + (activeTank.temp * 0.1);
-      setCookingTime(Math.round(estimated));
-      setPredictionStatus('AI model ran (offline mode)');
+    if (nextState) {
+      setPredictionStatus('AI Analyzing...');
+      showNotification('🤖 AI analyzing parameters and initiating process...');
+
+      try {
+        const response = await fetch('http://localhost:5000/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fish_weight: activeTank.fishWeight,
+            thickness: activeTank.thickness,
+            temperature: activeTank.temp,
+            max_capacity: activeTank.maxCapacity
+          })
+        });
+        if (!response.ok) throw new Error('Server error');
+        const data = await response.json();
+
+        const calculatedWater = Number(data.water_liters ?? activeTank.thickness);
+        const waterLiters = Math.min(calculatedWater, activeTank.maxCapacity);
+        const saltGrams = Number(data.salt_grams ?? waterLiters * 1000 * 0.03);
+        const predictedTime = data.predicted_cooking_time || 45;
+
+        setCookingTime(predictedTime);
+        setAiWaterLiters(waterLiters);
+        setAiSaltGrams(saltGrams);
+        setRemainingSeconds(predictedTime * 60);
+        setPredictionStatus('AI Optimized & Running');
+      } catch (error) {
+        const estimated = Math.round((activeTank.fishWeight * 5) + (activeTank.thickness * 3));
+        const waterLiters = Math.min(activeTank.thickness, activeTank.maxCapacity);
+        const saltGrams = waterLiters * 1000 * 0.03;
+
+        setCookingTime(estimated);
+        setAiWaterLiters(waterLiters);
+        setAiSaltGrams(saltGrams);
+        setRemainingSeconds(estimated * 60);
+        setPredictionStatus('Offline AI Mode Active');
+      }
+
+      setTanks(prev => prev.map(t => t.id === activeId ? { ...t, isCycling: true, temp: 28.0 } : t));
+      setCurrentWaterFlow(0.0);
+      setCurrentSaltFlow(0.0);
+      setProcessState('WATER_FILLING');
+      showNotification('🌊 Water filling initiated (Pump 1 ON)...');
+    } else {
+      setTanks(prev => prev.map(t => t.id === activeId ? { ...t, isCycling: false } : t));
+      setProcessState('STANDBY');
+      setPredictionStatus('AI Automation Ready');
+      showNotification('⏹ Process cycle terminated by user.');
     }
   };
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTanks(prev => prev.map(t => {
-        if (t.isCycling && t.temp < 100) {
-          const tankLoad = t.fishWeight + t.thickness;
-          const speed = Math.max(0.1, 0.6 - (tankLoad * 0.02));
-          return { ...t, temp: Math.min(100, t.temp + speed) };
-        }
-        if (!t.isCycling && t.temp > 100) return { ...t, temp: Math.max(100, t.temp - 0.3) };
-        return t;
-      }));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const finalWaterLiters = activeTank.thickness;
-  const requiredSaltGrams = finalWaterLiters * 1000 * 0.03;
-  const requiredSaltKg = requiredSaltGrams / 1000;
-  const saltWaterMl = requiredSaltGrams;
-  const waterPct = Math.min((finalWaterLiters / 20) * 100, 100);
-  const saltPct = Math.min((requiredSaltKg / 2) * 100, 100);
+    let interval = null;
+    if (activeTank.isCycling) {
+      if (processState === 'WATER_FILLING') {
+        interval = setInterval(() => {
+          setCurrentWaterFlow(prev => {
+            if (prev >= aiWaterLiters) {
+              clearInterval(interval);
+              setProcessState('SALT_ADDING');
+              showNotification('🧂 Water level target reached. Adding 3% salt mixture...');
+              return aiWaterLiters;
+            }
+            return Number((prev + 0.2).toFixed(2));
+          });
+        }, 300);
+      } else if (processState === 'SALT_ADDING') {
+        interval = setInterval(() => {
+          setCurrentSaltFlow(prev => {
+            const targetSaltLiters = aiSaltGrams / 1000.0;
+            if (prev >= targetSaltLiters) {
+              clearInterval(interval);
+              setProcessState('HEATING');
+              showNotification('🔥 Heating element activated. Raising temperature to 100°C...');
+              return targetSaltLiters;
+            }
+            return Number((prev + 0.05).toFixed(2));
+          });
+        }, 300);
+      } else if (processState === 'HEATING') {
+        interval = setInterval(() => {
+          setTanks(prev => prev.map(t => {
+            if (t.id === activeId) {
+              if (t.temp >= 100.0) {
+                clearInterval(interval);
+                setProcessState('BOILING_ACTIVE');
+                showNotification('♨️ Target temperature 100°C reached. Boiling timer started!');
+                return { ...t, temp: 100.0 };
+              }
+              return { ...t, temp: Number((t.temp + 4.0).toFixed(1)) };
+            }
+            return t;
+          }));
+        }, 300);
+      } else if (processState === 'BOILING_ACTIVE') {
+        interval = setInterval(() => {
+          setRemainingSeconds(prev => {
+            if (prev <= 1) {
+              clearInterval(interval);
+              setTanks(tList => tList.map(t => t.id === activeId ? { ...t, isCycling: false } : t));
+              setProcessState('STANDBY');
+              showNotification('🎉 Boiling process completed successfully.');
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      }
+    }
+    return () => clearInterval(interval);
+  }, [activeTank.isCycling, processState, aiWaterLiters, aiSaltGrams, activeId]);
 
   const fieldStyle = {
-    width: '100%',
-    padding: '11px 12px 11px 38px',
-    border: `1px solid ${C.border}`,
-    borderRadius: '8px',
-    background: C.bg,
-    fontWeight: 600,
-    fontSize: '14px',
-    fontFamily: FONT_MONO,
-    color: C.ink,
-    outline: 'none',
-    boxSizing: 'border-box'
+    width: '100%', padding: '12px 14px 12px 42px', border: `1px solid ${C.border}`,
+    borderRadius: 12, background: C.surface, fontWeight: 600, fontSize: 14,
+    fontFamily: FONT_MONO, color: C.ink, outline: 'none', boxSizing: 'border-box',
+    transition: 'all 0.2s ease'
   };
 
   const labelStyle = {
-    fontSize: '10.5px', color: C.muted, display: 'block', marginBottom: '7px',
-    fontWeight: 700, letterSpacing: '1px', fontFamily: FONT_DISPLAY, textTransform: 'uppercase'
+    fontSize: 11, color: C.muted, display: 'block', marginBottom: 8,
+    fontWeight: 700, letterSpacing: '0.5px', fontFamily: FONT_DISPLAY, textTransform: 'uppercase'
   };
 
+  const presetBtnStyle = (val) => ({
+    padding: '8px 14px',
+    borderRadius: 10,
+    border: activeTank.maxCapacity === val ? `1.5px solid ${C.primary}` : `1px solid ${C.border}`,
+    background: activeTank.maxCapacity === val ? C.primarySoft : C.surface,
+    color: activeTank.maxCapacity === val ? C.primaryDark : C.muted,
+    fontSize: 13,
+    fontWeight: 700,
+    fontFamily: FONT_MONO,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    flex: 1
+  });
+
   return (
-    <div style={{ backgroundColor: C.bg, minHeight: '100vh', padding: '24px', fontFamily: FONT_BODY, color: C.ink }}>
+    <div style={{ backgroundColor: C.bg, minHeight: '100vh', padding: '24px 32px', fontFamily: FONT_BODY, color: C.ink }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button { opacity: 1; }
-        input:focus { border-color: ${C.teal} !important; box-shadow: 0 0 0 3px rgba(14,111,92,0.12); }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .bd-input:focus { border-color: ${C.primary} !important; background: #FFFFFF !important; box-shadow: 0 0 0 3px ${C.primarySoft}; }
+        .bd-grid { display: grid; grid-template-columns: 1fr 1.15fr 1.35fr; gap: 20px; }
+        @media (max-width: 1024px) { .bd-grid { grid-template-columns: 1fr; } }
+        .tab-btn:hover { background: ${C.surface}; color: ${C.primary} !important; }
       `}</style>
 
-      {/* Header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: '18px', flexWrap: 'wrap', gap: '14px',
-        background: C.panel, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '14px 18px'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '13px' }}>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div style={{
+          position: 'fixed', top: 24, right: 24, zIndex: 1000, maxWidth: 380,
+          background: '#0F172A', color: '#FFFFFF', padding: '16px 20px', borderRadius: 14,
+          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
+          display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, fontWeight: 600,
+          borderLeft: `4px solid ${C.primary}`, animation: 'slideIn 0.25s ease'
+        }}>
+          <Bell size={18} color={C.primary} style={{ flexShrink: 0 }} />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* POPUP MODAL FOR TANK SETTINGS */}
+      {isSettingsOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000, animation: 'fadeIn 0.2s ease'
+        }}>
           <div style={{
-            width: 44, height: 44, borderRadius: '9px',
-            background: `linear-gradient(155deg, ${C.tealDark}, ${C.teal})`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18), 0 4px 10px -4px rgba(14,111,92,0.5)'
+            background: C.cardBg, width: '100%', maxWidth: 440, borderRadius: 20,
+            padding: 24, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: `1px solid ${C.border}`, position: 'relative'
           }}>
-            <Flame size={21} color="#FFFFFF" strokeWidth={2} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 700, fontFamily: FONT_DISPLAY, color: C.ink }}>
+                <Settings size={18} color={C.primary} /> Tank Vessel Settings
+              </div>
+              <button onClick={() => setIsSettingsOpen(false)} style={{ border: 'none', background: C.surface, borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.muted }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Max Tank Water Capacity (Liters)</label>
+              <div style={{ position: 'relative' }}>
+                <Box size={16} color={C.primary} style={{ position: 'absolute', left: 14, top: 14 }} />
+                <input className="bd-input" type="number" step="0.5" value={activeTank.maxCapacity}
+                  onChange={(e) => handleInputChange('maxCapacity', e.target.value)} style={{ ...fieldStyle, borderColor: C.primarySoft }} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, fontFamily: FONT_DISPLAY, marginBottom: 8, textTransform: 'uppercase' }}>Quick Presets</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[3.0, 4.5, 6.0, 10.0].map((cap) => (
+                  <button key={cap} onClick={() => handleInputChange('maxCapacity', cap)} style={presetBtnStyle(cap)}>
+                    {cap} L
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={() => setIsSettingsOpen(false)} style={{
+              width: '100%', padding: '12px 16px', borderRadius: 12, border: 'none',
+              background: C.primary, color: '#FFFFFF', fontWeight: 700, fontSize: 13,
+              fontFamily: FONT_DISPLAY, cursor: 'pointer', boxShadow: `0 4px 12px ${C.primarySoft}`
+            }}>
+              Save & Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <Card style={{ padding: '18px 24px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 50, height: 50, borderRadius: 14,
+            background: `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF',
+            boxShadow: `0 8px 16px -4px ${C.primary}`
+          }}>
+            <Waves size={24} />
           </div>
           <div>
-            <div style={{ fontSize: '17.5px', fontWeight: 700, letterSpacing: '-0.2px', fontFamily: FONT_DISPLAY }}>
-              Fish Boiler Control System
+            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: FONT_DISPLAY, letterSpacing: '-0.3px' }}>
+              AquaSense Industrial Dashboard
             </div>
-            <div style={{ fontSize: '11px', color: C.muted, fontWeight: 600, fontFamily: FONT_MONO, letterSpacing: '0.4px', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-              <CircleDot size={11} color={C.teal} /> MACHINE HMI &middot; RANDOM FOREST PREDICTION ENGINE
+            <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginTop: 3 }}>
+              Maldive Fish Boiling AI Unit · Active: <span style={{ color: C.primary, fontWeight: 700 }}>{activeTank.name}</span>
             </div>
           </div>
         </div>
 
-        {/* Tank Tabs */}
-        <div style={{ display: 'flex', gap: '5px', background: C.bg, padding: '5px', borderRadius: '24px', border: `1px solid ${C.border}` }}>
-          {tanks.map(t => (
-            <button key={t.id} onClick={() => setActiveId(t.id)} style={{
-              padding: '8px 16px', borderRadius: '18px', border: 'none', cursor: 'pointer',
-              background: activeId === t.id ? C.teal : 'transparent',
-              color: activeId === t.id ? '#FFFFFF' : C.muted,
-              fontSize: '12px', fontWeight: 700, fontFamily: FONT_DISPLAY, letterSpacing: '0.2px',
-              transition: 'all 0.15s'
-            }}>
-              {t.name}
-            </button>
-          ))}
-          <button onClick={addTank} style={{
-            padding: '8px 14px', borderRadius: '18px', border: `1px dashed ${C.faint}`, cursor: 'pointer',
-            background: 'transparent', color: C.teal, fontSize: '12px', fontWeight: 700, fontFamily: FONT_DISPLAY,
-            display: 'flex', alignItems: 'center', gap: '5px'
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Tank Settings Button */}
+          <button onClick={() => setIsSettingsOpen(true)} style={{
+            padding: '8px 16px', borderRadius: 12, border: `1px solid ${C.border}`,
+            background: C.cardBg, color: C.ink, fontWeight: 700, fontSize: 12,
+            display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT_DISPLAY, cursor: 'pointer',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.02)', transition: 'all 0.2s ease'
           }}>
-            <Plus size={13} strokeWidth={2.5} /> Add Tank
+            <Settings size={15} color={C.primary} /> Tank Settings ({activeTank.maxCapacity}L)
           </button>
-        </div>
-      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) minmax(280px, 1.15fr) minmax(300px, 1.4fr)', gap: '18px' }}>
+          <div style={{ display: 'flex', gap: 6, background: C.surface, padding: 6, borderRadius: 16, border: `1px solid ${C.border}` }}>
+            {tanks.map(t => (
+              <button key={t.id} className="tab-btn" onClick={() => setActiveId(t.id)} style={{
+                padding: '8px 18px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: activeId === t.id ? C.primary : 'transparent',
+                color: activeId === t.id ? '#FFFFFF' : C.muted,
+                fontSize: 12, fontWeight: 700, fontFamily: FONT_DISPLAY, transition: 'all 0.2s ease'
+              }}>
+                {t.name}
+              </button>
+            ))}
+            <button onClick={addTank} style={{
+              padding: '8px 16px', borderRadius: 12, border: `1px dashed ${C.faint}`, cursor: 'pointer',
+              background: 'transparent', color: C.primary, fontWeight: 700, fontSize: 12,
+              display: 'flex', alignItems: 'center', gap: 6, fontFamily: FONT_DISPLAY
+            }}>
+              <Plus size={14} /> Tank
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Process Rail */}
+      <Card style={{ padding: '22px 28px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <SectionLabel color={C.primary}>Process Stage Progression</SectionLabel>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700,
+            color: activeTank.isCycling ? C.primary : C.muted, fontFamily: FONT_MONO
+          }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: activeTank.isCycling ? C.primary : C.faint,
+              boxShadow: activeTank.isCycling ? `0 0 0 4px ${C.primarySoft}` : 'none'
+            }} />
+            {activeTank.isCycling ? 'SYSTEM ACTIVE' : 'STANDBY'}
+          </div>
+        </div>
+        <ProcessRail processState={processState} isCycling={activeTank.isCycling} />
+      </Card>
+
+      <div className="bd-grid">
 
         {/* INPUT PANEL */}
-        <Panel accent={C.teal} style={{ padding: '22px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <Card style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1 }}>
+            <div>
+              <SectionLabel color={C.primary}>Batch Parameters</SectionLabel>
+
+              <div style={{ marginBottom: 18 }}>
+                <label style={labelStyle}>Fish Batch Weight (kg)</label>
+                <div style={{ position: 'relative' }}>
+                  <Scale size={16} color={C.muted} style={{ position: 'absolute', left: 14, top: 14 }} />
+                  <input className="bd-input" type="number" step="0.1" value={activeTank.fishWeight}
+                    onChange={(e) => handleInputChange('fishWeight', e.target.value)} style={fieldStyle} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <label style={labelStyle}>Max Fish Thickness (mm)</label>
+                <div style={{ position: 'relative' }}>
+                  <Ruler size={16} color={C.muted} style={{ position: 'absolute', left: 14, top: 14 }} />
+                  <input className="bd-input" type="number" step="0.1" value={activeTank.thickness}
+                    onChange={(e) => handleInputChange('thickness', e.target.value)} style={fieldStyle} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 8 }}>
+                <label style={labelStyle}>Water Temperature (&deg;C)</label>
+                <div style={{ position: 'relative' }}>
+                  <Thermometer size={16} color={C.muted} style={{ position: 'absolute', left: 14, top: 14 }} />
+                  <input className="bd-input" type="number" step="0.1" value={activeTank.temp}
+                    onChange={(e) => handleInputChange('temp', e.target.value)} style={fieldStyle} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 20, padding: '12px 14px', background: C.surface, borderRadius: 12, border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, fontFamily: FONT_DISPLAY, marginBottom: 4 }}>AI STATUS</div>
+              <div style={{ fontSize: 12, color: C.ink, fontWeight: 600, fontFamily: FONT_MONO, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Cpu size={14} color={C.primary} /> {predictionStatus}
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* LIVE READINGS PANEL */}
+        <Card style={{ padding: 24 }}>
+          <SectionLabel color={C.water}>Live Telemetry</SectionLabel>
+
+          <div style={{ textAlign: 'center', padding: '12px 0 20px', borderBottom: `1px solid ${C.border}`, marginBottom: 20 }}>
+            <div style={{ fontSize: 44, color: C.ink, fontWeight: 700, fontFamily: FONT_MONO, lineHeight: 1 }}>
+              {activeTank.temp.toFixed(1)}<span style={{ fontSize: 22, color: C.muted }}>&deg;C</span>
+            </div>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12,
+              padding: '6px 14px', borderRadius: 20,
+              background: activeTank.isCycling ? C.dangerSoft : C.surface,
+              border: `1px solid ${activeTank.isCycling ? '#FCA5A5' : C.border}`
+            }}>
+              {activeTank.isCycling ? <Flame size={13} color={C.danger} /> : <Snowflake size={13} color={C.muted} />}
+              <span style={{ fontSize: 11, color: activeTank.isCycling ? C.danger : C.muted, fontWeight: 700, fontFamily: FONT_DISPLAY }}>
+                {processState.replace('_', ' ')}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: C.ink }}>
+                <Droplet size={14} color={C.water} /> Water Intake Level
+              </div>
+              <div style={{ fontSize: 13, fontFamily: FONT_MONO, fontWeight: 700, color: C.water }}>
+                {currentWaterFlow.toFixed(2)} <span style={{ color: C.muted, fontWeight: 500 }}>/ {aiWaterLiters} L</span>
+              </div>
+            </div>
+            <FlowBar value={currentWaterFlow} max={aiWaterLiters || 1} color={C.water} softColor={C.waterSoft} />
+          </div>
+
           <div>
-            <div style={{ fontSize: '10.5px', color: C.teal, fontWeight: 700, marginBottom: '18px', letterSpacing: '1.4px', fontFamily: FONT_DISPLAY }}>
-              ⚙ SCIENTIFIC INPUTS
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>Fish Batch Weight (kg)</label>
-              <div style={{ position: 'relative' }}>
-                <Scale size={16} color={C.muted} style={{ position: 'absolute', left: 12, top: 13 }} />
-                <input type="number" step="0.1" value={activeTank.fishWeight} onChange={(e) => handleInputChange('fishWeight', e.target.value)} style={fieldStyle} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: C.ink }}>
+                <FlaskConical size={14} color={C.salt} /> Salt Mixture (3%)
+              </div>
+              <div style={{ fontSize: 13, fontFamily: FONT_MONO, fontWeight: 700, color: C.salt }}>
+                {(currentSaltFlow * 1000).toFixed(0)} <span style={{ color: C.muted, fontWeight: 500 }}>/ {aiSaltGrams} g</span>
               </div>
             </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>Max Fish Thickness (mm)</label>
-              <div style={{ position: 'relative' }}>
-                <Ruler size={16} color={C.muted} style={{ position: 'absolute', left: 12, top: 13 }} />
-                <input type="number" step="0.1" value={activeTank.thickness} onChange={(e) => handleInputChange('thickness', e.target.value)} style={fieldStyle} />
-              </div>
-              <div style={{ fontSize: '10px', color: C.faint, marginTop: '5px', fontWeight: 500, fontFamily: FONT_MONO }}>Uses a 1:1 water ratio</div>
-            </div>
-
-            <div style={{ marginBottom: '4px' }}>
-              <label style={labelStyle}>Temperature (&deg;C)</label>
-              <div style={{ position: 'relative' }}>
-                <Thermometer size={16} color={C.muted} style={{ position: 'absolute', left: 12, top: 13 }} />
-                <input type="number" step="0.1" value={activeTank.temp} onChange={(e) => handleInputChange('temp', e.target.value)} style={fieldStyle} />
-              </div>
-            </div>
+            <FlowBar value={currentSaltFlow * 1000} max={aiSaltGrams || 1} color={C.salt} softColor={C.saltSoft} />
           </div>
+        </Card>
 
-          <div style={{ marginTop: '18px' }}>
-            <button onClick={runAIModelPrediction} style={{
-              width: '100%', padding: '13px', borderRadius: '9px', border: 'none',
-              background: C.ink, color: '#FFFFFF', fontWeight: 700, fontSize: '12.5px', fontFamily: FONT_DISPLAY,
-              letterSpacing: '0.3px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-            }}>
-              <Cpu size={16} /> RUN AI MODEL
-            </button>
-            <div style={{ fontSize: '10.5px', textAlign: 'center', color: C.muted, marginTop: '9px', fontWeight: 500, fontFamily: FONT_MONO }}>
-              {predictionStatus}
-            </div>
-          </div>
-        </Panel>
-
-        {/* STATUS PANEL */}
-        <Panel accent={activeTank.isCycling ? C.danger : C.steel} style={{ padding: '22px', textAlign: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '16px' }}>
-            <Gauge size={13} color={C.muted} />
-            <div style={{ fontSize: '10.5px', color: C.muted, fontWeight: 700, letterSpacing: '1.2px', fontFamily: FONT_DISPLAY }}>
-              {activeTank.name.toUpperCase()} STATUS
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start' }}>
-            <div>
-              <BoilerIcon waterPct={waterPct} isBoiling={activeTank.isCycling} />
-              <div style={{ fontSize: '13px', fontWeight: 700, color: C.ink, marginTop: '6px', fontFamily: FONT_DISPLAY }}>Tank A</div>
-              <div style={{ fontSize: '13.5px', fontWeight: 600, color: C.muted, fontFamily: FONT_MONO }}>{finalWaterLiters.toFixed(2)} L</div>
-            </div>
-
-            <div>
-              <SaltIcon saltPct={saltPct} />
-              <div style={{ fontSize: '13px', fontWeight: 700, color: C.ink, marginTop: '6px', fontFamily: FONT_DISPLAY }}>Salt A</div>
-              <div style={{ fontSize: '13.5px', fontWeight: 600, color: C.muted, fontFamily: FONT_MONO }}>{saltWaterMl.toFixed(0)} ml</div>
-            </div>
-          </div>
-
-          <div style={{ fontSize: '38px', color: C.ink, fontWeight: 700, marginTop: '20px', fontFamily: FONT_MONO, letterSpacing: '-1px' }}>
-            {activeTank.temp.toFixed(1)}&deg;C
-          </div>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px',
-            padding: '5px 13px', borderRadius: '20px',
-            background: activeTank.isCycling ? '#FBEAE8' : C.bg,
-            border: `1px solid ${activeTank.isCycling ? '#F0C6C1' : C.border}`
-          }}>
-            {activeTank.isCycling ? <Flame size={12} color={C.danger} /> : <Snowflake size={12} color={C.muted} />}
-            <span style={{ fontSize: '10px', color: activeTank.isCycling ? C.danger : C.muted, letterSpacing: '1px', fontWeight: 700, fontFamily: FONT_DISPLAY }}>
-              {activeTank.isCycling ? 'ACTIVE BOILING' : 'SYSTEM STANDBY'}
-            </span>
-          </div>
-        </Panel>
-
-        {/* CALCULATION & SENSORS PANEL */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-
-          {/* Live Gauges */}
-          <Panel accent={C.steel} style={{ padding: '20px' }}>
-            <div style={{ fontSize: '10.5px', color: C.muted, fontWeight: 700, letterSpacing: '1.2px', marginBottom: '14px', fontFamily: FONT_DISPLAY }}>
-              REAL-TIME PARAMETERS
-            </div>
+        {/* METRICS & AUTOMATION CONTROL */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <Card style={{ padding: 20 }}>
+            <SectionLabel color={C.muted}>AI Target Distribution</SectionLabel>
             <div style={{ display: 'flex', justifyContent: 'space-around' }}>
-              <GaugeArc value={activeTank.fishWeight} max={10} color={C.teal} unit="kg" label="BATCH" />
-              <GaugeArc value={finalWaterLiters} max={20} color={C.steel} unit="L" label="WATER" />
-              <GaugeArc value={requiredSaltGrams} max={500} color={C.amber} unit="g" label="SALT" />
+              <GaugeArc value={currentWaterFlow} max={activeTank.maxCapacity} color={C.water} unit="L" label="WATER" />
+              <GaugeArc value={currentSaltFlow * 1000} max={activeTank.maxCapacity * 30} color={C.salt} unit="g" label="SALT" />
+              <GaugeArc value={activeTank.fishWeight} max={10} color={C.primary} unit="kg" label="BATCH" />
             </div>
-          </Panel>
+          </Card>
 
-          {/* Results Summary — machined "ticket" plate */}
-          <div style={{
-            position: 'relative',
-            background: `linear-gradient(165deg, ${C.ink}, #1F2E3A)`,
-            padding: '20px 22px', borderRadius: '10px', color: '#FFFFFF',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 24px -16px rgba(0,0,0,0.5)'
-          }}>
-            <Rivet top={8} left={8} /><Rivet top={8} right={8} />
-            <Rivet bottom={8} left={8} /><Rivet bottom={8} right={8} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          {/* Countdown Card when Boiling */}
+          {processState === 'BOILING_ACTIVE' && (
+            <Card style={{ padding: '16px 20px', background: C.dangerSoft, border: '1px solid #FCA5A5', textAlign: 'center' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: C.danger, letterSpacing: '1px', fontFamily: FONT_DISPLAY, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Timer size={14} /> BOILING IN PROGRESS (REMAINING TIME)
+              </div>
+              <div style={{ fontSize: 30, fontWeight: 700, fontFamily: FONT_MONO, color: C.danger, margin: '6px 0' }}>
+                {Math.floor(remainingSeconds / 60)}:{('0' + (remainingSeconds % 60)).slice(-2)} Mins
+              </div>
+              <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>
+                Maintaining water temperature at 100°C...
+              </div>
+            </Card>
+          )}
+
+          <Card style={{ padding: '16px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
               <div>
-                <div style={{ fontSize: '9.5px', color: '#8FA0AE', letterSpacing: '1.2px', fontWeight: 700, fontFamily: FONT_DISPLAY }}>TOTAL WATER</div>
-                <div style={{ fontSize: '27px', fontWeight: 700, fontFamily: FONT_MONO }}>{finalWaterLiters.toFixed(2)} L</div>
+                <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.5px' }}>TARGET WATER</div>
+                <div style={{ fontSize: 19, fontWeight: 700, fontFamily: FONT_MONO, color: C.water, marginTop: 2 }}>{aiWaterLiters.toFixed(1)} L</div>
               </div>
-
               <div style={{
-                background: `linear-gradient(155deg, ${C.tealDark}, ${C.teal})`, padding: '9px 16px', borderRadius: '8px',
-                color: '#FFFFFF', fontWeight: 700, fontSize: '12.5px', fontFamily: FONT_DISPLAY,
-                display: 'flex', alignItems: 'center', gap: '7px'
+                background: C.primarySoft, color: C.primaryDark, padding: '8px 14px', borderRadius: 10,
+                fontWeight: 700, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6
               }}>
-                <Droplet size={14} /> {cookingTime} MIN COOK TIME
+                <Gauge size={14} /> {cookingTime} MIN
               </div>
-
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '9.5px', color: '#8FA0AE', letterSpacing: '1.2px', fontWeight: 700, fontFamily: FONT_DISPLAY }}>SALT (3%)</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, fontFamily: FONT_MONO }}>{requiredSaltGrams.toFixed(0)}g</div>
+                <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.5px' }}>TARGET SALT</div>
+                <div style={{ fontSize: 19, fontWeight: 700, fontFamily: FONT_MONO, color: C.salt, marginTop: 2 }}>{aiSaltGrams.toFixed(0)} g</div>
               </div>
             </div>
+          </Card>
 
-            <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '16px 0' }} />
-            <div style={{ fontSize: '10.5px', color: '#8FA0AE', fontWeight: 500, fontFamily: FONT_MONO }}>
-              Prediction from random forest machine learning model.
-            </div>
-          </div>
-
-          {/* Control Button — hazard-edge start/stop */}
-          <button onClick={toggleCycle} style={{
-            width: '100%', padding: '15px', borderRadius: '10px',
-            border: activeTank.isCycling ? `1px solid #E2A79E` : `1px solid ${C.tealDark}`,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-            background: activeTank.isCycling
-              ? 'repeating-linear-gradient(135deg, #FBEAE8, #FBEAE8 10px, #F6DAD6 10px, #F6DAD6 20px)'
-              : `linear-gradient(155deg, ${C.tealDark}, ${C.teal})`,
-            transition: 'all 0.15s', position: 'relative', overflow: 'hidden'
+          <button onClick={startAutomatedBoiling} style={{
+            width: '100%', padding: '18px 20px', borderRadius: 14,
+            border: activeTank.isCycling ? `1px solid #FCA5A5` : 'none',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+            background: activeTank.isCycling ? C.dangerSoft : `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`,
+            boxShadow: activeTank.isCycling ? 'none' : `0 10px 20px -6px ${C.primary}`,
+            transition: 'all 0.2s ease'
           }}>
-            {activeTank.isCycling ? <Square size={15} color="#8A2E22" fill="#8A2E22" /> : <Play size={15} color="#FFFFFF" fill="#FFFFFF" />}
-            <span style={{
-              fontWeight: 700, fontSize: '13px', letterSpacing: '0.4px', fontFamily: FONT_DISPLAY,
-              color: activeTank.isCycling ? '#8A2E22' : '#FFFFFF'
-            }}>
-              {activeTank.isCycling ? 'TERMINATE BOILING CYCLE' : 'INITIATE BOILING CYCLE'}
+            {activeTank.isCycling ? <Square size={16} color={C.danger} /> : <Play size={16} color="#FFFFFF" />}
+            <span style={{ fontWeight: 700, fontSize: 13.5, color: activeTank.isCycling ? C.danger : '#FFFFFF', fontFamily: FONT_DISPLAY, letterSpacing: '0.5px' }}>
+              {activeTank.isCycling ? 'TERMINATE CYCLE' : 'START AI AUTOMATED BOILING'}
             </span>
           </button>
         </div>

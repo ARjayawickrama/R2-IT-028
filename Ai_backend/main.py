@@ -8,6 +8,7 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 import torchvision.models as models
 from PIL import Image
+import paho.mqtt.client as mqtt
 
 # Global Configuration
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -18,6 +19,21 @@ IMG_SIZE = 224
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
+
+# MQTT Configuration
+MQTT_BROKER = "broker.hivemq.com"  # Public broker එකක් (ඔබට අවශ්‍ය නම් local broker එකක් පාවිච්චි කරන්න පුළුවන්)
+MQTT_PORT = 1883
+MQTT_TOPIC = "fish/sorting/command"
+
+mqtt_client = mqtt.Client()
+
+def init_mqtt():
+    try:
+        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        mqtt_client.loop_start()
+        print("✅ Connected to MQTT Broker successfully!")
+    except Exception as e:
+        print(f"❌ MQTT Connection failed: {str(e)}")
 
 # Preprocessing transforms
 preprocess = transforms.Compose([
@@ -33,6 +49,7 @@ model = None
 async def lifespan(app: FastAPI):
     # Startup
     global model
+    init_mqtt()
     try:
         base = models.efficientnet_b0(weights=None)
         in_f = base.classifier[1].in_features
@@ -51,12 +68,14 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    # Shutdown (cleanup if needed)
+    # Shutdown
+    mqtt_client.loop_stop()
+    mqtt_client.disconnect()
     print("🔄 Application shutting down...")
 
 app = FastAPI(
     title="Dried Fish Quality Classification API",
-    description="API for classifying the quality of dried fish using an EfficientNet model.",
+    description="API for classifying the quality of dried fish using an EfficientNet model with MQTT automation.",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -64,62 +83,74 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"],  # React frontend
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    allow_origins=["*"], 
+    allow_credentials=True, 
+    allow_methods=["*"], 
+    allow_headers=["*"], 
+) 
 
-@app.get("/health")
-def health_check():
-    """Health check endpoint to ensure API is running."""
-    if model is None:
-        return JSONResponse(status_code=503, content={"status": "unhealthy", "message": "Model not loaded"})
-    return {"status": "healthy", "message": "API and model are up and running"}
+@app.get("/health") 
+def health_check(): 
+    if model is None: 
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "message": "Model not loaded"}) 
+    return {"status": "healthy", "message": "API and model are up and running"} 
 
-@app.post("/predict")
-async def predict_fish_quality(file: UploadFile = File(...)):
-    """Upload an image of dried fish and get a quality prediction."""
-    if model is None:
-        raise HTTPException(status_code=503, detail="Model is not loaded.")
-        
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File provided is not an image.")
+@app.post("/predict") 
+async def predict_fish_quality(file: UploadFile = File(...)): 
+    if model is None: 
+        raise HTTPException(status_code=503, detail="Model is not loaded.") 
+         
+    if not file.content_type.startswith("image/"): 
+        raise HTTPException(status_code=400, detail="File provided is not an image.") 
 
-    try:
-        image_bytes = await file.read()
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid image file: {str(e)}")
+    try: 
+        image_bytes = await file.read() 
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB") 
+    except Exception as e: 
+        raise HTTPException(status_code=400, detail=f"Invalid image file: {str(e)}") 
 
-    try:
-        # Preprocessing
-        tensor = preprocess(image).unsqueeze(0).to(DEVICE)
+    try: 
+        # Preprocessing 
+        tensor = preprocess(image).unsqueeze(0).to(DEVICE) 
 
-        # Inference
-        with torch.no_grad():
-            output = model(tensor)
-            probs = torch.softmax(output, dim=1).squeeze()
+        # Inference 
+        with torch.no_grad(): 
+            output = model(tensor) 
+            probs = torch.softmax(output, dim=1).squeeze() 
 
-        confidence, pred_idx = probs.max(dim=0)
-        confidence = confidence.item()
-        pred_class = CLASS_NAMES[pred_idx.item()]
-        
-        # Postprocessing
-        all_probs = {cls: round(p.item(), 4) for cls, p in zip(CLASS_NAMES, probs)}
+        confidence, pred_idx = probs.max(dim=0) 
+        confidence = confidence.item() 
+        raw_pred_class = CLASS_NAMES[pred_idx.item()] 
+         
+        # Postprocessing & Mapping to ESP32 Commands
+        all_probs = {cls: round(p.item(), 4) for cls, p in zip(CLASS_NAMES, probs)} 
         status = "OK" if confidence >= UNCERTAINTY_THR else "UNCERTAIN"
         
-        return {
-            "class": pred_class if status == "OK" else "UNCERTAIN",
-            "confidence": round(confidence, 4),
-            "probabilities": all_probs,
-            "status": status,
-            "raw_class": pred_class,
-            "filename": file.filename
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+        command_sent = None
+        if status == "OK":
+            if raw_pred_class == "High_Quality":
+                command_sent = "A"
+            elif raw_pred_class == "Medium_Quality":
+                command_sent = "B"
+            elif raw_pred_class == "Low_Quality":
+                command_sent = "C"
+            
+            # Publish command to MQTT Broker
+            if command_sent:
+                mqtt_client.publish(MQTT_TOPIC, command_sent)
+                print(f"📤 MQTT Published Command: {command_sent} for Quality: {raw_pred_class}")
 
-if __name__ == "__main__":
-    import uvicorn
+        return { 
+            "class": raw_pred_class if status == "OK" else "UNCERTAIN", 
+            "confidence": round(confidence, 4), 
+            "probabilities": all_probs, 
+            "status": status, 
+            "command_triggered": command_sent,
+            "filename": file.filename 
+        } 
+    except Exception as e: 
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}") 
+
+if __name__ == "__main__": 
+    import uvicorn 
     uvicorn.run(app, host="0.0.0.0", port=8000)
