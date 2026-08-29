@@ -90,11 +90,11 @@ async def predict(file: UploadFile = File(...)):
             top_detection = detections[0]["class"]
             
             if top_detection == "Alagoduwa_Very_fresh":
-                triggered_command = "D"
+                triggered_command = "A"
             elif top_detection == "Alagoduwa_fresh":
-                triggered_command = "E"
+                triggered_command = "B"
             elif top_detection == "Alagoduwa_Spoiled":
-                triggered_command = "F"
+                triggered_command = "C"
             
             # Publish command to MQTT broker if valid
             if triggered_command:
