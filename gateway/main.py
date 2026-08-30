@@ -3,18 +3,24 @@ API Gateway for Fish Processing System
 Routes all microservices through a single entry point
 """
 
+import sys
+import logging
+import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import httpx
-import logging
+
+# Configure UTF-8 encoding for Windows stdout/stderr
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Microservice URLs
-FISH_FRESHNESS_API = "http://127.0.0.1:8000"
-QUALITY_API = "http://127.0.0.1:8001"
+AI_BACKEND_API = "http://127.0.0.1:8000"
 BOILER_API = "http://127.0.0.1:5000"
 
 # Create FastAPI app
@@ -40,19 +46,12 @@ async def health_check():
     services = {}
     
     async with httpx.AsyncClient() as client:
-        # Check Fish Freshness API
+        # Check Unified AI Backend (Fish Freshness & Quality)
         try:
-            response = await client.get(f"{FISH_FRESHNESS_API}/", timeout=5)
-            services["fish_freshness_api"] = "✅ Running" if response.status_code == 200 else "⚠️ Error"
+            response = await client.get(f"{AI_BACKEND_API}/health", timeout=5)
+            services["ai_backend"] = "✅ Running" if response.status_code == 200 else "⚠️ Error"
         except Exception as e:
-            services["fish_freshness_api"] = f"❌ Offline: {str(e)}"
-        
-        # Check Quality API
-        try:
-            response = await client.get(f"{QUALITY_API}/health", timeout=5)
-            services["quality_api"] = "✅ Running" if response.status_code == 200 else "⚠️ Error"
-        except Exception as e:
-            services["quality_api"] = f"❌ Offline: {str(e)}"
+            services["ai_backend"] = f"❌ Offline: {str(e)}"
         
         # Check Boiler API
         try:
@@ -72,10 +71,10 @@ async def fish_freshness_home():
     """Get Fish Freshness API info"""
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{FISH_FRESHNESS_API}/")
+            response = await client.get(f"{AI_BACKEND_API}/")
             return response.json()
         except Exception as e:
-            raise HTTPException(status_code=503, detail=f"Fish Freshness API error: {str(e)}")
+            raise HTTPException(status_code=503, detail=f"AI Backend error: {str(e)}")
 
 @app.post("/fish-freshness/predict")
 async def fish_freshness_predict(file: UploadFile = File(...)):
@@ -83,12 +82,12 @@ async def fish_freshness_predict(file: UploadFile = File(...)):
     async with httpx.AsyncClient() as client:
         try:
             files = {"file": (file.filename, await file.read(), file.content_type)}
-            response = await client.post(f"{FISH_FRESHNESS_API}/predict", files=files)
+            response = await client.post(f"{AI_BACKEND_API}/freshness/predict", files=files)
             if response.status_code != 200:
                 raise HTTPException(status_code=response.status_code, detail=response.text)
             return response.json()
         except httpx.RequestError as e:
-            raise HTTPException(status_code=503, detail=f"Fish Freshness API unavailable: {str(e)}")
+            raise HTTPException(status_code=503, detail=f"AI Backend unavailable: {str(e)}")
 
 # ==================== Quality Classification API Routes ====================
 @app.get("/quality/health")
@@ -96,7 +95,7 @@ async def quality_health():
     """Check quality API health"""
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{QUALITY_API}/health")
+            response = await client.get(f"{AI_BACKEND_API}/quality/health")
             return response.json()
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Quality API error: {str(e)}")
@@ -107,12 +106,12 @@ async def quality_predict(file: UploadFile = File(...)):
     async with httpx.AsyncClient() as client:
         try:
             files = {"file": (file.filename, await file.read(), file.content_type)}
-            response = await client.post(f"{QUALITY_API}/predict", files=files)
+            response = await client.post(f"{AI_BACKEND_API}/quality/predict", files=files)
             if response.status_code != 200:
                 raise HTTPException(status_code=response.status_code, detail=response.text)
             return response.json()
         except httpx.RequestError as e:
-            raise HTTPException(status_code=503, detail=f"Quality API unavailable: {str(e)}")
+            raise HTTPException(status_code=503, detail=f"AI Backend unavailable: {str(e)}")
 
 # ==================== Boiler Control API Routes ====================
 @app.post("/boiler/predict")
@@ -142,20 +141,13 @@ async def gateway_info():
             "status": "Running"
         },
         "microservices": {
-            "fish_freshness_api": {
-                "url": FISH_FRESHNESS_API,
-                "type": "YOLO-based detection",
+            "ai_backend": {
+                "url": AI_BACKEND_API,
+                "type": "Unified AI Backend (EfficientNet Quality Classification & YOLO Freshness Detection)",
                 "endpoints": [
-                    f"GET {FISH_FRESHNESS_API}/",
-                    f"POST {FISH_FRESHNESS_API}/predict"
-                ]
-            },
-            "quality_api": {
-                "url": QUALITY_API,
-                "type": "EfficientNet classification with MQTT",
-                "endpoints": [
-                    f"GET {QUALITY_API}/health",
-                    f"POST {QUALITY_API}/predict"
+                    f"GET {AI_BACKEND_API}/health",
+                    f"POST {AI_BACKEND_API}/freshness/predict",
+                    f"POST {AI_BACKEND_API}/quality/predict"
                 ]
             },
             "boiler_api": {

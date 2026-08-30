@@ -3,5 +3,6 @@ uvicorn
 python-multipart
 torch
 torchvision
+ultralytics
 Pillow
 paho-mqtt

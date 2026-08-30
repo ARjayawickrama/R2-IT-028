@@ -104,7 +104,7 @@ router.post("/analyze", upload.single("image"), async (req, res) => {
       req.file.originalname
     );
 
-    const mlApiUrl = process.env.QUALITY_API_URL || "http://localhost:8001/predict";
+    const mlApiUrl = process.env.QUALITY_API_URL || "http://localhost:8000/quality/predict";
 
     const mlResponse = await axios.post(
       mlApiUrl,
