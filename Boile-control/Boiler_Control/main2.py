@@ -6,7 +6,7 @@ app = Flask(__name__)
 CORS(app)  # React එකෙන් එන requests පිළිගැනීමට
 
 # Train කරපු Random Forest Model එක Load කරගැනීම
-model = joblib.load('boiler_rf_model.pkl')
+model = joblib.load('SUPER_FISH_COOKING_ENSEMBLE_MODEL.pkl')
 
 @app.route('/predict', methods=['POST'])
 def predict():
