@@ -1,11 +1,44 @@
 import json
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import threading
+import time
+
 import paho.mqtt.client as mqtt
 
-app = FastAPI()
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import WebSocket, WebSocketDisconnect
 
-# React UI එක සමඟ CORS ගැටළු මඟහරවා ගැනීමට
+
+# =====================================================
+# MQTT CONFIG
+# =====================================================
+
+MQTT_BROKER = "broker.hivemq.com"
+MQTT_PORT = 1883
+
+MQTT_DATA_TOPIC = \
+    "fish-inspector/shenith/data"
+
+MQTT_STATUS_TOPIC = \
+    "fish-inspector/shenith/status"
+
+MQTT_COMMAND_TOPIC = \
+    "fish-inspector/shenith/command"
+
+MQTT_SCAN_TOPIC = \
+    "fish-inspector/shenith/scan"
+
+
+# =====================================================
+# FASTAPI
+# =====================================================
+
+app = FastAPI(
+    title="Fish Inspector API",
+    version="1.0.0"
+)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,80 +47,379 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- MQTT වින්‍යාසය (MQTT Configuration) ---
-MQTT_BROKER = "broker.hivemq.com"  # නොමිලේ පරීක්ෂා කිරීමට Public Broker එකක් (ඔබට අවශ්‍ය නම් Local IP එකක් දිය හැක)
-MQTT_PORT = 1883
 
-TOPIC_SENSOR_DATA = "aquasense/sensor/data"       # ESP32 එකෙන් සෙන්සර් දත්ත එන Topic එක
-TOPIC_CMD_CALIBRATE = "aquasense/command/calibrate" # Calibration විධානය යවන Topic එක
-TOPIC_CMD_MEASURE = "aquasense/command/measure"     # මැනීමට විධානය යවන Topic එක
+# =====================================================
+# CURRENT DEVICE DATA
+# =====================================================
 
-# තාවකාලික විචල්‍යයන්
-latest_distance = 0.0
-baseline_distance = 0.0
-last_weight = 0.500
+latest_data = {
+    "weight": 0.0,
+    "peak_mm": 0,
+    "peak_cm": 0.0,
+    "left_cm": 0.0,
+    "center_cm": 0.0,
+    "right_cm": 0.0,
+    "scanning": False,
+    "sensor_ok": False,
+}
 
-# MQTT සම්බන්ධ වූ විට ක්‍රියාත්මක වන කොටස
-def on_connect(client, userdata, flags, rc):
-    print("MQTT Broker සමඟ සාර්ථකව සම්බන්ධ විය! කේතය: " + str(rc))
-    client.subscribe(TOPIC_SENSOR_DATA)
 
-# ESP32 එකෙන් MQTT හරහා එන පණිවිඩ ලැබෙන විට ක්‍රියාත්මක වන කොටස
-def on_message(client, userdata, msg):
-    global latest_distance
+latest_status = {
+    "status": "OFFLINE",
+    "scanning": False,
+}
+
+
+# =====================================================
+# WEBSOCKET CLIENTS
+# =====================================================
+
+websocket_clients = set()
+
+
+# =====================================================
+# BROADCAST
+# =====================================================
+
+async def broadcast(message):
+
+    dead_clients = []
+
+    for websocket in websocket_clients:
+
+        try:
+
+            await websocket.send_json(
+                message
+            )
+
+        except Exception:
+
+            dead_clients.append(
+                websocket
+            )
+
+    for websocket in dead_clients:
+
+        websocket_clients.discard(
+            websocket
+        )
+
+
+# =====================================================
+# MQTT CALLBACK
+# =====================================================
+
+def on_connect(
+    client,
+    userdata,
+    connect_flags,
+    reason_code,
+    properties
+):
+
+    print(
+        "MQTT connected:",
+        reason_code
+    )
+
+    client.subscribe(
+        MQTT_DATA_TOPIC
+    )
+
+    client.subscribe(
+        MQTT_STATUS_TOPIC
+    )
+
+
+def on_disconnect(
+    client,
+    userdata,
+    disconnect_flags,
+    reason_code,
+    properties
+):
+
+    print(
+        "MQTT disconnected:",
+        reason_code
+    )
+
+
+def on_message(
+    client,
+    userdata,
+    message
+):
+
+    global latest_data
+    global latest_status
+
     try:
-        payload = json.loads(msg.payload.decode())
-        if "distance" in payload:
-            latest_distance = float(payload["distance"])
-    except Exception as e:
-        print("MQTT පණිවිඩය කියවීමේ දෝෂයක්:", e)
 
-# MQTT Client සැකසීම
-client = mqtt.Client()
-client.on_connect = on_connect
-client.on_message = on_message
+        payload = message.payload.decode()
+
+        data = json.loads(payload)
+
+        print(
+            "MQTT:",
+            message.topic,
+            data
+        )
+
+        if (
+            message.topic ==
+            MQTT_DATA_TOPIC
+        ):
+
+            latest_data = data
+
+            # Broadcast from MQTT thread
+            # to FastAPI event loop
+
+            import asyncio
+
+            asyncio.run_coroutine_threadsafe(
+                broadcast({
+                    "type": "data",
+                    "data": data
+                }),
+                app.state.loop
+            )
+
+        elif (
+            message.topic ==
+            MQTT_STATUS_TOPIC
+        ):
+
+            latest_status = data
+
+            import asyncio
+
+            asyncio.run_coroutine_threadsafe(
+                broadcast({
+                    "type": "status",
+                    "data": data
+                }),
+                app.state.loop
+            )
+
+    except Exception as e:
+
+        print(
+            "MQTT message error:",
+            e
+        )
+
+
+# =====================================================
+# MQTT CLIENT
+# =====================================================
+
+mqtt_client = mqtt.Client(
+    mqtt.CallbackAPIVersion.VERSION2,
+    client_id="fish-inspector-fastapi"
+)
+
+mqtt_client.on_connect = on_connect
+mqtt_client.on_disconnect = on_disconnect
+mqtt_client.on_message = on_message
+
+
+def mqtt_loop():
+
+    while True:
+
+        try:
+
+            if not mqtt_client.is_connected():
+
+                print(
+                    "Connecting to MQTT broker..."
+                )
+
+                mqtt_client.connect(
+                    MQTT_BROKER,
+                    MQTT_PORT,
+                    60
+                )
+
+            mqtt_client.loop_forever()
+
+        except Exception as e:
+
+            print(
+                "MQTT error:",
+                e
+            )
+
+            time.sleep(5)
+
+
+# =====================================================
+# STARTUP
+# =====================================================
 
 @app.on_event("startup")
-def startup_event():
-    try:
-        client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        client.loop_start() # පසුබිමේ MQTT ලූප් එක ධාවනය කිරීම
-    except Exception as e:
-        print("MQTT සම්බන්ධ වීමට නොහැකි විය:", e)
+async def startup_event():
 
-# 1. Setting / Calibration Endpoint එක
-@app.get("/calibrate")
-def set_calibration():
-    global baseline_distance, latest_distance
-    
-    # MQTT හරහා ESP32 එකට හිස් බිම මැනීමට විධානය යැවීම
-    client.publish(MQTT_CMD_CALIBRATE, json.dumps({"command": "calibrate"}))
-    
-    baseline_distance = latest_distance if latest_distance > 0 else 15.0
-    return {"ok": True, "baseline_cm": baseline_distance}
+    import asyncio
 
-# 2. Measurement / Start Endpoint එක
-@app.get("/measure")
-def measure_thickness():
-    global baseline_distance, latest_distance, last_weight
-    
-    # MQTT හරහා ESP32 එකට මැනීමට විධානය යැවීම
-    client.publish(MQTT_CMD_MEASURE, json.dumps({"command": "measure"}))
-    
-    current_distance = latest_distance if latest_distance > 0 else 12.0
-    
-    # මාලු ඝනකම ගණනය කිරීම (Baseline - Current)
-    fish_thickness = 0
-    if baseline_distance > 0:
-        fish_thickness = baseline_distance - current_distance
-        if fish_thickness < 0:
-            fish_thickness = 0
-    else:
-        fish_thickness = current_distance
+    app.state.loop = asyncio.get_running_loop()
+
+    thread = threading.Thread(
+        target=mqtt_loop,
+        daemon=True
+    )
+
+    thread.start()
+
+    print(
+        "MQTT background thread started"
+    )
+
+
+# =====================================================
+# ROOT
+# =====================================================
+
+@app.get("/")
+def root():
 
     return {
-        "ok": True,
-        "peak_cm": fish_thickness,
-        "weight": last_weight
+        "name": "Fish Inspector API",
+        "status": "running",
+        "mqtt": MQTT_BROKER
     }
 
+
+# =====================================================
+# CURRENT DATA
+# =====================================================
+
+@app.get("/api/data")
+def get_data():
+
+    return latest_data
+
+
+# =====================================================
+# CURRENT STATUS
+# =====================================================
+
+@app.get("/api/status")
+def get_status():
+
+    return latest_status
+
+
+# =====================================================
+# SEND MQTT COMMAND
+# =====================================================
+
+def send_command(command):
+
+    result = mqtt_client.publish(
+        MQTT_COMMAND_TOPIC,
+        command,
+        qos=0
+    )
+
+    return result.rc == mqtt.MQTT_ERR_SUCCESS
+
+
+# =====================================================
+# START SCAN
+# =====================================================
+
+@app.post("/api/scan/start")
+def start_scan():
+
+    success = send_command(
+        "START_SCAN"
+    )
+
+    return {
+        "success": success,
+        "command": "START_SCAN"
+    }
+
+
+# =====================================================
+# FIND CENTER
+# =====================================================
+
+@app.post("/api/center")
+def find_center():
+
+    success = send_command(
+        "FIND_CENTER"
+    )
+
+    return {
+        "success": success,
+        "command": "FIND_CENTER"
+    }
+
+
+# =====================================================
+# STOP MOTOR
+# =====================================================
+
+@app.post("/api/motor/stop")
+def stop_motor():
+
+    success = send_command(
+        "STOP_MOTOR"
+    )
+
+    return {
+        "success": success,
+        "command": "STOP_MOTOR"
+    }
+
+
+# =====================================================
+# WEBSOCKET
+# =====================================================
+
+@app.websocket("/ws")
+async def websocket_endpoint(
+    websocket: WebSocket
+):
+
+    await websocket.accept()
+
+    websocket_clients.add(
+        websocket
+    )
+
+    try:
+
+        # Send current state immediately
+
+        await websocket.send_json({
+            "type": "data",
+            "data": latest_data
+        })
+
+        await websocket.send_json({
+            "type": "status",
+            "data": latest_status
+        })
+
+        while True:
+
+            await websocket.receive_text()
+
+    except WebSocketDisconnect:
+
+        websocket_clients.discard(
+            websocket
+        )
+
+    except Exception:
+
+        websocket_clients.discard(
+            websocket
+        )

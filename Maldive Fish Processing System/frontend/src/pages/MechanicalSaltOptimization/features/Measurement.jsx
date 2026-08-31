@@ -1,4 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
+import {
+  createMeasurement,
+  getMeasurementsBySession,
+  deleteMeasurement,
+  deleteSessionMeasurements,
+} from "../../../services/measurementApi";
 
 const BACKEND_IP = "http://localhost:8000";
 
@@ -7,36 +13,152 @@ const FONT_MONO = "'IBM Plex Mono', 'Courier New', monospace";
 
 // ---- Single White / Light Color Theme -----------------------------------
 const C = {
-  ink: "#F4F7F6",          // Main page background
-  panel: "#FFFFFF",        // Primary container background
-  panel2: "#F8FAFA",       // Secondary background (cards, gauge container)
-  line: "#E2E8F0",        // Subdued border lines
-  lineBright: "#CBD5E1",  // Prominent border lines
-  foam: "#0F172A",        // Primary text color (dark navy/slate)
-  mist: "#475569",        // Secondary text color (medium slate)
-  mistDim: "#94A3B8",     // Subtle text / disabled elements
-  teal: "#0D9488",        // Primary brand accent color
-  tealDim: "#CCFBF1",     // Light teal tint
-  amber: "#D97706",        // Secondary accent color (weight/scanning)
-  amberDim: "#FEF3C7",    // Light amber tint
-  coral: "#E11D48",        // Error state color
-  coralDim: "#FFE4E6",    // Light error tint
-  overlay: "rgba(15, 23, 42, 0.45)", // Backdrop overlay
+  ink: "#F4F7F6",
+  panel: "#FFFFFF",
+  panel2: "#F8FAFA",
+  line: "#E2E8F0",
+  lineBright: "#CBD5E1",
+  foam: "#0F172A",
+  mist: "#475569",
+  mistDim: "#94A3B8",
+  teal: "#0D9488",
+  tealDim: "#CCFBF1",
+  amber: "#D97706",
+  amberDim: "#FEF3C7",
+  coral: "#E11D48",
+  coralDim: "#FFE4E6",
+  overlay: "rgba(15, 23, 42, 0.45)",
 };
 
 export default function App() {
-  const [thickness, setThickness] = useState(0);
+  // Session management
+  const [sessionId] = useState("session_" + Date.now());
+  const [batchId] = useState("batch_" + new Date().toISOString().slice(0, 10));
+
+  // State for data from backend
+  const [peakCm, setPeakCm] = useState(0);
   const [weight, setWeight] = useState(0);
-  const [baselineCm, setBaselineCm] = useState(0);
-  const [connState, setConnState] = useState("idle");
-  const [statusLine, setStatusLine] = useState("Awaiting calibration");
-  const [dialog, setDialog] = useState(null);
+  const [leftCm, setLeftCm] = useState(0);
+  const [centerCm, setCenterCm] = useState(0);
+  const [rightCm, setRightCm] = useState(0);
   const [scanning, setScanning] = useState(false);
+  const [sensorOk, setSensorOk] = useState(false);
+
+  // Status and UI state
+  const [connState, setConnState] = useState("idle");
+  const [statusLine, setStatusLine] = useState("Waiting for data...");
+  const [dialog, setDialog] = useState(null);
   const [pulseTick, setPulseTick] = useState(0);
   const [reports, setReports] = useState([]);
   const [showReports, setShowReports] = useState(false);
+  const [loadingReports, setLoadingReports] = useState(false);
   const pulseRef = useRef(null);
+  const wsRef = useRef(null);
 
+  // ---- WebSocket connection ----
+  useEffect(() => {
+    const connectWebSocket = () => {
+      const ws = new WebSocket(`ws://${BACKEND_IP.replace("http://", "")}/ws`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setConnState("ok");
+        setStatusLine("Connected to server");
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "data") {
+            const d = msg.data;
+            setPeakCm(d.peak_cm || 0);
+            setWeight(d.weight || 0);
+            setLeftCm(d.left_cm || 0);
+            setCenterCm(d.center_cm || 0);
+            setRightCm(d.right_cm || 0);
+            setScanning(d.scanning || false);
+            setSensorOk(d.sensor_ok || false);
+            
+            // Save completed reading to MongoDB
+            if (!d.scanning && d.peak_cm > 0) {
+              const measurementData = {
+                sessionId,
+                batchId,
+                readingType: "measurement",
+                value: d.peak_cm,
+                unit: "cm",
+                status: d.peak_cm > 10 ? "warning" : "normal",
+                notes: `Thickness: ${d.peak_cm.toFixed(1)}cm, Weight: ${d.weight.toFixed(3)}kg`,
+                location: "Sensor Bay",
+              };
+
+              createMeasurement(measurementData)
+                .then((res) => {
+                  // Add to local reports for display
+                  setReports((prev) => [
+                    {
+                      id: res.measurement._id,
+                      thickness: `${d.peak_cm.toFixed(1)} cm`,
+                      weight: `${d.weight.toFixed(3)} kg`,
+                      date: new Date().toLocaleTimeString(),
+                    },
+                    ...prev,
+                  ]);
+                })
+                .catch((err) => console.error("Error saving measurement:", err));
+            }
+          } else if (msg.type === "status") {
+            const st = msg.data;
+            setScanning(st.scanning || false);
+            setStatusLine(st.status || "Unknown");
+          }
+        } catch (e) {
+          console.error("WS parse error", e);
+        }
+      };
+
+      ws.onclose = () => {
+        setConnState("error");
+        setStatusLine("WebSocket disconnected");
+        setTimeout(connectWebSocket, 3000);
+      };
+
+      ws.onerror = (err) => {
+        console.error("WebSocket error", err);
+        ws.close();
+      };
+    };
+
+    connectWebSocket();
+
+    // Initial REST sync
+    fetch(`${BACKEND_IP}/api/data`)
+      .then((res) => res.json())
+      .then((data) => {
+        setPeakCm(data.peak_cm || 0);
+        setWeight(data.weight || 0);
+        setLeftCm(data.left_cm || 0);
+        setCenterCm(data.center_cm || 0);
+        setRightCm(data.right_cm || 0);
+        setScanning(data.scanning || false);
+        setSensorOk(data.sensor_ok || false);
+      })
+      .catch(() => setConnState("error"));
+
+    fetch(`${BACKEND_IP}/api/status`)
+      .then((res) => res.json())
+      .then((data) => {
+        setStatusLine(data.status || "Unknown");
+        setScanning(data.scanning || false);
+      })
+      .catch(() => {});
+
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+    };
+  }, []);
+
+  // ---- Pulse animation for scanning ----
   useEffect(() => {
     if (scanning) {
       pulseRef.current = setInterval(() => setPulseTick((t) => t + 1), 900);
@@ -46,6 +168,7 @@ export default function App() {
     return () => pulseRef.current && clearInterval(pulseRef.current);
   }, [scanning]);
 
+  // ---- Keyboard shortcut: ESC to close modals ----
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") {
@@ -57,99 +180,115 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const handleCalibrate = async () => {
+  // ---- API call wrappers ----
+  const sendCommand = async (endpoint, commandName) => {
     try {
-      setConnState("working");
-      setStatusLine("Checking container state\u2026");
-      const res = await fetch(`${BACKEND_IP}/calibrate`);
+      const res = await fetch(`${BACKEND_IP}${endpoint}`, { method: "POST" });
       const data = await res.json();
-
-      if (data.ok) {
-        setBaselineCm(data.baseline);
-        setConnState("ok");
-        setStatusLine(`Base set at ${data.baseline.toFixed(1)} cm`);
+      if (data.success) {
         setDialog({
           tone: "success",
-          title: "Base Calibration Complete",
-          en: `Empty baseline distance recorded at ${data.baseline.toFixed(1)} cm.`,
-          si: "\u0dc0\u0dd2\u0dc0\u0dd2\u0dad \u0db6\u0dd2\u0db8 \u0dc3\u0dd0\u0da7\u0dc0\u0dd3\u0db8 \u0dc3\u0dcf\u0dbb\u0dca\u0dae\u0d9a \u0dc0\u0dd2\u0dba.",
+          title: "Command Sent",
+          en: `${commandName} command was sent successfully.`,
+          si: "විධානය සාර්ථකව යවන ලදී.",
         });
       } else {
-        setConnState("error");
-        setStatusLine("Calibration blocked");
         setDialog({
           tone: "error",
-          title: "Container Not Empty",
-          en: data.message || "Container is not empty. Clear it and try again.",
-          si: "\u0db6\u0dbb\u0d9a\u0dca \u0d87\u0dad\u0dd0\u0dba\u0dd2 \u0d89\u0dad\u0dd2\u0db1\u0dca \u0db6\u0dcf\u0da2\u0db1\u0dba \u0dc4\u0dd2\u0dc4\u0dd2\u0dbd \u0d9a\u0dbb\u0dcf \u0db1\u0dd0\u0dc0\u0dad \u0dc3\u0dd0\u0d9a\u0dc3\u0dd6.",
+          title: "Command Failed",
+          en: `Failed to send ${commandName}. Check connection.`,
+          si: "විධානය අසාර්ථක විය.",
         });
       }
     } catch (err) {
-      console.error(err);
-      setConnState("error");
-      setStatusLine("Cannot reach sensor unit");
       setDialog({
         tone: "error",
-        title: "Connection Failed",
-        en: "Connection to the sensor failed. Confirm the machine is powered and on the network.",
-        si: "\u0dc3\u0dd0\u0db1\u0dca\u0dc3\u0dbb\u0dba \u0dc3\u0db8\u0d9f \u0dc3\u0db8\u0dca\u0db6\u0db1\u0dca\u0da0 \u0dc0\u0dd3\u0db8 \u0dc0\u0dd2\u0dc3\u0dca\u0db8\u0dd2\u0dad\u0dd2\u0dba\u0dd2.",
+        title: "Network Error",
+        en: `Could not reach the backend.`,
+        si: "බැක්එන්ඩ් එකට සම්බන්ධ විය නොහැක.",
       });
     }
   };
 
-  const handleStart = async () => {
-    if (baselineCm <= 0) {
-      setDialog({
-        tone: "error",
-        title: "Base Calibration Required",
-        en: "Set the empty base distance before initiating measurement.",
-        si: "\u0db4\u0dc5\u0db8\u0dd4\u0dc0 \u0db7\u0dcf\u0da2\u0db1\u0dba\u0dda \u0dc4\u0dd2\u0dc3\u0dca \u0db6\u0dd2\u0db8 \u0dc3\u0dd0\u0da7\u0dca \u0d9a\u0dbb\u0db1\u0dca\u0db1.",
-      });
-      return;
-    }
+  const handleStartScan = () => sendCommand("/api/scan/start", "START_SCAN");
+  const handleFindCenter = () => sendCommand("/api/center", "FIND_CENTER");
+  const handleStopMotor = () => sendCommand("/api/motor/stop", "STOP_MOTOR");
 
+  // Load session measurements from MongoDB
+  const loadSessionReports = async () => {
+    setLoadingReports(true);
     try {
-      setScanning(true);
-      setConnState("working");
-      setStatusLine("Measuring fish profile\u2026");
-      const res = await fetch(`${BACKEND_IP}/measure`);
-      const data = await res.json();
-
-      const currentDistance = data.distance || 0;
-      let calculatedThickness = baselineCm - currentDistance;
-      if (calculatedThickness < 0) calculatedThickness = 0;
-      const newWeight = data.weight || 0;
-
-      setThickness(calculatedThickness);
-      setWeight(newWeight);
-      setConnState("ok");
-      setStatusLine("Measurement complete");
-
-      setReports((prev) => [
-        {
-          id: Date.now(),
-          thickness: `${calculatedThickness.toFixed(1)} cm`,
-          weight: `${newWeight.toFixed(3)} kg`,
-          date: new Date().toLocaleTimeString(),
-        },
-        ...prev,
-      ]);
-    } catch (err) {
-      console.error(err);
-      setConnState("error");
-      setStatusLine("Measurement failed");
+      const response = await getMeasurementsBySession(sessionId);
+      const formattedReports = (response.measurements || []).map((m) => ({
+        id: m._id,
+        thickness: `${m.value.toFixed(1)} ${m.unit}`,
+        weight: m.notes ? m.notes.split("Weight: ")[1]?.split(",")[0] || "N/A" : "N/A",
+        date: new Date(m.timestamp).toLocaleTimeString(),
+      }));
+      setReports(formattedReports);
+    } catch (error) {
+      console.error("Error loading reports:", error);
       setDialog({
         tone: "error",
-        title: "Reading Interrupted",
-        en: "The reading did not complete. Check hardware connections and try again.",
-        si: "\u0d9a\u0dd2\u0dba\u0dc0\u0dad\u0dca\u0dad\u0d9a\u0dda \u0db8\u0dd2\u0dc0\u0dd3\u0db8 \u0dc3\u0dd2\u0daf\u0dd4 \u0dc0\u0dd3\u0db8\u0dc0\u0dda \u0d87\u0dad\u0dd2. \u0db1\u0dd0\u0dc0\u0dad \u0db4\u0dbb\u0dd3\u0d9a\u0dca\u0dc2\u0dcf \u0d9a\u0dbb\u0db1\u0dca\u0db1.",
+        title: "Load Failed",
+        en: "Failed to load session reports",
+        si: "සැසිය නාvancetreports පූරණය කළ නොහැක",
       });
     } finally {
-      setScanning(false);
+      setLoadingReports(false);
     }
   };
 
-  const ratio = baselineCm > 0 ? Math.min(thickness / baselineCm, 1) : 0;
+  // Delete a single report
+  const handleDeleteReport = async (reportId) => {
+    if (!window.confirm("Delete this reading?")) return;
+
+    try {
+      await deleteMeasurement(reportId);
+      setReports((prev) => prev.filter((r) => r.id !== reportId));
+      setDialog({
+        tone: "success",
+        title: "Deleted",
+        en: "Reading deleted successfully",
+        si: "කියවුම සාර්ථකව මකා දැමුවා",
+      });
+    } catch (error) {
+      console.error("Error deleting report:", error);
+      setDialog({
+        tone: "error",
+        title: "Delete Failed",
+        en: "Failed to delete reading",
+        si: "කියවුම මකා දැමීම අසාර්ථක විය",
+      });
+    }
+  };
+
+  // Delete all session reports
+  const handleDeleteAllReports = async () => {
+    if (!window.confirm(`Delete all ${reports.length} readings?`)) return;
+
+    try {
+      await deleteSessionMeasurements(sessionId);
+      setReports([]);
+      setDialog({
+        tone: "success",
+        title: "Cleared",
+        en: "All readings deleted successfully",
+        si: "සියලු කියවීම් සාර්ථකව මකා දැමුවා",
+      });
+    } catch (error) {
+      console.error("Error deleting all reports:", error);
+      setDialog({
+        tone: "error",
+        title: "Clear Failed",
+        en: "Failed to delete all readings",
+        si: "සියලු කියවීම් මකා දැමීම අසාර්ථක විය",
+      });
+    }
+  };
+
+  const maxDisplay = 15;
+  const ratio = Math.min(peakCm / maxDisplay, 1);
   const gaugeTop = 26;
   const gaugeBottom = 210;
   const gaugeSpan = gaugeBottom - gaugeTop;
@@ -201,7 +340,6 @@ export default function App() {
             <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5, marginTop: 2, color: C.foam }}>AquaSense Pro</h1>
           </div>
 
-          {/* Status indicator */}
           <div
             className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full"
             style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}
@@ -250,7 +388,7 @@ export default function App() {
                     className="aq-pulse-line"
                   />
                 )}
-                {baselineCm > 0 && (
+                {peakCm > 0 && (
                   <>
                     <rect x="25" y={surfaceY - 7} width="80" height="14" rx="7" fill={C.tealDim} stroke={C.teal} strokeWidth="1.5" />
                     <text x="65" y={surfaceY + 3} fontFamily={FONT_MONO} fontSize="9" fill={C.teal} textAnchor="middle" fontWeight="600">
@@ -258,16 +396,11 @@ export default function App() {
                     </text>
                   </>
                 )}
-                {baselineCm > 0 && thickness > 0 && (
-                  <>
-                    <line x1="12" y1={surfaceY} x2="12" y2={gaugeBottom} stroke={C.teal} strokeWidth="1.5" />
-                    <line x1="8" y1={surfaceY} x2="16" y2={surfaceY} stroke={C.teal} strokeWidth="1.5" />
-                    <line x1="8" y1={gaugeBottom} x2="16" y2={gaugeBottom} stroke={C.teal} strokeWidth="1.5" />
-                  </>
-                )}
               </svg>
-              <div className="mt-3" style={{ fontFamily: FONT_MONO, fontSize: 11, color: C.mist }}>
-                Baseline: <span style={{ color: C.foam, fontWeight: 600 }}>{baselineCm.toFixed(1)} cm</span>
+              <div className="mt-3 flex gap-4 text-xs" style={{ fontFamily: FONT_MONO, color: C.mist }}>
+                <span>Left: <strong style={{ color: C.foam }}>{leftCm.toFixed(1)} cm</strong></span>
+                <span>Center: <strong style={{ color: C.foam }}>{centerCm.toFixed(1)} cm</strong></span>
+                <span>Right: <strong style={{ color: C.foam }}>{rightCm.toFixed(1)} cm</strong></span>
               </div>
             </div>
 
@@ -275,9 +408,9 @@ export default function App() {
             <div className="sm:col-span-3 flex flex-col justify-between h-full gap-5">
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-xl p-5" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-                  <div style={{ fontSize: 10, letterSpacing: 2, color: C.mist, fontWeight: 700 }}>THICKNESS</div>
+                  <div style={{ fontSize: 10, letterSpacing: 2, color: C.mist, fontWeight: 700 }}>PEAK THICKNESS</div>
                   <div style={{ fontFamily: FONT_MONO, fontSize: 38, fontWeight: 600, color: C.teal, lineHeight: 1.1, marginTop: 4 }}>
-                    {thickness.toFixed(1)}
+                    {peakCm.toFixed(1)}
                     <span style={{ fontSize: 14, color: C.mist, marginLeft: 4, fontWeight: 400 }}>cm</span>
                   </div>
                 </div>
@@ -290,16 +423,9 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-3 gap-3.5">
                 <button
-                  onClick={handleCalibrate}
-                  className="aq-btn rounded-xl py-3.5 px-4 text-sm font-semibold tracking-wide"
-                  style={{ background: C.panel2, border: `1px solid ${C.lineBright}`, color: C.foam, cursor: "pointer" }}
-                >
-                  Set Empty Base
-                </button>
-                <button
-                  onClick={handleStart}
+                  onClick={handleStartScan}
                   disabled={scanning}
                   className="aq-btn rounded-xl py-3.5 px-4 text-sm font-bold tracking-wide"
                   style={{
@@ -310,16 +436,33 @@ export default function App() {
                     boxShadow: scanning ? "none" : `0 4px 12px ${C.teal}40`,
                   }}
                 >
-                  {scanning ? "Measuring\u2026" : "Start Measurement"}
+                  {scanning ? "Scanning…" : "Start Scan"}
+                </button>
+                <button
+                  onClick={handleFindCenter}
+                  className="aq-btn rounded-xl py-3.5 px-4 text-sm font-semibold"
+                  style={{ background: C.panel2, border: `1px solid ${C.lineBright}`, color: C.foam, cursor: "pointer" }}
+                >
+                  Find Center
+                </button>
+                <button
+                  onClick={handleStopMotor}
+                  className="aq-btn rounded-xl py-3.5 px-4 text-sm font-semibold"
+                  style={{ background: C.coralDim, border: `1px solid ${C.coral}`, color: C.coral, cursor: "pointer" }}
+                >
+                  Stop Motor
                 </button>
               </div>
 
               <button
-                onClick={() => setShowReports(true)}
+                onClick={() => {
+                  loadSessionReports();
+                  setShowReports(true);
+                }}
                 className="aq-btn rounded-xl py-3 px-4 text-sm font-medium flex items-center justify-center gap-2.5"
                 style={{ background: "transparent", border: `1px dashed ${C.lineBright}`, color: C.mist, cursor: "pointer" }}
               >
-                <span>View Session Log</span>
+                <span>{loadingReports ? "Loading..." : "View Session Log"}</span>
                 <span
                   style={{
                     fontFamily: FONT_MONO,
@@ -385,7 +528,7 @@ export default function App() {
                     fontSize: 16,
                   }}
                 >
-                  {dialog.tone === "error" ? "!" : dialog.tone === "success" ? "\u2713" : "i"}
+                  {dialog.tone === "error" ? "!" : dialog.tone === "success" ? "✓" : "i"}
                 </div>
                 <div>
                   <div style={{ fontSize: 17, fontWeight: 700, color: C.foam }}>{dialog.title}</div>
@@ -440,21 +583,33 @@ export default function App() {
                 </div>
                 <div style={{ fontSize: 12, color: C.mistDim, marginTop: 2 }}>{reports.length} records captured during this session</div>
               </div>
-              <button
-                onClick={() => setShowReports(false)}
-                aria-label="Close"
-                className="aq-btn rounded-full flex items-center justify-center"
-                style={{ width: 32, height: 32, background: C.panel2, color: C.mist, border: `1px solid ${C.line}`, cursor: "pointer" }}
-              >
-                {"\u2715"}
-              </button>
+              <div className="flex items-center gap-2">
+                {reports.length > 0 && (
+                  <button
+                    onClick={handleDeleteAllReports}
+                    className="aq-btn rounded-full flex items-center justify-center px-3 py-2 text-xs"
+                    style={{ background: C.coralDim, color: C.coral, border: `1px solid ${C.coral}`, cursor: "pointer", fontWeight: 600 }}
+                    title="Delete all readings"
+                  >
+                    🗑️ Delete All
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowReports(false)}
+                  aria-label="Close"
+                  className="aq-btn rounded-full flex items-center justify-center"
+                  style={{ width: 32, height: 32, background: C.panel2, color: C.mist, border: `1px solid ${C.line}`, cursor: "pointer" }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="aq-scroll" style={{ overflowY: "auto" }}>
               <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
                 <thead style={{ position: "sticky", top: 0, background: C.panel2, zIndex: 1 }}>
                   <tr>
-                    {["Thickness", "Weight", "Timestamp"].map((h) => (
+                    {["Thickness", "Weight", "Timestamp", "Action"].map((h) => (
                       <th
                         key={h}
                         style={{
@@ -475,7 +630,7 @@ export default function App() {
                 <tbody>
                   {reports.length === 0 ? (
                     <tr>
-                      <td colSpan="3" style={{ padding: "48px 24px", textAlign: "center", color: C.mistDim, fontSize: 13 }}>
+                      <td colSpan="4" style={{ padding: "48px 24px", textAlign: "center", color: C.mistDim, fontSize: 13 }}>
                         No readings recorded yet. Perform a measurement to display logs here.
                       </td>
                     </tr>
@@ -490,6 +645,16 @@ export default function App() {
                         </td>
                         <td style={{ fontFamily: FONT_MONO, fontSize: 12, color: C.mist, padding: "12px 24px" }}>
                           {r.date}
+                        </td>
+                        <td style={{ padding: "12px 24px" }}>
+                          <button
+                            onClick={() => handleDeleteReport(r.id)}
+                            className="aq-btn rounded px-2 py-1 text-xs"
+                            style={{ background: C.coralDim, color: C.coral, border: `1px solid ${C.coral}`, cursor: "pointer", fontWeight: 600 }}
+                            title="Delete this reading"
+                          >
+                            🗑️ Delete
+                          </button>
                         </td>
                       </tr>
                     ))
