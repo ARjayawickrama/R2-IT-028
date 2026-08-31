@@ -1,371 +1,595 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef } from 'react';
+import mqtt from 'mqtt';
+import { 
+  Scale, 
+  Droplets, 
+  Timer, 
+  CheckCircle, 
+  Play, 
+  RotateCcw, 
+  AlertCircle, 
+  FileDown, 
+  Fish, 
+  Thermometer, 
+  Eye, 
+  Wifi, 
+  WifiOff,
+  Flame,
+  Fan,
+  Activity
+} from 'lucide-react';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function rnd(min, max) { return +(min + Math.random() * (max - min)).toFixed(2); }
-function genSeries(len, min, max) {
-  const arr = [rnd(min, max)];
-  for (let i = 1; i < len; i++) {
-    const prev = arr[i - 1];
-    const next = prev + (Math.random() - 0.48) * (max - min) * 0.14;
-    arr.push(+(Math.min(max, Math.max(min, next)).toFixed(2)));
+// ── Master Batch Registry ───────────────────────────────────────────
+const INITIAL_BATCHES = [
+  { id: 'B-001', name: 'Dried Anchovy', initialWeight: 1000, currentWeight: 1000, temp: 0, quality: 'Grade A', initialMoisture: 78.67, targetMoisture: 20, moistureTrend: [78.67] },
+  { id: 'B-002', name: 'Salted Mackerel', initialWeight: 1000, currentWeight: 1000, temp: 0, quality: 'Grade A', initialMoisture: 78.67, targetMoisture: 20, moistureTrend: [78.67] },
+  { id: 'B-003', name: 'Dried Sardine', initialWeight: 1200, currentWeight: 1200, temp: 0, quality: 'Grade B', initialMoisture: 75.00, targetMoisture: 20, moistureTrend: [75.00] },
+  { id: 'B-004', name: 'Dried Tuna', initialWeight: 2000, currentWeight: 2000, temp: 0, quality: 'Grade A', initialMoisture: 76.50, targetMoisture: 20, moistureTrend: [76.50] },
+  { id: 'B-005', name: 'Dried Prawns', initialWeight: 800, currentWeight: 800, temp: 0, quality: 'Grade A', initialMoisture: 79.20, targetMoisture: 20, moistureTrend: [79.20] },
+  { id: 'B-006', name: 'Dried Squid', initialWeight: 1500, currentWeight: 1500, temp: 0, quality: 'Grade B', initialMoisture: 77.00, targetMoisture: 20, moistureTrend: [77.00] },
+];
+
+// ── Helpers ────────────────────────────────────────────────────────
+function calculateMoisture(initialWeight, currentWeight, initialMoisture) {
+  if (!currentWeight || currentWeight <= 0) return 0;
+  const dryMatter = initialWeight * (1 - initialMoisture / 100);
+  const mc = ((currentWeight - dryMatter) / currentWeight) * 100;
+  return Math.max(0, Math.min(100, mc));
+}
+
+function calculateProgress(initialMoisture, currentMoisture, targetMoisture) {
+  const prg = ((initialMoisture - currentMoisture) / (initialMoisture - targetMoisture)) * 100;
+  return Math.min(100, Math.max(0, prg));
+}
+
+function Sparkline({ data, color }) {
+  if (!data || data.length < 2) {
+    return <div className="h-[28px] text-[10px] text-slate-400 flex items-center">Live telemetry sync...</div>;
   }
-  return arr;
-}
-
-const LABELS = ["09:30","09:40","09:50","10:00","10:10","10:20","10:30"];
-const DS_DATA  = genSeries(7, 72, 90);
-const SHT_DATA = genSeries(7, 58, 70);
-const AMG_DATA = genSeries(7, 45, 62);
-const W_DATA   = genSeries(7, 1.8, 3.5);
-const SPARK20  = genSeries(20, 130, 165);
-
-function generateThermalGrid() {
-  return Array.from({ length: 8 }, (_, r) =>
-    Array.from({ length: 8 }, (_, c) => {
-      const dx = c - 3.5, dy = r - 3.5;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      return +(100 - dist * 9 + rnd(-5, 5)).toFixed(1);
-    })
-  );
-}
-const GRID = generateThermalGrid();
-const GRID_MIN = Math.min(...GRID.flat());
-const GRID_MAX = Math.max(...GRID.flat());
-
-function thermalColor(v, min, max) {
-  const t = (v - min) / (max - min);
-  if (t > 0.85) return "#ffe000";
-  if (t > 0.70) return "#ff9000";
-  if (t > 0.55) return "#ff4400";
-  if (t > 0.40) return "#cc1100";
-  if (t > 0.25) return "#aa00cc";
-  if (t > 0.10) return "#6600bb";
-  return "#3a008a";
-}
-
-// ─── Sparkline ────────────────────────────────────────────────────────────────
-function Sparkline({ data, color, w = 130, h = 34 }) {
+  const w = 110, h = 28, pad = 3;
   const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
   const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((v - min) / (max - min || 1)) * (h - 4) - 2;
+    const x = pad + (i / (data.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((v - min) / range) * (h - pad * 2);
     return `${x},${y}`;
-  }).join(" ");
+  }).join(' ');
   return (
-    <svg width={w} height={h} style={{ display: "block" }}>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.8}
-        strokeLinejoin="round" strokeLinecap="round" />
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-// ─── Multi Line Chart ─────────────────────────────────────────────────────────
-function LineChart({ series, labels }) {
-  const W = 500, H = 170, pad = { t: 12, r: 12, b: 30, l: 38 };
-  const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
-  const all = series.flatMap(s => s.data);
-  const minV = Math.floor(Math.min(...all) / 25) * 25;
-  const maxV = Math.ceil(Math.max(...all) / 25) * 25;
-  const xOf = i => pad.l + (i / (labels.length - 1)) * iW;
-  const yOf = v => pad.t + iH - ((v - minV) / (maxV - minV)) * iH;
-  const gridVs = [];
-  for (let v = minV; v <= maxV; v += 25) gridVs.push(v);
+function StatusBadge({ status }) {
+  const map = {
+    drying:   { label: 'DRYING',   bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200', dot: 'bg-orange-500' },
+    complete: { label: 'COMPLETE', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+    pending:  { label: 'PENDING',  bg: 'bg-slate-100',  text: 'text-slate-600',  border: 'border-slate-200',  dot: 'bg-slate-400'   },
+  };
+  const s = map[status] ?? map.pending;
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
-      {gridVs.map(v => (
-        <g key={v}>
-          <line x1={pad.l} x2={pad.l+iW} y1={yOf(v)} y2={yOf(v)} stroke="#f0f0f0" strokeWidth={1} />
-          <text x={pad.l-4} y={yOf(v)+4} textAnchor="end" fontSize={9} fill="#ccc">{v}</text>
-        </g>
-      ))}
-      {labels.map((l, i) => (
-        <text key={l} x={xOf(i)} y={H-4} textAnchor="middle" fontSize={9} fill="#ccc">{l}</text>
-      ))}
-      {series.map(s => {
-        const pts = s.data.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ");
-        return (
-          <g key={s.label}>
-            <polyline points={pts} fill="none" stroke={s.color} strokeWidth={2.2}
-              strokeLinejoin="round" strokeLinecap="round" />
-            {s.data.map((v, i) => (
-              <circle key={i} cx={xOf(i)} cy={yOf(v)} r={3.2} fill={s.color} />
-            ))}
-          </g>
-        );
-      })}
-    </svg>
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${status === 'drying' ? 'animate-pulse' : ''}`} />
+      {s.label}
+    </span>
   );
 }
 
-// ─── Area Chart ───────────────────────────────────────────────────────────────
-function AreaChart({ data, labels, color }) {
-  const W = 360, H = 130, pad = { t: 10, r: 10, b: 28, l: 36 };
-  const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
-  const minV = Math.floor(Math.min(...data) * 2) / 2;
-  const maxV = Math.ceil(Math.max(...data) * 2) / 2;
-  const xOf = i => pad.l + (i / (data.length - 1)) * iW;
-  const yOf = v => pad.t + iH - ((v - minV) / (maxV - minV || 1)) * iH;
-  const pts = data.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ");
-  const area = `${xOf(0)},${pad.t+iH} ${pts} ${xOf(data.length-1)},${pad.t+iH}`;
-  const gridVs = [1.0,2.0,3.0,4.0].filter(v => v >= minV && v <= maxV);
+// ── Main Component ─────────────────────────────────────────────────
+export default function DryFishMonitor() {
+  const TARGET_MOISTURE = 20.0;
+  const INITIAL_REF_MOISTURE = 78.67;
+  const INITIAL_REF_WEIGHT = 1000.0;
+
+  const mqttClientRef = useRef(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [filter, setFilter] = useState('all');
+
+  // Direct Hardware Load Cell Readings (No tray linkages)
+  const [cell1, setCell1] = useState({ weight: 0.0, active: false });
+  const [cell2, setCell2] = useState({ weight: 0.0, active: false });
+
+  // Hardware Status Flags from ESP32
+  const [heaterSSR, setHeaterSSR] = useState(false);
+  const [fanStatus, setFanStatus] = useState(false);
+
+  // Environmental Telemetry
+  const [chamberTemp, setChamberTemp] = useState(0.0);
+  const [thermalMatrix, setThermalMatrix] = useState(() => Array(64).fill(28.5));
+
+  // Dynamic Batch Pool
+  const [batches, setBatches] = useState(INITIAL_BATCHES);
+
+  // ── MQTT Client Connection ──
+  useEffect(() => {
+    const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
+      clientId: `AquaSense_App_${Math.random().toString(16).slice(2, 8)}`,
+      clean: true,
+      reconnectPeriod: 2500,
+    });
+
+    mqttClientRef.current = client;
+
+    client.on('connect', () => {
+      setIsConnected(true);
+      client.subscribe('aquasense/fish/telemetry');
+    });
+
+    client.on('error', () => setIsConnected(false));
+    client.on('close', () => setIsConnected(false));
+
+    client.on('message', (topic, message) => {
+      if (topic === 'aquasense/fish/telemetry') {
+        try {
+          const telemetry = JSON.parse(message.toString());
+
+          // Environmental readings & Hardware Actuator States
+          if (telemetry.chamber_temp !== undefined) setChamberTemp(telemetry.chamber_temp);
+          if (telemetry.thermal_grid && Array.isArray(telemetry.thermal_grid)) setThermalMatrix(telemetry.thermal_grid);
+          if (telemetry.heater_ssr !== undefined) setHeaterSSR(telemetry.heater_ssr);
+          if (telemetry.fan_status !== undefined) setFanStatus(telemetry.fan_status);
+
+          // Direct sensor weight mapping
+          if (telemetry.weight1 !== undefined) {
+            setCell1(prev => ({ ...prev, weight: telemetry.weight1 }));
+          }
+          if (telemetry.weight2 !== undefined) {
+            setCell2(prev => ({ ...prev, weight: telemetry.weight2 }));
+          }
+
+          // Live dynamic update for batch registry table
+          setBatches(prev => prev.map((b, idx) => {
+            let currentLiveWeight = b.currentWeight;
+            let isDrying = false;
+
+            if (idx === 0 && telemetry.weight1 !== undefined) {
+              currentLiveWeight = telemetry.weight1;
+              isDrying = cell1.active;
+            } else if (idx === 1 && telemetry.weight2 !== undefined) {
+              currentLiveWeight = telemetry.weight2;
+              isDrying = cell2.active;
+            } else {
+              return b;
+            }
+
+            const liveMC = calculateMoisture(b.initialWeight, currentLiveWeight, b.initialMoisture);
+            let dynamicStatus = 'pending';
+            if (liveMC <= b.targetMoisture && currentLiveWeight > 0 && liveMC > 0) {
+              dynamicStatus = 'complete';
+            } else if (isDrying && currentLiveWeight > 0) {
+              dynamicStatus = 'drying';
+            } else {
+              dynamicStatus = 'pending';
+            }
+
+            const updatedTrend = [...b.moistureTrend, Number(liveMC.toFixed(1))].slice(-10);
+
+            return {
+              ...b,
+              currentWeight: currentLiveWeight,
+              status: dynamicStatus,
+              temp: telemetry.chamber_temp || b.temp,
+              moistureTrend: updatedTrend
+            };
+          }));
+
+        } catch (err) {
+          console.error("Telemetry Parse Error:", err);
+        }
+      }
+    });
+
+    return () => client.end();
+  }, [cell1.active, cell2.active]);
+
+  // Command to ESP32 (Controls Relay & Fan directly)
+  const publishMqttControl = (c1, c2) => {
+    if (mqttClientRef.current && isConnected) {
+      mqttClientRef.current.publish('aquasense/fish/control', JSON.stringify({
+        cell1_drying: c1,
+        cell2_drying: c2
+      }));
+    }
+  };
+
+  const toggleCell1 = () => {
+    const next = !cell1.active;
+    setCell1(prev => ({ ...prev, active: next }));
+    publishMqttControl(next, cell2.active);
+  };
+
+  const toggleCell2 = () => {
+    const next = !cell2.active;
+    setCell2(prev => ({ ...prev, active: next }));
+    publishMqttControl(cell1.active, next);
+  };
+
+  // ── High-Precision Thermal Color Palette ──
+  const getThermalStyle = (t) => {
+    if (t >= 55) return { bg: '#dc2626', shadow: 'rgba(220, 38, 38, 0.4)', text: '#ffffff' };
+    if (t >= 48) return { bg: '#ea580c', shadow: 'rgba(234, 88, 12, 0.4)', text: '#ffffff' };
+    if (t >= 42) return { bg: '#f59e0b', shadow: 'rgba(245, 158, 11, 0.35)', text: '#1e293b' };
+    if (t >= 36) return { bg: '#eab308', shadow: 'rgba(234, 179, 8, 0.3)', text: '#1e293b' };
+    if (t >= 30) return { bg: '#06b6d4', shadow: 'rgba(6, 182, 212, 0.3)', text: '#ffffff' };
+    if (t >= 25) return { bg: '#3b82f6', shadow: 'rgba(59, 130, 246, 0.3)', text: '#ffffff' };
+    return { bg: '#4f46e5', shadow: 'rgba(79, 70, 229, 0.3)', text: '#ffffff' };
+  };
+
+  // Thermal Stats
+  const maxThermal = Math.max(...thermalMatrix, 0);
+  const minThermal = Math.min(...thermalMatrix, 100);
+  const avgThermal = thermalMatrix.reduce((a, b) => a + b, 0) / (thermalMatrix.length || 1);
+
+  const moistureBarColor = (mc) => mc <= 15 ? '#10b981' : mc <= 25 ? '#f59e0b' : '#ef4444';
+
+  // Filters
+  const dryingList = batches.filter(b => b.status === 'drying');
+  const completeList = batches.filter(b => b.status === 'complete');
+  const pendingList = batches.filter(b => b.status === 'pending');
+
+  const filteredBatches = 
+    filter === 'drying' ? dryingList :
+    filter === 'complete' ? completeList :
+    filter === 'pending' ? pendingList : batches;
+
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
-      <defs>
-        <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      {gridVs.map(v => (
-        <g key={v}>
-          <line x1={pad.l} x2={pad.l+iW} y1={yOf(v)} y2={yOf(v)} stroke="#f0f0f0" strokeWidth={1} />
-          <text x={pad.l-4} y={yOf(v)+4} textAnchor="end" fontSize={9} fill="#ccc">{v.toFixed(1)}</text>
-        </g>
-      ))}
-      {labels.map((l, i) => (
-        <text key={l} x={xOf(i)} y={H-4} textAnchor="middle" fontSize={8} fill="#ccc">{l}</text>
-      ))}
-      <polygon points={area} fill="url(#ag)" />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={2.2} strokeLinejoin="round" />
-      {data.map((v, i) => <circle key={i} cx={xOf(i)} cy={yOf(v)} r={2.8} fill={color} />)}
-    </svg>
-  );
-}
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans p-4 md:p-8 space-y-6">
 
-// ─── Gauge ────────────────────────────────────────────────────────────────────
-function Gauge({ value, max = 1000 }) {
-  const pct = Math.min(value / max, 1);
-  const toRad = d => (d * Math.PI) / 180;
-  const cx = 95, cy = 90, r = 72;
-  const arcFrom = 220, arcTo = 220 + pct * 280;
-  const x1 = cx + r * Math.cos(toRad(arcFrom)), y1 = cy + r * Math.sin(toRad(arcFrom));
-  const x2 = cx + r * Math.cos(toRad(arcTo)),   y2 = cy + r * Math.sin(toRad(arcTo));
-  const large = pct * 280 > 180 ? 1 : 0;
-  const gx1 = cx + r * Math.cos(toRad(220)), gy1 = cy + r * Math.sin(toRad(220));
-  const gx2 = cx + r * Math.cos(toRad(500)), gy2 = cy + r * Math.sin(toRad(500));
-  const nAngle = arcTo;
-  const nx = cx + 58 * Math.cos(toRad(nAngle)), ny = cy + 58 * Math.sin(toRad(nAngle));
-  const label = value < 100 ? "Safe" : value < 300 ? "Moderate" : "Dangerous";
-  const lColor = value < 100 ? "#22c55e" : value < 300 ? "#f59e0b" : "#ef4444";
-  const gColor = value < 100 ? "#22c55e" : value < 300 ? "#f59e0b" : "#ef4444";
-  return (
-    <svg width={190} height={130} viewBox="0 0 190 130">
-      <path d={`M${gx1},${gy1} A${r},${r} 0 1 1 ${gx2},${gy2}`}
-        fill="none" stroke="#f0f0f0" strokeWidth={11} strokeLinecap="round" />
-      {pct > 0 && (
-        <path d={`M${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2}`}
-          fill="none" stroke={gColor} strokeWidth={11} strokeLinecap="round" />
-      )}
-      <circle cx={cx} cy={cy} r={5} fill="#666" />
-      <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#333" strokeWidth={2.5} strokeLinecap="round" />
-      <text x={cx} y={cy + 26} textAnchor="middle" fontSize={28} fontWeight="800" fill="#1a1d2e">{value}</text>
-      <text x={cx} y={cy + 42} textAnchor="middle" fontSize={11} fill="#aaa">ppm</text>
-      <text x={cx} y={cy + 57} textAnchor="middle" fontSize={12} fontWeight="700" fill={lColor}>{label}</text>
-      <text x={cx - 42} y={cy + 16} textAnchor="middle" fontSize={9} fill="#bbb">0</text>
-      <text x={cx + 42} y={cy + 16} textAnchor="middle" fontSize={9} fill="#bbb">1000</text>
-    </svg>
-  );
-}
-
-// ─── Card component with Tailwind ─────────────────────────────────────────────
-function Card({ children, className = "" }) {
-  return (
-    <div className={`bg-white rounded-xl p-4 shadow-[0_1px_8px_rgba(0,0,0,0.055)] ${className}`}>
-      {children}
-    </div>
-  );
-}
-
-// ─── Main App ─────────────────────────────────────────────────────────────────
-export default function EnvironmentalMonitoring() {
-  const [tick, setTick] = useState(0);
-  const navigate = useNavigate();
-  useEffect(() => { const t = setInterval(() => setTick(x => x+1), 1000); return () => clearInterval(t); }, []);
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString();
-
-  const sensors = [
-    { label: "Temperature", sub: "DS18820", val: "78.6", unit: "°C",  delta: "↑2.3°C from last hour",   up: true,  color: "#ef4444", spark: DS_DATA },
-    { label: "Humidity",    sub: "SHT31",   val: "62.4", unit: "%RH", delta: "↓1.2% from last hour",    up: false, color: "#8b5cf6", spark: SHT_DATA },
-    { label: "Air Quality", sub: "MQ-135",  val: "145",  unit: "ppm", delta: "↑12 ppm from last hour",  up: true,  color: "#f59e0b", spark: SPARK20 },
-    { label: "Weight",      sub: "Load Cell",val:"2.35", unit: "kg",  delta: "↑0.05 kg from last hour", up: true,  color: "#22c55e", spark: W_DATA },
-    { label: "Heat Index",  sub: "AMG8833", val: "81.2", unit: "°C",  delta: "↑3.1°C from last hour",   up: true,  color: "#f97316", spark: AMG_DATA },
-  ];
-
-  return (
-    <div className="font-['DM_Sans','Segoe_UI',sans-serif] bg-[#f4f5fb] min-h-screen p-5 box-border">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h1 className="m-0 text-xl font-extrabold text-[#1a1d2e]">Environmental Monitor</h1>
-          <div className="text-[11px] text-gray-400 mt-0.5">Live sensor data · {timeStr}</div>
+      {/* ── Top Header ── */}
+      <header className="bg-white border border-slate-200/80 rounded-2xl px-6 py-4 flex items-center justify-between shadow-sm flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-md shadow-blue-500/20">
+            <Fish size={22} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-black text-slate-900 tracking-tight">AquaSense Industrial Monitor</h1>
+            <p className="text-xs text-slate-500 font-medium">Dual Load Cell & Industrial Thermal Matrix Telemetry</p>
+          </div>
         </div>
-        <button 
-          onClick={() => navigate('/environmental-monitoring/dry-fish')}
-          className="px-5 py-2 rounded-lg bg-orange-500 text-white font-bold text-[13px] border-none cursor-pointer flex items-center gap-1.5 transition-all duration-200 hover:bg-orange-600 hover:-translate-y-px"
-        >
-          <span className="text-sm">🐟</span> All Dry Fish
-        </button>
-      </div>
 
-      {/* Row 1 – sensor cards */}
-      <div className="grid grid-cols-5 gap-3 mb-3.5">
-        {sensors.map(s => (
-          <Card key={s.label} className="p-3">
-            <div className="text-[10px] text-gray-400 mb-0.5">{s.label} ({s.sub})</div>
-            <div className={`text-2xl font-extrabold leading-tight`} style={{ color: s.color }}>
-              {s.val} <span className="text-[13px] font-medium">{s.unit}</span>
-            </div>
-            <div className={`text-[10px] mt-0.5 mb-1.5 ${s.up ? "text-red-500" : "text-blue-500"}`}>
-              {s.delta}
-            </div>
-            <Sparkline data={s.spark} color={s.color} w={130} h={32} />
-          </Card>
-        ))}
-      </div>
+        {/* Live System Status Badges */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+            heaterSSR ? 'bg-orange-50 border-orange-200 text-orange-600 animate-pulse' : 'bg-slate-100 border-slate-200 text-slate-500'
+          }`}>
+            <Flame size={13} />
+            {heaterSSR ? 'HEATER: ON' : 'HEATER: OFF'}
+          </div>
 
-      {/* Row 2 – temp line chart + thermal grid */}
-      <div className="grid grid-cols-[1fr_340px] gap-3.5 mb-3.5">
-        <Card>
-          <div className="flex justify-between items-center mb-2.5">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm">🌡️</span>
-              <span className="font-bold text-sm text-[#1a1d2e]">Temperature Over Time</span>
-            </div>
-            <select className="text-[11px] border border-gray-200 rounded-md px-2 py-0.5 text-gray-600 cursor-pointer">
-              <option>1 Hour</option><option>6 Hours</option>
-            </select>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+            fanStatus ? 'bg-cyan-50 border-cyan-200 text-cyan-600' : 'bg-slate-100 border-slate-200 text-slate-500'
+          }`}>
+            <Fan size={13} className={fanStatus ? 'animate-spin' : ''} />
+            {fanStatus ? 'FAN: ACTIVE' : 'FAN: OFF'}
           </div>
-          <LineChart
-            series={[
-              { label: "DS18820", data: DS_DATA, color: "#ef4444" },
-              { label: "SHT31",   data: SHT_DATA, color: "#8b5cf6" },
-              { label: "AMG8833", data: AMG_DATA, color: "#3b82f6" },
-            ]}
-            labels={LABELS}
-          />
-          <div className="flex gap-4 mt-2">
-            {[["DS18820 (Water)","#ef4444"],["SHT31 (Ambient)","#8b5cf6"],["AMG8833 (Avg)","#3b82f6"]].map(([l,c]) => (
-              <div key={l} className="flex items-center gap-1.5 text-[11px] text-gray-600">
-                <div className="w-2 h-2 rounded-full" style={{ background: c }} />{l}
-              </div>
-            ))}
-          </div>
-        </Card>
 
-        <Card>
-          <div className="flex items-center gap-1.5 mb-3">
-            <span className="text-sm">🌡️</span>
-            <span className="font-bold text-[13px] text-[#1a1d2e]">Thermal View (AMG8833 8x8)</span>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
+            isConnected ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600'
+          }`}>
+            {isConnected ? <Wifi size={13} /> : <WifiOff size={13} />}
+            {isConnected ? 'MQTT Online' : 'MQTT Offline'}
           </div>
-          <div className="flex gap-2.5 items-start">
-            <div className="grid grid-cols-8 gap-0.5 flex-1">
-              {GRID.flat().map((v, i) => (
-                <div key={i} title={`${v}°C`} className="aspect-square rounded-md"
-                  style={{ background: thermalColor(v, GRID_MIN, GRID_MAX) }} />
-              ))}
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="text-[9px] text-gray-500">100°C</span>
-              <div className="w-3 h-[155px] rounded-lg bg-gradient-to-b from-[#ffe000] via-[#ff9000] via-[#ff4400] via-[#cc1100] via-[#aa00cc] to-[#3a008a]" />
-              <span className="text-[9px] text-gray-500">20°C</span>
-            </div>
-          </div>
-        </Card>
-      </div>
 
-      {/* Row 3 – gauge + weight area + system status */}
-      <div className="grid grid-cols-[210px_1fr_250px] gap-3.5 mb-3.5">
-        <Card>
-          <div className="flex items-center gap-1.5 mb-2">
-            <span>☁️</span>
-            <span className="font-bold text-[13px] text-[#1a1d2e]">Air Quality (MQ-135)</span>
-          </div>
-          <div className="flex justify-center">
-            <Gauge value={145} max={1000} />
-          </div>
-          <div className="text-center text-[10px] text-gray-400 mt-1">
-            Safe &lt; 100 ppm &nbsp;|&nbsp; Dangerous &gt; 300 ppm
-          </div>
-        </Card>
+          <button className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 transition-all">
+            <FileDown size={14} /> Export Report
+          </button>
+        </div>
+      </header>
 
-        <Card>
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex items-center gap-1.5">
-              <span>⚖️</span>
-              <span className="font-bold text-[13px] text-[#1a1d2e]">Weight Over Time</span>
-            </div>
-            <select className="text-[11px] border border-gray-200 rounded-md px-2 py-0.5 text-gray-600 cursor-pointer">
-              <option>1 Hour</option><option>6 Hours</option>
-            </select>
-          </div>
-          <AreaChart data={W_DATA} labels={LABELS} color="#22c55e" />
-          <div className="flex justify-center gap-1.5 mt-1.5 text-[11px] text-green-500 items-center">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            Weight (kg)
-          </div>
-        </Card>
+      {/* ── Side-by-Side Dual Load Cell Hardware Processing Panels ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {[
+          { cellNum: 1, cellData: cell1, toggle: toggleCell1 },
+          { cellNum: 2, cellData: cell2, toggle: toggleCell2 }
+        ].map(({ cellNum, cellData, toggle }) => {
+          const currentWeight = cellData.weight;
+          const mc = calculateMoisture(INITIAL_REF_WEIGHT, currentWeight, INITIAL_REF_MOISTURE);
+          const prg = calculateProgress(INITIAL_REF_MOISTURE, mc, TARGET_MOISTURE);
+          const dryMatter = (INITIAL_REF_WEIGHT * (1 - INITIAL_REF_MOISTURE / 100)).toFixed(1);
 
-        <Card>
-          <div className="flex items-center gap-1.5 mb-2.5">
-            <span>🛡️</span>
-            <span className="font-bold text-[13px] text-[#1a1d2e]">System Status</span>
-          </div>
-          <div className="flex flex-col items-center mb-3.5">
-            <div className="w-[68px] h-[68px] rounded-full bg-gradient-to-br from-[#e0f7fa] to-[#b2ebf2] border-[3px] border-cyan-400 flex items-center justify-center text-3xl">
-              🍲
-            </div>
-            <div className="font-extrabold text-green-500 text-[13px] mt-1.5">BOILING</div>
-            <div className="text-[10px] text-gray-400">System Running Normal</div>
-          </div>
-          {[["All Sensors","Normal"],["Heating Element","ON"],["WiFi Connection","Stable"],["Data Logging","Active"]].map(([l,s]) => (
-            <div key={l} className="flex items-center gap-2 mb-2">
-              <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center text-[11px] text-green-600 font-bold">✓</div>
+          return (
+            <div key={cellNum} className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
               <div>
-                <div className="text-xs font-semibold text-[#1a1d2e]">{l}</div>
-                <div className="text-[10px] text-green-500">{s}</div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${cellData.active ? 'bg-blue-600 animate-ping' : 'bg-slate-300'}`} />
+                    <h2 className="text-blue-600 font-black text-sm tracking-wider">LOAD CELL {cellNum}</h2>
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full">
+                    Target: {TARGET_MOISTURE}%
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Real-time Moisture */}
+                  <div className="bg-slate-50 rounded-2xl border border-slate-200/70 p-4 flex flex-col items-center justify-center relative overflow-hidden">
+                    <p className="text-slate-400 uppercase tracking-widest text-[9px] font-bold mb-1 relative z-10">Moisture Content</p>
+                    <h3 className={`text-4xl font-black relative z-10 ${mc <= TARGET_MOISTURE && currentWeight > 0 ? 'text-emerald-600' : 'text-slate-900'}`}>
+                      {mc.toFixed(1)}<span className="text-sm text-slate-400 font-normal ml-0.5">%</span>
+                    </h3>
+                    <p className="text-slate-500 text-[10px] mt-1 flex items-center gap-1 relative z-10 font-medium">
+                      <Droplets size={11} className="text-blue-500" /> Wet Basis (MCwb)
+                    </p>
+                    <div 
+                      className="absolute bottom-0 left-0 w-full bg-blue-100/60 transition-all duration-300" 
+                      style={{ height: `${Math.min(100, mc)}%` }} 
+                    />
+                  </div>
+
+                  {/* Live Scale Weight from HX711 */}
+                  <div className="bg-slate-50 rounded-2xl border border-slate-200/70 p-4 flex flex-col justify-center items-center">
+                    <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mb-1">Live Scale Reading</p>
+                    <h3 className="text-3xl font-black text-slate-900">
+                      {currentWeight.toFixed(1)}<span className="text-xs text-slate-400 font-normal ml-0.5">g</span>
+                    </h3>
+                    <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-2 font-medium">
+                      <Scale size={14} /> Ref Initial: {INITIAL_REF_WEIGHT}g
+                    </div>
+                  </div>
+
+                  {/* Process Progress */}
+                  <div className={`rounded-2xl border p-4 flex flex-col justify-center ${mc <= TARGET_MOISTURE && currentWeight > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200/70'}`}>
+                    <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mb-1">Process Progress</p>
+                    <h3 className={`text-3xl font-black ${mc <= TARGET_MOISTURE && currentWeight > 0 ? 'text-emerald-600' : 'text-blue-600'}`}>
+                      {prg.toFixed(0)}%
+                    </h3>
+                    <div className="mt-2 h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-600 rounded-full transition-all duration-300" style={{ width: `${prg}%` }} />
+                    </div>
+                    <div className={`mt-2 flex items-center gap-1 text-[11px] font-bold ${mc <= TARGET_MOISTURE && currentWeight > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                      {mc <= TARGET_MOISTURE && currentWeight > 0 ? <><CheckCircle size={13} /> SAFE TO STORE</> : <><Timer size={13} className={cellData.active ? 'animate-spin' : ''} /> {cellData.active ? 'DRYING ACTIVE' : 'STANDBY'}</>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Bar */}
+              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                  <AlertCircle size={14} className="text-blue-600 shrink-0" />
+                  <span>Dry Solid Mass: <strong className="text-slate-700">{dryMatter}g</strong></span>
+                </div>
+                <button
+                  onClick={toggle}
+                  className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                    cellData.active
+                      ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20'
+                  }`}
+                >
+                  {cellData.active ? <RotateCcw size={14} /> : <Play size={14} />}
+                  {cellData.active ? 'Stop Drying Cycle' : 'Start Drying Cycle'}
+                </button>
               </div>
             </div>
-          ))}
-        </Card>
+          );
+        })}
       </div>
 
-      {/* Row 4 – alerts + quick actions */}
-      <div className="grid grid-cols-2 gap-3.5">
-        <Card>
-          <div className="flex items-center gap-1.5 mb-3">
-            <span>🔔</span>
-            <span className="font-bold text-[13px] text-[#1a1d2e]">Recent Alerts</span>
+      {/* ── DS18B20 Temp Probe & Beautiful AMG8833 Thermal Array Display ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* DS18B20 Chamber Probe */}
+        <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-orange-50 text-orange-500 border border-orange-100">
+                <Thermometer size={18} />
+              </div>
+              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700">DS18B20 Chamber Temp</h3>
+            </div>
+            <span className="text-[10px] bg-orange-50 border border-orange-200 text-orange-600 px-2.5 py-0.5 rounded-full font-bold">1-Wire Digital</span>
           </div>
-          <div className="flex items-center gap-2.5 p-2.5 bg-green-50 rounded-lg">
-            <span className="text-lg">✅</span>
+          <div className="my-4">
+            <div className="text-5xl font-black text-slate-900">{chamberTemp.toFixed(1)}°C</div>
+            <p className="text-xs text-slate-500 mt-1 font-medium">Internal air circulation temperature</p>
+          </div>
+          <div className="text-xs text-slate-400 border-t border-slate-100 pt-3 flex justify-between">
+            <span>Target Range: 45.0°C – 55.0°C</span>
+            <span className="text-emerald-600 font-bold">Live Synced</span>
+          </div>
+        </div>
+
+        {/* ── Beautiful Redesigned AMG8833 GridEYE Thermal Array ── */}
+        <div className="md:col-span-2 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between relative overflow-hidden">
+          
+          {/* Background Glow */}
+          <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Thermal Header & Telemetry Metrics */}
+          <div className="flex items-start justify-between flex-wrap gap-4 mb-4 z-10">
             <div>
-              <div className="text-[13px] font-semibold text-green-600">No critical alerts at the moment</div>
-              <div className="text-[11px] text-gray-400">All systems are operating within normal ranges.</div>
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30">
+                  <Eye size={16} />
+                </div>
+                <h3 className="font-black text-sm tracking-wide text-white flex items-center gap-2">
+                  AMG8833 GridEYE Thermal Camera
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                </h3>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">8×8 Infrared Focal Plane Array · Real-time Hotspot Tracking</p>
+            </div>
+
+            {/* Live Stats Pill Badges */}
+            <div className="flex items-center gap-2 bg-slate-800/80 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700/60">
+              <div className="px-2.5 py-1 text-center border-r border-slate-700/60">
+                <span className="text-[9px] text-slate-400 uppercase font-bold block">Min</span>
+                <span className="text-xs font-black text-cyan-400">{minThermal.toFixed(1)}°C</span>
+              </div>
+              <div className="px-2.5 py-1 text-center border-r border-slate-700/60">
+                <span className="text-[9px] text-slate-400 uppercase font-bold block">Avg</span>
+                <span className="text-xs font-black text-amber-400">{avgThermal.toFixed(1)}°C</span>
+              </div>
+              <div className="px-2.5 py-1 text-center">
+                <span className="text-[9px] text-slate-400 uppercase font-bold block">Max</span>
+                <span className="text-xs font-black text-rose-400">{maxThermal.toFixed(1)}°C</span>
+              </div>
             </div>
           </div>
-        </Card>
 
-        <Card>
-          <div className="flex items-center gap-1.5 mb-3">
-            <span>⚡</span>
-            <span className="font-bold text-[13px] text-[#1a1d2e]">Quick Actions</span>
+          {/* Thermal Heatmap Matrix & Palette Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 z-10 my-2">
+            
+            {/* 8x8 Thermal Pixels Matrix */}
+            <div className="p-3 bg-slate-950/80 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl">
+              <div className="grid grid-cols-8 gap-1.5">
+                {thermalMatrix.map((pixelTemp, idx) => {
+                  const style = getThermalStyle(pixelTemp);
+                  return (
+                    <div
+                      key={idx}
+                      title={`Pixel ${idx + 1}: ${Number(pixelTemp).toFixed(1)}°C`}
+                      className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg transition-all duration-300 flex items-center justify-center text-[8px] font-black cursor-pointer hover:scale-125 hover:z-20"
+                      style={{ 
+                        backgroundColor: style.bg,
+                        color: style.text,
+                        boxShadow: `0 0 10px ${style.shadow}`
+                      }}
+                    >
+                      {Math.round(pixelTemp)}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Thermal Palette Legend */}
+            <div className="flex flex-col justify-center space-y-3 w-full sm:w-auto">
+              <div className="flex items-center gap-2 text-xs text-slate-300 font-semibold">
+                <Activity size={14} className="text-indigo-400" />
+                Thermal Calibration Spectrum
+              </div>
+              
+              {/* Visual Gradient Bar */}
+              <div className="w-full sm:w-48 h-3 rounded-full bg-gradient-to-r from-indigo-600 via-cyan-400 via-amber-400 via-orange-500 to-rose-600 shadow-inner" />
+              
+              <div className="flex justify-between text-[10px] text-slate-400 font-bold">
+                <span>&lt; 25°C (Cool)</span>
+                <span>35°C</span>
+                <span>&gt; 50°C (Hotspot)</span>
+              </div>
+              <div className="text-[10px] text-slate-500 leading-tight">
+                Hotspot detection algorithm active for uneven surface moisture evaporation.
+              </div>
+            </div>
+
           </div>
-          <div className="flex gap-3 flex-wrap">
+
+          <div className="text-[10px] text-slate-500 border-t border-slate-800/80 pt-3 flex justify-between items-center z-10 mt-2">
+            <span>Sensor: Panasonic AMG8833 (I2C 0x69)</span>
+            <span className="text-emerald-400 font-bold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> 64 Frame Array OK
+            </span>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── Real-time Interactive Batch Registry Table ── */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+        
+        {/* Category Navigation Tabs */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
             {[
-              { label: "Export Data", icon: "📤", color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe" },
-              { label: "View Logs",   icon: "📋", color: "#8b5cf6", bg: "#f5f3ff", border: "#ddd6fe" },
-              { label: "Settings",   icon: "⚙️", color: "#6b7280", bg: "#f9fafb", border: "#e5e7eb" },
-            ].map(b => (
-              <button key={b.label} onClick={() => {}} className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-[13px] cursor-pointer transition-all hover:scale-105"
-                style={{ background: b.bg, border: `1.5px solid ${b.border}`, color: b.color }}>
-                <span className="text-[15px]">{b.icon}</span>{b.label}
+              { key: 'all', label: 'All Batches', count: batches.length },
+              { key: 'drying', label: 'Drying', count: dryingList.length },
+              { key: 'complete', label: 'Complete', count: completeList.length },
+              { key: 'pending', label: 'Pending', count: pendingList.length },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setFilter(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  filter === tab.key 
+                    ? 'bg-slate-900 text-white shadow-sm' 
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                  filter === tab.key ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {tab.count}
+                </span>
               </button>
             ))}
           </div>
-        </Card>
+          <span className="text-xs text-slate-400 font-semibold">Real-time Telemetry Feed ({filteredBatches.length} items)</span>
+        </div>
+
+        {/* Dynamic Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 p-6">
+          {filteredBatches.length === 0 ? (
+            <div className="col-span-full text-center py-10 text-slate-400 text-xs font-bold">
+              No batches currently found under the "{filter.toUpperCase()}" category.
+            </div>
+          ) : (
+            filteredBatches.map(batch => {
+              const mc = calculateMoisture(batch.initialWeight, batch.currentWeight, batch.initialMoisture);
+              const barColor = moistureBarColor(mc);
+              const sparkColor = batch.status === 'complete' ? '#10b981' : batch.status === 'drying' ? '#f59e0b' : '#94a3b8';
+
+              return (
+                <div key={batch.id} className="border border-slate-200/80 rounded-2xl p-5 hover:shadow-md transition-all bg-white flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-base">{batch.name}</h3>
+                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                          Batch {batch.id}
+                        </p>
+                      </div>
+                      <StatusBadge status={batch.status} />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mb-4 bg-slate-50 p-3 rounded-xl text-center">
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-semibold">Weight</p>
+                        <p className="text-xs font-bold text-slate-800">{(batch.currentWeight / 1000).toFixed(2)} kg</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-semibold">Temp</p>
+                        <p className="text-xs font-bold text-slate-800">
+                          {batch.temp > 0 ? `${batch.temp}°C` : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-semibold">Quality</p>
+                        <p className={`text-xs font-bold ${batch.quality === 'Grade A' ? 'text-emerald-600' : 'text-orange-500'}`}>
+                          {batch.quality}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mb-3">
+                      <div className="flex justify-between text-[10px] font-semibold text-slate-400 mb-1">
+                        <span>Moisture Level</span>
+                        <span className="text-slate-700 font-bold">{mc.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{ width: `${(mc / 80) * 100}%`, backgroundColor: barColor }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-2">
+                    <span className="text-[10px] text-slate-400 font-semibold">Moisture Curve</span>
+                    <Sparkline data={batch.moistureTrend} color={sparkColor} />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
       </div>
+
     </div>
   );
 }

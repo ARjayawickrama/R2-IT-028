@@ -1,36 +1,14 @@
-import json
-import threading
-import time
 import asyncio
-
+import json
+from datetime import datetime
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorClient
 import paho.mqtt.client as mqtt
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import WebSocket, WebSocketDisconnect
-
-
-# =====================================================
-# MQTT CONFIG
-# =====================================================
-
-MQTT_BROKER = "broker.hivemq.com"
-MQTT_PORT = 1883
-
-# UPDATED: match ESP32 firmware topics
-MQTT_DATA_TOPIC = "fish-inspector/measurement/data"
-MQTT_STATUS_TOPIC = "fish-inspector/measurement/status"
-MQTT_COMMAND_TOPIC = "fish-inspector/measurement/command"
-
-
-# =====================================================
-# FASTAPI
-# =====================================================
-
-app = FastAPI(
-    title="Fish Inspector API",
-    version="1.0.0"
-)
+app = FastAPI(title="AquaSense Gateway")
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,10 +18,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# MongoDB Configuration
+MONGODB_URI = "mongodb+srv://ssmadurawala02_db_user:g4lBOKKlmtg6lpAi@cluster0.puhdwdi.mongodb.net/fishgo?retryWrites=true&w=majority"
+client = AsyncIOMotorClient(MONGODB_URI)
+db = client["fishgo"]
+measurements_collection = db["measurements"]
 
-# =====================================================
-# CURRENT DEVICE DATA
-# =====================================================
+# MQTT Configuration
+MQTT_BROKER = "broker.hivemq.com"
+MQTT_PORT = 1883
+MQTT_DATA_TOPIC = "fish-inspector/measurement/data"
+MQTT_STATUS_TOPIC = "fish-inspector/measurement/status"
+MQTT_COMMAND_TOPIC = "fish-inspector/measurement/command"
 
 latest_data = {
     "weight": 0.0,
@@ -53,221 +39,145 @@ latest_data = {
     "center_cm": 0.0,
     "right_cm": 0.0,
     "scanning": False,
-    "sensor_ok": False,
+    "sensor_ok": True
 }
 
-latest_status = {
-    "status": "OFFLINE",
-    "scanning": False,
-}
+active_connections = set()
+main_loop = None
 
-
-# =====================================================
-# WEBSOCKET CLIENTS
-# =====================================================
-
-websocket_clients = set()
-
-
-# =====================================================
-# BROADCAST
-# =====================================================
-
-async def broadcast(message):
-    dead_clients = []
-    for websocket in websocket_clients:
+async def broadcast_ws(payload: dict):
+    for ws in list(active_connections):
         try:
-            await websocket.send_json(message)
+            await ws.send_json(payload)
         except Exception:
-            dead_clients.append(websocket)
-    for websocket in dead_clients:
-        websocket_clients.discard(websocket)
+            active_connections.discard(ws)
 
+def on_connect(client, userdata, flags, rc):
+    client.subscribe([(MQTT_DATA_TOPIC, 0), (MQTT_STATUS_TOPIC, 0)])
 
-# =====================================================
-# MQTT CALLBACKS
-# =====================================================
-
-def on_connect(client, userdata, connect_flags, reason_code, properties):
-    print("MQTT connected:", reason_code)
-    client.subscribe(MQTT_DATA_TOPIC)
-    client.subscribe(MQTT_STATUS_TOPIC)
-
-
-def on_disconnect(client, userdata, disconnect_flags, reason_code, properties):
-    print("MQTT disconnected:", reason_code)
-
-
-def on_message(client, userdata, message):
-    global latest_data, latest_status
-
+def on_message(client, userdata, msg):
+    global latest_data, main_loop
     try:
-        payload = message.payload.decode()
-        data = json.loads(payload)
-        print("MQTT:", message.topic, data)
+        payload = json.loads(msg.payload.decode())
+        topic = msg.topic
+        if topic == MQTT_DATA_TOPIC:
+            latest_data.update(payload)
+            if main_loop and main_loop.is_running():
+                asyncio.run_coroutine_threadsafe(
+                    broadcast_ws({"type": "data", "data": payload}), main_loop
+                )
+        elif topic == MQTT_STATUS_TOPIC:
+            if main_loop and main_loop.is_running():
+                asyncio.run_coroutine_threadsafe(
+                    broadcast_ws({"type": "status", "data": payload}), main_loop
+                )
+    except Exception:
+        pass
 
-        if message.topic == MQTT_DATA_TOPIC:
-            latest_data = data
-            asyncio.run_coroutine_threadsafe(
-                broadcast({"type": "data", "data": data}),
-                app.state.loop
-            )
-        elif message.topic == MQTT_STATUS_TOPIC:
-            latest_status = data
-            asyncio.run_coroutine_threadsafe(
-                broadcast({"type": "status", "data": data}),
-                app.state.loop
-            )
-    except Exception as e:
-        print("MQTT message error:", e)
-
-
-# =====================================================
-# MQTT CLIENT
-# =====================================================
-
-mqtt_client = mqtt.Client(
-    mqtt.CallbackAPIVersion.VERSION2,
-    client_id="fish-inspector-fastapi"
-)
+mqtt_client = mqtt.Client()
 mqtt_client.on_connect = on_connect
-mqtt_client.on_disconnect = on_disconnect
 mqtt_client.on_message = on_message
-
-
-def mqtt_loop():
-    while True:
-        try:
-            if not mqtt_client.is_connected():
-                print("Connecting to MQTT broker...")
-                mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-            mqtt_client.loop_forever()
-        except Exception as e:
-            print("MQTT error:", e)
-            time.sleep(5)
-
-
-# =====================================================
-# STARTUP
-# =====================================================
+mqtt_client.connect_async(MQTT_BROKER, MQTT_PORT, 60)
+mqtt_client.loop_start()
 
 @app.on_event("startup")
 async def startup_event():
-    app.state.loop = asyncio.get_running_loop()
-    thread = threading.Thread(target=mqtt_loop, daemon=True)
-    thread.start()
-    print("MQTT background thread started")
+    global main_loop
+    main_loop = asyncio.get_running_loop()
 
+# ==========================================
+# /api/measurements Endpoints
+# ==========================================
 
-# =====================================================
-# ROOT
-# =====================================================
+class MeasurementCreate(BaseModel):
+    fish_thickness: float
+    fish_weight: float
 
-@app.get("/")
-def root():
-    return {
-        "name": "Fish Inspector API",
-        "status": "running",
-        "mqtt": MQTT_BROKER
+@app.get("/api/measurements")
+async def get_measurements():
+    records = []
+    cursor = measurements_collection.find().sort("_id", -1)
+    async for doc in cursor:
+        records.append({
+            "id": str(doc["_id"]),
+            "fish_no": doc.get("fish_no", "FISH-0001"),
+            "fish_thickness": f"{doc.get('fish_thickness', 0.0):.1f} cm",
+            "fish_weight": f"{doc.get('fish_weight', 0.0):.3f} kg",
+            "date": doc.get("date", "")
+        })
+    return records
+
+@app.post("/api/measurements")
+async def create_measurement(item: MeasurementCreate):
+    count = await measurements_collection.count_documents({})
+    next_fish_no = f"FISH-{count + 1:04d}"
+    current_time = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+
+    new_doc = {
+        "fish_no": next_fish_no,
+        "fish_thickness": float(item.fish_thickness),
+        "fish_weight": float(item.fish_weight),
+        "date": current_time,
+        "createdAt": datetime.utcnow()
     }
 
+    result = await measurements_collection.insert_one(new_doc)
+    return {
+        "id": str(result.inserted_id),
+        "fish_no": next_fish_no,
+        "fish_thickness": f"{item.fish_thickness:.1f} cm",
+        "fish_weight": f"{item.fish_weight:.3f} kg",
+        "date": current_time
+    }
 
-# =====================================================
-# CURRENT DATA & STATUS
-# =====================================================
+@app.delete("/api/measurements/{item_id}")
+async def delete_measurement(item_id: str):
+    try:
+        await measurements_collection.delete_one({"_id": ObjectId(item_id)})
+        return {"success": True}
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid ID")
+
+@app.delete("/api/measurements")
+async def clear_measurements():
+    await measurements_collection.delete_many({})
+    return {"success": True}
+
+# ==========================================
+# Hardware Controls & WebSockets
+# ==========================================
 
 @app.get("/api/data")
-def get_data():
+async def get_live_data():
     return latest_data
 
-
-@app.get("/api/status")
-def get_status():
-    return latest_status
-
-
-# =====================================================
-# SEND MQTT COMMAND
-# =====================================================
-
-def send_command(command):
-    result = mqtt_client.publish(MQTT_COMMAND_TOPIC, command, qos=0)
-    return result.rc == mqtt.MQTT_ERR_SUCCESS
-
-
-# =====================================================
-# REST COMMANDS (kept: scan, center, stop)
-# =====================================================
-
 @app.post("/api/scan/start")
-def start_scan():
-    success = send_command("START_SCAN")
-    return {"success": success, "command": "START_SCAN"}
-
+async def start_scan():
+    mqtt_client.publish(MQTT_COMMAND_TOPIC, "START_SCAN")
+    return {"success": True}
 
 @app.post("/api/center")
-def find_center():
-    success = send_command("FIND_CENTER")
-    return {"success": success, "command": "FIND_CENTER"}
-
+async def find_center():
+    mqtt_client.publish(MQTT_COMMAND_TOPIC, "FIND_CENTER")
+    return {"success": True}
 
 @app.post("/api/motor/stop")
-def stop_motor():
-    success = send_command("STOP_MOTOR")
-    return {"success": success, "command": "STOP_MOTOR"}
+async def stop_motor():
+    mqtt_client.publish(MQTT_COMMAND_TOPIC, "STOP_MOTOR")
+    return {"success": True}
 
-
-# =====================================================
-# NEW ENDPOINT: Reset all data to zero
-# =====================================================
-
-@app.post("/api/reset")
-def reset_data():
-    global latest_data, latest_status
-    # Reset measurement data
-    latest_data = {
-        "weight": 0.0,
-        "peak_mm": 0,
-        "peak_cm": 0.0,
-        "left_cm": 0.0,
-        "center_cm": 0.0,
-        "right_cm": 0.0,
-        "scanning": False,
-        "sensor_ok": False,
-    }
-    # Reset status
-    latest_status = {
-        "status": "RESET",
-        "scanning": False,
-    }
-    # Broadcast the new zero state to all connected WebSocket clients
-    asyncio.run_coroutine_threadsafe(
-        broadcast({"type": "data", "data": latest_data}),
-        app.state.loop
-    )
-    asyncio.run_coroutine_threadsafe(
-        broadcast({"type": "status", "data": latest_status}),
-        app.state.loop
-    )
-    return {"success": True, "message": "All data reset to zero"}
-
-
-# =====================================================
-# WEBSOCKET
-# =====================================================
+@app.post("/api/zero")
+async def reset_zero():
+    mqtt_client.publish(MQTT_COMMAND_TOPIC, "RESET_ZERO")
+    return {"success": True}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    websocket_clients.add(websocket)
+    active_connections.add(websocket)
     try:
-        # Send current state immediately
         await websocket.send_json({"type": "data", "data": latest_data})
-        await websocket.send_json({"type": "status", "data": latest_status})
-
         while True:
-            await websocket.receive_text()  # keep connection alive
+            await websocket.receive_text()
     except WebSocketDisconnect:
-        websocket_clients.discard(websocket)
-    except Exception:
-        websocket_clients.discard(websocket)
+        active_connections.discard(websocket)

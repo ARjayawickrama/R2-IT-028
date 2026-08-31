@@ -1,19 +1,9 @@
 import React, { useState, useEffect } from "react";
+import mqtt from "mqtt";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceArea, ResponsiveContainer
+  ResponsiveContainer
 } from "recharts";
-
-// ── Raw Data ────────────────────────────────────────────────────────────────
-const INITIAL_DATA = [
-  { t: "12PM", wl: 251, sal: 35 },
-  { t: "4PM", wl: 230, sal: 62 },
-  { t: "8PM", wl: 172, sal: 44, anomaly: 2 },
-  { t: "12AM", wl: 232, sal: 82 },
-  { t: "4AM", wl: 175, sal: 70 },
-  { t: "8AM", wl: 240, sal: 78 },
-  { t: "12PM(Now)", wl: 265, sal: 30, anomaly: 1 },
-];
 
 // ── Custom Components ───────────────────────────────────────────────────────
 const AnomalyDot = (props) => {
@@ -22,46 +12,88 @@ const AnomalyDot = (props) => {
   return (
     <g>
       <circle cx={cx} cy={cy} r={10} fill="white" stroke="#e53e3e" strokeWidth={2} />
-      <text x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fill="#e53e3e" fontWeight="bold">{payload.anomaly}</text>
+      <text x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fill="#e53e3e" fontWeight="bold">!</text>
     </g>
   );
 };
 
-const StatCard = ({ label, value, unit, color }) => (
-  <div style={{ background: "white", padding: "20px", borderRadius: "12px", borderLeft: `5px solid ${color}`, boxShadow: "0 4px 6px rgba(0,0,0,0.05)", flex: 1 }}>
-    <div style={{ color: "#718096", fontSize: "12px", fontWeight: "bold", textTransform: "uppercase" }}>{label}</div>
-    <div style={{ display: "flex", alignItems: "baseline", gap: "5px", marginTop: "5px" }}>
-      <span style={{ fontSize: "28px", fontWeight: "bold", color: "#2d3748" }}>{value}</span>
-      <span style={{ fontSize: "14px", color: "#a0aec0" }}>{unit}</span>
+const StatCard = ({ label, value, unit, color, statusColor, subtext }) => (
+  <div style={{ background: "white", padding: "20px", borderRadius: "12px", borderLeft: `5px solid ${color}`, boxShadow: "0 4px 6px rgba(0,0,0,0.05)", flex: 1, minWidth: "180px" }}>
+    <div style={{ color: "#718096", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase" }}>{label}</div>
+    <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginTop: "6px" }}>
+      <span style={{ fontSize: "24px", fontWeight: "bold", color: statusColor || "#2d3748" }}>{value}</span>
+      {unit && <span style={{ fontSize: "13px", color: "#a0aec0" }}>{unit}</span>}
     </div>
+    {subtext && <div style={{ fontSize: "11px", color: "#a0aec0", marginTop: "4px" }}>{subtext}</div>}
   </div>
 );
 
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function WaterSalinityControl() {
-  const [data, setData] = useState(INITIAL_DATA);
-  const [isAIActive, setIsAIActive] = useState(true);
-  const [wlValue, setWlValue] = useState(265);
-  const [salValue, setSalValue] = useState(30);
+  const [data, setData] = useState([
+    { t: "12:00", wl: 4.5, saltStatus: 0 },
+    { t: "12:01", wl: 4.5, saltStatus: 0 },
+    { t: "12:02", wl: 4.2, saltStatus: 1 },
+    { t: "12:03", wl: 4.0, saltStatus: 1 },
+    { t: "12:04", wl: 3.8, saltStatus: 1 },
+  ]);
 
-  // Simulation logic
+  const [isAIActive, setIsAIActive] = useState(true);
+  const [wlValue, setWlValue] = useState(4.5);
+  const [isSaltPresent, setIsSaltPresent] = useState(false);
+  const [isMqttConnected, setIsMqttConnected] = useState(false);
+
+  // ESP32 MQTT හරහා Live TDS සහ Temperature කියවා ගැනීම
   useEffect(() => {
-    if (!isAIActive) return;
-    const interval = setInterval(() => {
-      setWlValue(prev => prev < 240 ? prev + 0.5 : prev - 0.3);
-      setSalValue(prev => prev < 60 ? prev + 0.2 : prev - 0.1);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [isAIActive]);
+    const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
+
+    client.on("connect", () => {
+      setIsMqttConnected(true);
+      client.subscribe("aquasense/water/tds");
+      client.subscribe("aquasense/water/temperature");
+    });
+
+    client.on("message", (topic, payload) => {
+      const msg = payload.toString();
+
+      if (topic === "aquasense/water/tds") {
+        const tdsVal = parseFloat(msg);
+        // TDS අගය 250 ppm ට වඩා වැඩි නම් ලුණු ඇති බව හඳුනා ගනී (Binary State)
+        const saltDetected = !isNaN(tdsVal) && tdsVal > 250;
+        setIsSaltPresent(saltDetected);
+
+        // Live Data එක History Chart එකට එක් කිරීම
+        const now = new Date();
+        const timeStr = `${now.getHours()}:${('0' + now.getMinutes()).slice(-2)}:${('0' + now.getSeconds()).slice(-2)}`;
+
+        setData((prevData) => {
+          const updated = [
+            ...prevData.slice(-9), // උපරිම ලකුණු 10 ක් තබා ගනී
+            { t: timeStr, wl: wlValue, saltStatus: saltDetected ? 1 : 0 }
+          ];
+          return updated;
+        });
+      }
+    });
+
+    client.on("error", () => setIsMqttConnected(false));
+    client.on("close", () => setIsMqttConnected(false));
+
+    return () => {
+      if (client) client.end();
+    };
+  }, [wlValue]);
 
   return (
     <div style={{ background: "#f4f7fa", minHeight: "100vh", padding: "25px", fontFamily: "'Inter', sans-serif" }}>
       
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ margin: 0, color: "#1a3a6e", fontSize: "24px" }}>Water & Salinity AI Analyzer</h1>
-          <p style={{ margin: 0, color: "#718096", fontSize: "14px" }}>Real-time monitoring and autonomous control system</p>
+          <h1 style={{ margin: 0, color: "#1a3a6e", fontSize: "24px" }}>TDS Salt & Water Monitoring System</h1>
+          <p style={{ margin: 0, color: "#718096", fontSize: "14px" }}>
+            Hardware Link: <strong style={{ color: isMqttConnected ? "#16a34a" : "#dc2626" }}>{isMqttConnected ? "ESP32 ONLINE" : "ESP32 OFFLINE"}</strong>
+          </p>
         </div>
         <div style={{ display: "flex", background: "white", padding: "5px", borderRadius: "10px", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
           <button 
@@ -78,46 +110,64 @@ export default function WaterSalinityControl() {
       {/* Stats Row */}
       <div style={{ display: "flex", gap: "20px", marginBottom: "25px", flexWrap: "wrap" }}>
         <StatCard label="Current Water Level" value={wlValue.toFixed(1)} unit="Liters" color="#1a3a6e" />
-        <StatCard label="Salinity Density" value={salValue.toFixed(1)} unit="ppt" color="#00bcd4" />
+        
+        {/* ලුණු ඇති/නැති බව පෙන්වන Stat Card එක (Values පෙන්වන්නේ නැත) */}
+        <StatCard 
+          label="TDS Salt Status (Pin 34)" 
+          value={isSaltPresent ? "DETECTED" : "NO SALT"} 
+          statusColor={isSaltPresent ? "#16a34a" : "#d97706"}
+          color={isSaltPresent ? "#16a34a" : "#d97706"}
+          subtext={isSaltPresent ? "Salt mixture present in water" : "Fresh water / Insufficient salt"}
+        />
+        
         <StatCard label="AI Confidence" value={isAIActive ? "98.2" : "0.0"} unit="%" color="#667eea" />
-        <StatCard label="System Status" value={isAIActive ? "OPTIMIZING" : "IDLE"} unit="" color={isAIActive ? "#48bb78" : "#ecc94b"} />
+        <StatCard label="System Status" value={isAIActive ? "RUNNING" : "IDLE"} unit="" color={isAIActive ? "#48bb78" : "#ecc94b"} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "25px" }}>
         
         {/* Main Chart Card */}
         <div style={{ background: "white", padding: "20px", borderRadius: "15px", boxShadow: "0 10px 15px rgba(0,0,0,0.05)" }}>
-          <h3 style={{ marginTop: 0, color: "#2d3748", fontSize: "16px" }}>Historical Data Analysis (Dual Scale)</h3>
-          <div style={{ width: "100%", height: 400 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+            <h3 style={{ margin: 0, color: "#2d3748", fontSize: "16px" }}>Real-Time Sensor Telemetry</h3>
+            <span style={{ fontSize: "12px", color: "#718096" }}>TDS Binary State (0: No Salt, 1: Present)</span>
+          </div>
+          
+          <div style={{ width: "100%", height: 380 }}>
             <ResponsiveContainer>
               <LineChart data={data} margin={{ top: 20, right: 30, left: 10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
                 <XAxis dataKey="t" tick={{fontSize: 12, fill: "#718096"}} axisLine={false} tickLine={false} />
                 
-                {/* Left Y-Axis for Water Level (wl) */}
+                {/* Water Level Y-Axis */}
                 <YAxis 
                   yAxisId="left" 
-                  domain={[0, 300]} 
+                  domain={[0, 10]} 
                   tick={{fontSize: 12, fill: "#1a3a6e"}} 
                   axisLine={false} 
                   tickLine={false} 
                   unit="L"
                 />
 
-                {/* Right Y-Axis for Salinity (sal) */}
+                {/* Salt State Y-Axis (0 හෝ 1 පමණි) */}
                 <YAxis 
                   yAxisId="right" 
                   orientation="right" 
-                  domain={[0, 100]} 
-                  tick={{fontSize: 12, fill: "#00bcd4"}} 
+                  domain={[0, 1]} 
+                  ticks={[0, 1]}
+                  tickFormatter={(val) => (val === 1 ? "Present" : "None")}
+                  tick={{fontSize: 12, fill: isSaltPresent ? "#16a34a" : "#d97706"}} 
                   axisLine={false} 
                   tickLine={false} 
-                  unit="ppt"
                 />
 
-                <Tooltip />
+                <Tooltip 
+                  formatter={(value, name) => {
+                    if (name === "TDS Salt State") return [value === 1 ? "Salt Present" : "No Salt", name];
+                    return [`${value} L`, name];
+                  }}
+                />
                 
-                {/* Water Level Line */}
                 <Line 
                   yAxisId="left" 
                   type="monotone" 
@@ -128,15 +178,14 @@ export default function WaterSalinityControl() {
                   dot={<AnomalyDot />} 
                 />
 
-                {/* Salinity Line */}
                 <Line 
                   yAxisId="right" 
-                  type="monotone" 
-                  dataKey="sal" 
-                  name="Salinity" 
-                  stroke="#00bcd4" 
+                  type="stepAfter" 
+                  dataKey="saltStatus" 
+                  name="TDS Salt State" 
+                  stroke={isSaltPresent ? "#16a34a" : "#d97706"} 
                   strokeWidth={3} 
-                  dot={<AnomalyDot />} 
+                  dot={true} 
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -145,35 +194,38 @@ export default function WaterSalinityControl() {
 
         {/* Control Panel Card */}
         <div style={{ background: "#ffffff", padding: "25px", borderRadius: "15px", boxShadow: "0 10px 15px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", gap: "20px" }}>
-          <h3 style={{ marginTop: 0, color: "#2d3748", fontSize: "16px" }}>System Controls</h3>
+          <h3 style={{ marginTop: 0, color: "#2d3748", fontSize: "16px" }}>Hardware Status & Controls</h3>
           
           <div>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: "bold", color: "#718096", marginBottom: "10px" }}>WATER INTAKE ADJUSTMENT</label>
+            <label style={{ display: "block", fontSize: "12px", fontWeight: "bold", color: "#718096", marginBottom: "10px" }}>WATER INTAKE TARGET</label>
             <input 
-              type="range" min="0" max="300" 
+              type="range" min="0" max="10" step="0.1"
               disabled={isAIActive}
               value={wlValue} 
               onChange={(e) => setWlValue(Number(e.target.value))}
               style={{ width: "100%", accentColor: "#1a3a6e" }} 
             />
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginTop: "5px", color: "#a0aec0" }}>
-              <span>Min (0L)</span>
-              <span>Max (300L)</span>
+              <span>0 L</span>
+              <span>10 L</span>
             </div>
           </div>
 
-          <div>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: "bold", color: "#718096", marginBottom: "10px" }}>SALT INJECTION INTENSITY</label>
-            <input 
-              type="range" min="0" max="100" 
-              disabled={isAIActive}
-              value={salValue} 
-              onChange={(e) => setSalValue(Number(e.target.value))}
-              style={{ width: "100%", accentColor: "#00bcd4" }} 
-            />
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginTop: "5px", color: "#a0aec0" }}>
-              <span>Low (0ppt)</span>
-              <span>High (100ppt)</span>
+          {/* TDS Live Notification Box */}
+          <div style={{
+            padding: "16px",
+            borderRadius: "10px",
+            background: isSaltPresent ? "#DCFCE7" : "#FEF3C7",
+            border: `1px solid ${isSaltPresent ? "#86EFAC" : "#FDE68A"}`
+          }}>
+            <div style={{ fontSize: "11px", fontWeight: "bold", color: isSaltPresent ? "#166534" : "#92400E", textTransform: "uppercase" }}>
+              Live TDS Sensor (Pin 34)
+            </div>
+            <div style={{ fontSize: "14px", fontWeight: "bold", color: isSaltPresent ? "#15803D" : "#B45309", marginTop: "4px" }}>
+              {isSaltPresent ? "✓ Salt Detected in Tank" : "⚠ No Salt Detected"}
+            </div>
+            <div style={{ fontSize: "11px", color: "#64748B", marginTop: "4px" }}>
+              {isSaltPresent ? "Brine solution is ready for boiling." : "Add required salt mixture to continue."}
             </div>
           </div>
 
