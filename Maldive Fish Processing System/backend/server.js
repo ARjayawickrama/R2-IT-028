@@ -9,6 +9,7 @@ import userRoutes from './routes/user.js';
 import rawFishRoutes from './routes/rawFish.js';
 import qualityRoutes from './routes/quality.js';
 import inventoryRoutes from './routes/inventory.js';
+import measurementRoutes from './routes/measurement.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +39,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/raw-fish', rawFishRoutes);
 app.use('/api/quality', qualityRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/measurements', measurementRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

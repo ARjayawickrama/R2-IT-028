@@ -423,9 +423,9 @@ const RawFishQuality = () => {
   // ─── Analytics stats ───────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const veryFresh = history.filter(b => b.qualityLabel === 'Alagoduwa_Very_fresh').length;
-    const fresh     = history.filter(b => b.qualityLabel === 'Alagoduwa_fresh').length;
-    const spoiled   = history.filter(b => b.qualityLabel === 'Alagoduwa_Spoiled').length;
-    const total     = history.length;
+    const fresh = history.filter(b => b.qualityLabel === 'Alagoduwa_fresh').length;
+    const spoiled = history.filter(b => b.qualityLabel === 'Alagoduwa_Spoiled').length;
+    const total = history.length;
     return { veryFresh, fresh, spoiled, total };
   }, [history]);
 
@@ -456,11 +456,10 @@ const RawFishQuality = () => {
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`px-5 py-3 border-b-2 whitespace-nowrap font-medium transition-colors ${
-                activeTab === id
+              className={`px-5 py-3 border-b-2 whitespace-nowrap font-medium transition-colors ${activeTab === id
                   ? 'border-blue-600 text-blue-600 bg-blue-50'
                   : 'border-transparent text-slate-600 hover:text-blue-600'
-              }`}
+                }`}
             >
               {label}
             </button>
@@ -489,6 +488,8 @@ const RawFishQuality = () => {
                 <p className="text-xs text-slate-500">JPG / PNG supported</p>
               </button>
               <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+
+
             </div>
 
             {/* Centre: Preview */}
@@ -570,11 +571,10 @@ const RawFishQuality = () => {
                 type="button"
                 onClick={captureFromCamera}
                 disabled={!cameraActive || isAnalyzing}
-                className={`w-full py-3 rounded-lg font-medium border ${
-                  !cameraActive || isAnalyzing
+                className={`w-full py-3 rounded-lg font-medium border ${!cameraActive || isAnalyzing
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                     : 'bg-blue-50 border-blue-300 text-blue-600 hover:bg-blue-100'
-                }`}
+                  }`}
               >
                 {isAnalyzing ? '⏳ Analyzing...' : '📸 Capture & Analyze'}
               </button>
@@ -583,16 +583,17 @@ const RawFishQuality = () => {
                 type="button"
                 onClick={toggleAutoCaption}
                 disabled={!cameraActive}
-                className={`w-full py-3 rounded-lg font-medium border ${
-                  !cameraActive
+                className={`w-full py-3 rounded-lg font-medium border ${!cameraActive
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                     : autoCaptionActive
-                    ? 'bg-orange-50 border-orange-300 text-orange-600 hover:bg-orange-100'
-                    : 'bg-purple-50 border-purple-300 text-purple-600 hover:bg-purple-100'
-                }`}
+                      ? 'bg-orange-50 border-orange-300 text-orange-600 hover:bg-orange-100'
+                      : 'bg-purple-50 border-purple-300 text-purple-600 hover:bg-purple-100'
+                  }`}
               >
                 {autoCaptionActive ? '⏹ Stop Auto Caption' : '🔄 Auto Caption'}
               </button>
+
+
             </div>
 
             {/* Live preview */}
@@ -1104,11 +1105,10 @@ const RawFishQuality = () => {
               <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {history.map((record) => (
                   <div key={record._id} className="border rounded-xl overflow-hidden shadow-sm bg-white">
-                    <div className={`h-2 w-full ${
-                      record.qualityLabel === 'Alagoduwa_Very_fresh' ? 'bg-green-400'
-                      : record.qualityLabel === 'Alagoduwa_fresh' ? 'bg-blue-400'
-                      : 'bg-red-400'
-                    }`} />
+                    <div className={`h-2 w-full ${record.qualityLabel === 'Alagoduwa_Very_fresh' ? 'bg-green-400'
+                        : record.qualityLabel === 'Alagoduwa_fresh' ? 'bg-blue-400'
+                          : 'bg-red-400'
+                      }`} />
                     <div className="p-4">
                       <div className="flex justify-between items-start">
                         <div>
@@ -1185,7 +1185,11 @@ const RawFishQuality = () => {
                   <div className="flex items-center justify-center h-48 text-slate-400">No data available</div>
                 )}
               </div>
+
+
             </div>
+
+
           </div>
         )}
 

@@ -1,62 +1,52 @@
-import React, { useState, useEffect } from 'react';
-import { Scale, Droplets, Timer, CheckCircle, Play, RotateCcw, AlertCircle, FileDown, Flame, Fish } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import mqtt from 'mqtt';
+import { 
+  Scale, 
+  Droplets, 
+  Timer, 
+  CheckCircle, 
+  Play, 
+  RotateCcw, 
+  AlertCircle, 
+  FileDown, 
+  Fish, 
+  Thermometer, 
+  Eye, 
+  Wifi, 
+  WifiOff,
+  Flame,
+  Fan,
+  Activity
+} from 'lucide-react';
 
-// ── Sample batch data ──────────────────────────────────────────────
+// ── Master Batch Registry ───────────────────────────────────────────
 const INITIAL_BATCHES = [
-  {
-    id: 'B-001', name: 'Dried Anchovy', status: 'drying',
-    weight: 2350, temp: 78.6, quality: 'Grade A',
-    initialMoisture: 78.67, targetMoisture: 20,
-    moistureTrend: [22, 20, 18, 17, 15, 14, 12.4],
-  },
-  {
-    id: 'B-002', name: 'Salted Mackerel', status: 'drying',
-    weight: 3100, temp: 74.2, quality: 'Grade A',
-    initialMoisture: 78.67, targetMoisture: 20,
-    moistureTrend: [28, 25, 22, 19, 17, 16, 15.1],
-  },
-  {
-    id: 'B-003', name: 'Dried Sardine', status: 'complete',
-    weight: 1850, temp: 82.1, quality: 'Grade B',
-    initialMoisture: 78.67, targetMoisture: 20,
-    moistureTrend: [18, 15, 13, 12, 11, 11, 10.8],
-  },
-  {
-    id: 'B-004', name: 'Dried Tuna', status: 'pending',
-    weight: 4200, temp: 0, quality: 'Grade A',
-    initialMoisture: 78.67, targetMoisture: 20,
-    moistureTrend: [78, 78, 78, 78, 78, 78, 78.67],
-  },
-  {
-    id: 'B-005', name: 'Dried Prawns', status: 'complete',
-    weight: 980, temp: 79.0, quality: 'Grade A',
-    initialMoisture: 78.67, targetMoisture: 20,
-    moistureTrend: [20, 17, 14, 12, 11, 10, 9.5],
-  },
-  {
-    id: 'B-006', name: 'Dried Squid', status: 'pending',
-    weight: 1560, temp: 0, quality: 'Grade B',
-    initialMoisture: 78.67, targetMoisture: 20,
-    moistureTrend: [78, 78, 78, 78, 78, 78, 78.67],
-  },
+  { id: 'B-001', name: 'Dried Anchovy', initialWeight: 1000, currentWeight: 1000, temp: 0, quality: 'Grade A', initialMoisture: 78.67, targetMoisture: 20, moistureTrend: [78.67] },
+  { id: 'B-002', name: 'Salted Mackerel', initialWeight: 1000, currentWeight: 1000, temp: 0, quality: 'Grade A', initialMoisture: 78.67, targetMoisture: 20, moistureTrend: [78.67] },
+  { id: 'B-003', name: 'Dried Sardine', initialWeight: 1200, currentWeight: 1200, temp: 0, quality: 'Grade B', initialMoisture: 75.00, targetMoisture: 20, moistureTrend: [75.00] },
+  { id: 'B-004', name: 'Dried Tuna', initialWeight: 2000, currentWeight: 2000, temp: 0, quality: 'Grade A', initialMoisture: 76.50, targetMoisture: 20, moistureTrend: [76.50] },
+  { id: 'B-005', name: 'Dried Prawns', initialWeight: 800, currentWeight: 800, temp: 0, quality: 'Grade A', initialMoisture: 79.20, targetMoisture: 20, moistureTrend: [79.20] },
+  { id: 'B-006', name: 'Dried Squid', initialWeight: 1500, currentWeight: 1500, temp: 0, quality: 'Grade B', initialMoisture: 77.00, targetMoisture: 20, moistureTrend: [77.00] },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────
-function calcMoisture(batch) {
-  const dryMatter = (batch.initialWeight ?? batch.weight) * (1 - batch.initialMoisture / 100);
-  return ((batch.weight - dryMatter) / batch.weight) * 100;
+function calculateMoisture(initialWeight, currentWeight, initialMoisture) {
+  if (!currentWeight || currentWeight <= 0) return 0;
+  const dryMatter = initialWeight * (1 - initialMoisture / 100);
+  const mc = ((currentWeight - dryMatter) / currentWeight) * 100;
+  return Math.max(0, Math.min(100, mc));
 }
 
-function calcProgress(batch) {
-  const mc = calcMoisture(batch);
-  return Math.min(100, Math.max(0,
-    ((batch.initialMoisture - mc) / (batch.initialMoisture - batch.targetMoisture)) * 100
-  ));
+function calculateProgress(initialMoisture, currentMoisture, targetMoisture) {
+  const prg = ((initialMoisture - currentMoisture) / (initialMoisture - targetMoisture)) * 100;
+  return Math.min(100, Math.max(0, prg));
 }
 
-// Sparkline SVG
 function Sparkline({ data, color }) {
-  const w = 120, h = 36, pad = 4;
+  if (!data || data.length < 2) {
+    return <div className="h-[28px] text-[10px] text-slate-400 flex items-center">Live telemetry sync...</div>;
+  }
+  const w = 110, h = 28, pad = 3;
   const min = Math.min(...data), max = Math.max(...data);
   const range = max - min || 1;
   const pts = data.map((v, i) => {
@@ -71,16 +61,15 @@ function Sparkline({ data, color }) {
   );
 }
 
-// Status badge
 function StatusBadge({ status }) {
   const map = {
-    drying:   { label: 'DRYING',   bg: 'bg-orange-500/15', text: 'text-orange-400', dot: 'bg-orange-400' },
-    complete: { label: 'COMPLETE', bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400'  },
-    pending:  { label: 'PENDING',  bg: 'bg-gray-500/15',   text: 'text-gray-400',   dot: 'bg-gray-500'   },
+    drying:   { label: 'DRYING',   bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200', dot: 'bg-orange-500' },
+    complete: { label: 'COMPLETE', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+    pending:  { label: 'PENDING',  bg: 'bg-slate-100',  text: 'text-slate-600',  border: 'border-slate-200',  dot: 'bg-slate-400'   },
   };
   const s = map[status] ?? map.pending;
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-black tracking-widest px-2.5 py-1 rounded-full ${s.bg} ${s.text}`}>
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${status === 'drying' ? 'animate-pulse' : ''}`} />
       {s.label}
     </span>
@@ -89,314 +78,515 @@ function StatusBadge({ status }) {
 
 // ── Main Component ─────────────────────────────────────────────────
 export default function DryFishMonitor() {
-  const INITIAL_MOISTURE_REF = 78.67;
   const TARGET_MOISTURE = 20.0;
+  const INITIAL_REF_MOISTURE = 78.67;
+  const INITIAL_REF_WEIGHT = 1000.0;
 
-  // Initialise batches with saved initialWeight
-  const [batches, setBatches] = useState(() =>
-    INITIAL_BATCHES.map(b => ({ ...b, initialWeight: b.weight }))
-  );
+  const mqttClientRef = useRef(null);
+  const [isConnected, setIsConnected] = useState(false);
   const [filter, setFilter] = useState('all');
-  const [isDrying, setIsDrying] = useState(false);
 
-  // AquaSense single-unit simulation
-  const [initialWeight] = useState(1000);
-  const [currentWeight, setCurrentWeight] = useState(1000);
-  const dryMatter = initialWeight * (1 - INITIAL_MOISTURE_REF / 100);
-  const currentMoisture = ((currentWeight - dryMatter) / currentWeight) * 100;
-  const progress = Math.min(100, Math.max(0,
-    ((INITIAL_MOISTURE_REF - currentMoisture) / (INITIAL_MOISTURE_REF - TARGET_MOISTURE)) * 100
-  ));
+  // Direct Hardware Load Cell Readings
+  const [cell1, setCell1] = useState({ weight: 0.0, active: false });
+  const [cell2, setCell2] = useState({ weight: 0.0, active: false });
 
-  // Simulate drying across all "drying" batches
+  // Hardware Status Flags from ESP32
+  const [heaterSSR, setHeaterSSR] = useState(false);
+  const [fanStatus, setFanStatus] = useState(false);
+
+  // Environmental Telemetry
+  const [chamberTemp, setChamberTemp] = useState(0.0);
+  const [thermalMatrix, setThermalMatrix] = useState(() => Array(64).fill(28.5));
+
+  // Dynamic Batch Pool
+  const [batches, setBatches] = useState(INITIAL_BATCHES);
+
+  // ── MQTT Client Connection ──
   useEffect(() => {
-    if (!isDrying) return;
-    const interval = setInterval(() => {
-      setBatches(prev => prev.map(b => {
-        if (b.status !== 'drying') return b;
-        const mc = calcMoisture(b);
-        if (mc <= b.targetMoisture) return { ...b, status: 'complete' };
-        const minWeight = (b.initialWeight * (1 - b.initialMoisture / 100)) / (1 - b.targetMoisture / 100);
-        const next = Math.max(b.weight - 1.5, minWeight);
-        return { ...b, weight: next };
+    const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
+      clientId: `AquaSense_App_${Math.random().toString(16).slice(2, 8)}`,
+      clean: true,
+      reconnectPeriod: 2500,
+    });
+
+    mqttClientRef.current = client;
+
+    client.on('connect', () => {
+      setIsConnected(true);
+      client.subscribe('aquasense/fish/telemetry');
+    });
+
+    client.on('error', () => setIsConnected(false));
+    client.on('close', () => setIsConnected(false));
+
+    client.on('message', (topic, message) => {
+      if (topic === 'aquasense/fish/telemetry') {
+        try {
+          const telemetry = JSON.parse(message.toString());
+
+          // Environmental readings & Hardware Actuator States
+          if (telemetry.chamber_temp !== undefined) setChamberTemp(telemetry.chamber_temp);
+          if (telemetry.thermal_grid && Array.isArray(telemetry.thermal_grid)) setThermalMatrix(telemetry.thermal_grid);
+          if (telemetry.heater_ssr !== undefined) setHeaterSSR(telemetry.heater_ssr);
+          if (telemetry.fan_status !== undefined) setFanStatus(telemetry.fan_status);
+
+          // Direct sensor weight mapping
+          if (telemetry.weight1 !== undefined) {
+            setCell1(prev => ({ ...prev, weight: telemetry.weight1 }));
+          }
+          if (telemetry.weight2 !== undefined) {
+            setCell2(prev => ({ ...prev, weight: telemetry.weight2 }));
+          }
+
+          // Live dynamic update for batch registry table
+          setBatches(prev => prev.map((b, idx) => {
+            let currentLiveWeight = b.currentWeight;
+            let isDrying = false;
+
+            if (idx === 0 && telemetry.weight1 !== undefined) {
+              currentLiveWeight = telemetry.weight1;
+              isDrying = cell1.active;
+            } else if (idx === 1 && telemetry.weight2 !== undefined) {
+              currentLiveWeight = telemetry.weight2;
+              isDrying = cell2.active;
+            } else {
+              return b;
+            }
+
+            const liveMC = calculateMoisture(b.initialWeight, currentLiveWeight, b.initialMoisture);
+            let dynamicStatus = 'pending';
+            if (liveMC <= b.targetMoisture && currentLiveWeight > 0 && liveMC > 0) {
+              dynamicStatus = 'complete';
+            } else if (isDrying && currentLiveWeight > 0) {
+              dynamicStatus = 'drying';
+            } else {
+              dynamicStatus = 'pending';
+            }
+
+            const updatedTrend = [...b.moistureTrend, Number(liveMC.toFixed(1))].slice(-10);
+
+            return {
+              ...b,
+              currentWeight: currentLiveWeight,
+              status: dynamicStatus,
+              temp: telemetry.chamber_temp || b.temp,
+              moistureTrend: updatedTrend
+            };
+          }));
+
+        } catch (err) {
+          console.error("Telemetry Parse Error:", err);
+        }
+      }
+    });
+
+    return () => client.end();
+  }, [cell1.active, cell2.active]);
+
+  // Command to ESP32 (Controls Relay & Fan directly)
+  const publishMqttControl = (c1, c2) => {
+    if (mqttClientRef.current && isConnected) {
+      mqttClientRef.current.publish('aquasense/fish/control', JSON.stringify({
+        cell1_drying: c1,
+        cell2_drying: c2
       }));
-      // AquaSense unit
-      setCurrentWeight(prev => {
-        const next = prev - 0.5;
-        const min = dryMatter / (1 - TARGET_MOISTURE / 100);
-        return next > min ? next : prev;
-      });
-    }, 80);
-    return () => clearInterval(interval);
-  }, [isDrying, dryMatter]);
-
-  // Summary stats
-  const totalWeight = batches.reduce((s, b) => s + b.weight, 0);
-  const dryingBatches = batches.filter(b => b.status === 'drying');
-  const completedBatches = batches.filter(b => b.status === 'complete');
-  const avgMoisture = batches.length
-    ? batches.reduce((s, b) => s + calcMoisture(b), 0) / batches.length
-    : 0;
-
-  const filtered = filter === 'all' ? batches : batches.filter(b => b.status === filter);
-
-  const handleStartStop = () => {
-    if (currentMoisture <= TARGET_MOISTURE) {
-      setCurrentWeight(initialWeight);
-      setBatches(INITIAL_BATCHES.map(b => ({ ...b, initialWeight: b.weight })));
     }
-    setIsDrying(v => !v);
   };
 
-  const tempColor = (t) => t >= 80 ? 'text-red-400' : t >= 70 ? 'text-orange-400' : t > 0 ? 'text-yellow-400' : 'text-gray-600';
-  const moistureBarColor = (mc) => mc <= 15 ? '#22c55e' : mc <= 25 ? '#f59e0b' : '#ef4444';
+  const toggleCell1 = () => {
+    const next = !cell1.active;
+    setCell1(prev => ({ ...prev, active: next }));
+    publishMqttControl(next, cell2.active);
+  };
+
+  const toggleCell2 = () => {
+    const next = !cell2.active;
+    setCell2(prev => ({ ...prev, active: next }));
+    publishMqttControl(cell1.active, next);
+  };
+
+  // ── High-Precision Thermal Color Palette (White Friendly) ──
+  const getThermalStyle = (t) => {
+    if (t >= 55) return { bg: '#ef4444', shadow: 'rgba(239, 68, 68, 0.3)', text: '#ffffff' }; // Red
+    if (t >= 48) return { bg: '#f97316', shadow: 'rgba(249, 115, 22, 0.3)', text: '#ffffff' }; // Orange
+    if (t >= 42) return { bg: '#f59e0b', shadow: 'rgba(245, 158, 11, 0.25)', text: '#ffffff' }; // Amber
+    if (t >= 36) return { bg: '#eab308', shadow: 'rgba(234, 179, 8, 0.25)', text: '#1e293b' }; // Yellow
+    if (t >= 30) return { bg: '#06b6d4', shadow: 'rgba(6, 182, 212, 0.25)', text: '#ffffff' }; // Cyan
+    if (t >= 25) return { bg: '#3b82f6', shadow: 'rgba(59, 130, 246, 0.25)', text: '#ffffff' }; // Blue
+    return { bg: '#6366f1', shadow: 'rgba(99, 102, 241, 0.25)', text: '#ffffff' }; // Indigo
+  };
+
+  // Thermal Stats
+  const maxThermal = Math.max(...thermalMatrix, 0);
+  const minThermal = Math.min(...thermalMatrix, 100);
+  const avgThermal = thermalMatrix.reduce((a, b) => a + b, 0) / (thermalMatrix.length || 1);
+
+  const moistureBarColor = (mc) => mc <= 15 ? '#10b981' : mc <= 25 ? '#f59e0b' : '#ef4444';
+
+  // Filters
+  const dryingList = batches.filter(b => b.status === 'drying');
+  const completeList = batches.filter(b => b.status === 'complete');
+  const pendingList = batches.filter(b => b.status === 'pending');
+
+  const filteredBatches = 
+    filter === 'drying' ? dryingList :
+    filter === 'complete' ? completeList :
+    filter === 'pending' ? pendingList : batches;
 
   return (
-    <div className="min-h-screen bg-[#f0f2f8] text-gray-900 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans p-4 md:p-8 space-y-6">
 
-      {/* ── Top Nav ── */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+      {/* ── Top Header ── */}
+      <header className="bg-white border border-slate-200/80 rounded-2xl px-6 py-4 flex items-center justify-between shadow-sm flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
-            <Fish size={18} className="text-white" />
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-md shadow-blue-500/20">
+            <Fish size={22} className="text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-black text-gray-900 leading-none">Dry Fish Monitor</h1>
-            <p className="text-[11px] text-gray-400 mt-0.5">Batch drying management · Live status</p>
+            <h1 className="text-lg font-black text-slate-900 tracking-tight">AquaSense Industrial Monitor</h1>
+            <p className="text-xs text-slate-500 font-medium">Dual Load Cell & Industrial Thermal Matrix Telemetry</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleStartStop}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-              isDrying
-                ? 'bg-red-100 text-red-600 border border-red-200'
-                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200'
-            }`}
-          >
-            {isDrying ? <RotateCcw size={15} /> : <Play size={15} />}
-            {isDrying ? 'Stop' : currentMoisture <= TARGET_MOISTURE ? 'Reset' : 'Start Drying'}
-          </button>
-          <button className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all">
-            <FileDown size={15} />
-            Export Report
+
+        {/* Live System Status Badges */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+            heaterSSR ? 'bg-orange-50 border-orange-200 text-orange-600 animate-pulse' : 'bg-slate-100 border-slate-200 text-slate-500'
+          }`}>
+            <Flame size={13} />
+            {heaterSSR ? 'HEATER: ON' : 'HEATER: OFF'}
+          </div>
+
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+            fanStatus ? 'bg-cyan-50 border-cyan-200 text-cyan-600' : 'bg-slate-100 border-slate-200 text-slate-500'
+          }`}>
+            <Fan size={13} className={fanStatus ? 'animate-spin' : ''} />
+            {fanStatus ? 'FAN: ACTIVE' : 'FAN: OFF'}
+          </div>
+
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
+            isConnected ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600'
+          }`}>
+            {isConnected ? <Wifi size={13} /> : <WifiOff size={13} />}
+            {isConnected ? 'MQTT Online' : 'MQTT Offline'}
+          </div>
+
+          <button className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 transition-all">
+            <FileDown size={14} /> Export Report
           </button>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      {/* ── Side-by-Side Dual Load Cell Hardware Processing Panels ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {[
+          { cellNum: 1, cellData: cell1, toggle: toggleCell1 },
+          { cellNum: 2, cellData: cell2, toggle: toggleCell2 }
+        ].map(({ cellNum, cellData, toggle }) => {
+          const currentWeight = cellData.weight;
+          const mc = calculateMoisture(INITIAL_REF_WEIGHT, currentWeight, INITIAL_REF_MOISTURE);
+          const prg = calculateProgress(INITIAL_REF_MOISTURE, mc, TARGET_MOISTURE);
+          const dryMatter = (INITIAL_REF_WEIGHT * (1 - INITIAL_REF_MOISTURE / 100)).toFixed(1);
 
-        {/* ── Summary Cards ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            {
-              icon: <Scale size={22} className="text-blue-600" />,
-              iconBg: 'bg-blue-50',
-              label: 'Total Weight',
-              value: (totalWeight / 1000).toFixed(2),
-              unit: 'kg',
-              valueClass: 'text-gray-900',
-            },
-            {
-              icon: <Droplets size={22} className="text-blue-500" />,
-              iconBg: 'bg-blue-50',
-              label: 'Avg Moisture',
-              value: avgMoisture.toFixed(1),
-              unit: '%',
-              valueClass: 'text-blue-500',
-            },
-            {
-              icon: <Flame size={22} className="text-orange-500" />,
-              iconBg: 'bg-orange-50',
-              label: 'Currently Drying',
-              value: dryingBatches.length,
-              unit: 'batch',
-              valueClass: 'text-orange-500',
-            },
-            {
-              icon: <CheckCircle size={22} className="text-green-500" />,
-              iconBg: 'bg-green-50',
-              label: 'Completed',
-              value: completedBatches.length,
-              unit: 'batch',
-              valueClass: 'text-green-500',
-            },
-          ].map((c, i) => (
-            <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-xl ${c.iconBg} flex items-center justify-center shrink-0`}>
-                {c.icon}
-              </div>
+          return (
+            <div key={cellNum} className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
               <div>
-                <p className="text-[11px] text-gray-400 font-semibold mb-0.5">{c.label}</p>
-                <p className={`text-2xl font-black ${c.valueClass} leading-none`}>
-                  {c.value}<span className="text-sm font-semibold text-gray-400 ml-1">{c.unit}</span>
-                </p>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${cellData.active ? 'bg-blue-600 animate-ping' : 'bg-slate-300'}`} />
+                    <h2 className="text-blue-600 font-black text-sm tracking-wider">LOAD CELL {cellNum}</h2>
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full">
+                    Target: {TARGET_MOISTURE}%
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Real-time Moisture */}
+                  <div className="bg-slate-50 rounded-2xl border border-slate-200/70 p-4 flex flex-col items-center justify-center relative overflow-hidden">
+                    <p className="text-slate-400 uppercase tracking-widest text-[9px] font-bold mb-1 relative z-10">Moisture Content</p>
+                    <h3 className={`text-4xl font-black relative z-10 ${mc <= TARGET_MOISTURE && currentWeight > 0 ? 'text-emerald-600' : 'text-slate-900'}`}>
+                      {mc.toFixed(1)}<span className="text-sm text-slate-400 font-normal ml-0.5">%</span>
+                    </h3>
+                    <p className="text-slate-500 text-[10px] mt-1 flex items-center gap-1 relative z-10 font-medium">
+                      <Droplets size={11} className="text-blue-500" /> Wet Basis (MCwb)
+                    </p>
+                    <div 
+                      className="absolute bottom-0 left-0 w-full bg-blue-100/60 transition-all duration-300" 
+                      style={{ height: `${Math.min(100, mc)}%` }} 
+                    />
+                  </div>
+
+                  {/* Live Scale Weight from HX711 */}
+                  <div className="bg-slate-50 rounded-2xl border border-slate-200/70 p-4 flex flex-col justify-center items-center">
+                    <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mb-1">Live Scale Reading</p>
+                    <h3 className="text-3xl font-black text-slate-900">
+                      {currentWeight.toFixed(1)}<span className="text-xs text-slate-400 font-normal ml-0.5">g</span>
+                    </h3>
+                    <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-2 font-medium">
+                      <Scale size={14} /> Ref Initial: {INITIAL_REF_WEIGHT}g
+                    </div>
+                  </div>
+
+                  {/* Process Progress */}
+                  <div className={`rounded-2xl border p-4 flex flex-col justify-center ${mc <= TARGET_MOISTURE && currentWeight > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200/70'}`}>
+                    <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mb-1">Process Progress</p>
+                    <h3 className={`text-3xl font-black ${mc <= TARGET_MOISTURE && currentWeight > 0 ? 'text-emerald-600' : 'text-blue-600'}`}>
+                      {prg.toFixed(0)}%
+                    </h3>
+                    <div className="mt-2 h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-600 rounded-full transition-all duration-300" style={{ width: `${prg}%` }} />
+                    </div>
+                    <div className={`mt-2 flex items-center gap-1 text-[11px] font-bold ${mc <= TARGET_MOISTURE && currentWeight > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                      {mc <= TARGET_MOISTURE && currentWeight > 0 ? <><CheckCircle size={13} /> SAFE TO STORE</> : <><Timer size={13} className={cellData.active ? 'animate-spin' : ''} /> {cellData.active ? 'DRYING ACTIVE' : 'STANDBY'}</>}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
 
-        {/* ── AquaSense Live Panel ── */}
-        <div className="bg-gray-950 text-gray-100 rounded-3xl p-6 border border-gray-800 shadow-xl">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-blue-400 font-black text-lg flex items-center gap-2">
-                <div className={`w-2.5 h-2.5 rounded-full bg-blue-400 ${isDrying ? 'animate-ping' : ''}`} />
-                AQUASENSE LIVE
-              </h2>
-              <p className="text-gray-500 text-xs mt-0.5">Real-time Mass-Balance Monitoring</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {/* Moisture Gauge */}
-            <div className="bg-gray-900 rounded-[28px] border border-gray-800 p-6 flex flex-col items-center justify-center relative overflow-hidden">
-              <p className="text-gray-500 uppercase tracking-widest text-[10px] font-bold mb-2 relative z-10">Current Moisture</p>
-              <h3 className={`text-5xl font-black relative z-10 transition-colors duration-500 ${currentMoisture <= TARGET_MOISTURE ? 'text-green-400' : 'text-white'}`}>
-                {currentMoisture.toFixed(1)}<span className="text-xl text-gray-600">%</span>
-              </h3>
-              <p className="text-gray-500 text-xs mt-2 flex items-center gap-1.5 relative z-10">
-                <Droplets size={12} className="text-blue-400" /> Wet Basis (MCwb)
-              </p>
-              <div
-                className="absolute bottom-0 left-0 w-full bg-blue-600/10 transition-all duration-1000 ease-linear"
-                style={{ height: `${currentMoisture}%` }}
-              />
-            </div>
-
-            {/* Weight */}
-            <div className="bg-gray-900 rounded-[28px] border border-gray-800 p-6 flex flex-col justify-center">
-              <p className="text-gray-500 text-[10px] font-bold uppercase mb-1">Current Weight</p>
-              <h3 className="text-4xl font-black">{currentWeight.toFixed(1)}<span className="text-lg text-gray-600">g</span></h3>
-              <Scale size={28} className="text-gray-700 mt-3" />
-            </div>
-
-            {/* Progress */}
-            <div className={`rounded-[28px] border p-6 transition-all duration-500 ${currentMoisture <= TARGET_MOISTURE ? 'bg-green-500/10 border-green-500/20' : 'bg-gray-900 border-gray-800'}`}>
-              <p className="text-gray-500 text-[10px] font-bold uppercase mb-1">Drying Progress</p>
-              <h3 className={`text-4xl font-black ${currentMoisture <= TARGET_MOISTURE ? 'text-green-400' : 'text-blue-400'}`}>
-                {progress.toFixed(0)}%
-              </h3>
-              <div className="mt-4 h-2.5 bg-gray-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%`, boxShadow: '0 0 10px rgba(59,130,246,0.6)' }}
-                />
-              </div>
-              <div className="flex justify-between text-[9px] text-gray-600 mt-2 font-bold">
-                <span>78.7%</span><span>20.0%</span>
-              </div>
-              <div className={`mt-3 flex items-center gap-2 text-sm font-bold ${currentMoisture <= TARGET_MOISTURE ? 'text-green-400' : 'text-gray-400'}`}>
-                {currentMoisture <= TARGET_MOISTURE ? <><CheckCircle size={16} /> SAFE TO STORE</> : <><Timer size={16} className="animate-spin" /> DRYING...</>}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 bg-blue-500/5 border border-blue-500/10 p-3 rounded-xl flex gap-2 items-start">
-            <AlertCircle className="text-blue-400 shrink-0 mt-0.5" size={15} />
-            <p className="text-[11px] text-gray-400 leading-relaxed">
-              <span className="text-blue-300 font-bold">Calculation Logic:</span> Constant Dry Matter of{' '}
-              <span className="text-white">{dryMatter.toFixed(1)}g</span>. As water evaporates, mass decreases and MCwb is recalculated in real-time. Reference: Babiker et al. 2016.
-            </p>
-          </div>
-        </div>
-
-        {/* ── Batch Table ── */}
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-          {/* Filter tabs */}
-          <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-2">
-              {[
-                { key: 'all', label: 'All dry fish' },
-                { key: 'drying', label: 'Drying' },
-                { key: 'complete', label: 'Complete' },
-                { key: 'pending', label: 'Pending' },
-              ].map(f => (
+              {/* Action Bar */}
+              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                  <AlertCircle size={14} className="text-blue-600 shrink-0" />
+                  <span>Dry Solid Mass: <strong className="text-slate-700">{dryMatter}g</strong></span>
+                </div>
                 <button
-                  key={f.key}
-                  onClick={() => setFilter(f.key)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
-                    filter === f.key
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  onClick={toggle}
+                  className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                    cellData.active
+                      ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20'
                   }`}
                 >
-                  {f.key !== 'all' && (
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      f.key === 'drying' ? 'bg-orange-400' : f.key === 'complete' ? 'bg-green-400' : 'bg-gray-400'
-                    }`} />
-                  )}
-                  {f.key === 'all' && <Fish size={13} />}
-                  {f.label}
+                  {cellData.active ? <RotateCcw size={14} /> : <Play size={14} />}
+                  {cellData.active ? 'Stop Drying Cycle' : 'Start Drying Cycle'}
                 </button>
-              ))}
+              </div>
             </div>
-            <span className="text-xs text-gray-400 font-semibold">{filtered.length} batches</span>
+          );
+        })}
+      </div>
+
+      {/* ── DS18B20 Temp Probe & Pure White AMG8833 Thermal Array Display ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* DS18B20 Chamber Probe */}
+        <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-orange-50 text-orange-500 border border-orange-100">
+                <Thermometer size={18} />
+              </div>
+              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700">DS18B20 Chamber Temp</h3>
+            </div>
+            <span className="text-[10px] bg-orange-50 border border-orange-200 text-orange-600 px-2.5 py-0.5 rounded-full font-bold">1-Wire Digital</span>
+          </div>
+          <div className="my-4">
+            <div className="text-5xl font-black text-slate-900">{chamberTemp.toFixed(1)}°C</div>
+            <p className="text-xs text-slate-500 mt-1 font-medium">Internal air circulation temperature</p>
+          </div>
+          <div className="text-xs text-slate-400 border-t border-slate-100 pt-3 flex justify-between">
+            <span>Target Range: 45.0°C – 55.0°C</span>
+            <span className="text-emerald-600 font-bold">Live Synced</span>
+          </div>
+        </div>
+
+        {/* ── Pure White AMG8833 GridEYE Thermal Array ── */}
+        <div className="md:col-span-2 bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+          
+          {/* Thermal Header & Telemetry Metrics */}
+          <div className="flex items-start justify-between flex-wrap gap-4 mb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-red-50 text-red-500 border border-red-100">
+                  <Eye size={18} />
+                </div>
+                <h3 className="font-black text-sm tracking-wide text-slate-900 flex items-center gap-2">
+                  AMG8833 GridEYE Thermal Camera
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                </h3>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">8×8 Infrared Surface Matrix · Real-time Hotspot Tracking</p>
+            </div>
+
+            {/* Live Stats Pill Badges */}
+            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
+              <div className="px-3 py-1 text-center border-r border-slate-200">
+                <span className="text-[9px] text-slate-400 uppercase font-bold block">Min</span>
+                <span className="text-xs font-black text-cyan-600">{minThermal.toFixed(1)}°C</span>
+              </div>
+              <div className="px-3 py-1 text-center border-r border-slate-200">
+                <span className="text-[9px] text-slate-400 uppercase font-bold block">Avg</span>
+                <span className="text-xs font-black text-amber-600">{avgThermal.toFixed(1)}°C</span>
+              </div>
+              <div className="px-3 py-1 text-center">
+                <span className="text-[9px] text-slate-400 uppercase font-bold block">Max</span>
+                <span className="text-xs font-black text-rose-600">{maxThermal.toFixed(1)}°C</span>
+              </div>
+            </div>
           </div>
 
-          {/* Cards grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 p-6">
-            {filtered.map(batch => {
-              const mc = calcMoisture(batch);
+          {/* Thermal Heatmap Matrix & Palette Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 my-2">
+            
+            {/* 8x8 Thermal Pixels Matrix */}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
+              <div className="grid grid-cols-8 gap-1.5">
+                {thermalMatrix.map((pixelTemp, idx) => {
+                  const style = getThermalStyle(pixelTemp);
+                  return (
+                    <div
+                      key={idx}
+                      title={`Pixel ${idx + 1}: ${Number(pixelTemp).toFixed(1)}°C`}
+                      className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg transition-all duration-300 flex items-center justify-center text-[8px] font-black cursor-pointer hover:scale-125 hover:shadow-lg"
+                      style={{ 
+                        backgroundColor: style.bg,
+                        color: style.text,
+                        boxShadow: `0 2px 6px ${style.shadow}`
+                      }}
+                    >
+                      {Math.round(pixelTemp)}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Thermal Palette Legend */}
+            <div className="flex flex-col justify-center space-y-3 w-full sm:w-auto">
+              <div className="flex items-center gap-2 text-xs text-slate-700 font-bold">
+                <Activity size={14} className="text-blue-600" />
+                Thermal Calibration Spectrum
+              </div>
+              
+              {/* Visual Gradient Bar */}
+              <div className="w-full sm:w-48 h-3 rounded-full bg-gradient-to-r from-indigo-500 via-cyan-400 via-amber-400 via-orange-500 to-rose-500 shadow-inner" />
+              
+              <div className="flex justify-between text-[10px] text-slate-500 font-bold">
+                <span>&lt; 25°C (Cool)</span>
+                <span>35°C</span>
+                <span>&gt; 50°C (Hotspot)</span>
+              </div>
+              <div className="text-[10px] text-slate-400 leading-tight">
+                Hotspot detection algorithm active for uneven surface moisture evaporation.
+              </div>
+            </div>
+
+          </div>
+
+          <div className="text-[10px] text-slate-400 border-t border-slate-100 pt-3 flex justify-between items-center mt-2">
+            <span>Sensor: Panasonic AMG8833 (I2C 0x69)</span>
+            <span className="text-emerald-600 font-bold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> 64 Frame Array OK
+            </span>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── Real-time Interactive Batch Registry Table ── */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+        
+        {/* Category Navigation Tabs */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            {[
+              { key: 'all', label: 'All Batches', count: batches.length },
+              { key: 'drying', label: 'Drying', count: dryingList.length },
+              { key: 'complete', label: 'Complete', count: completeList.length },
+              { key: 'pending', label: 'Pending', count: pendingList.length },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setFilter(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  filter === tab.key 
+                    ? 'bg-slate-900 text-white shadow-sm' 
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                  filter === tab.key ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-slate-400 font-semibold">Real-time Telemetry Feed ({filteredBatches.length} items)</span>
+        </div>
+
+        {/* Dynamic Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 p-6">
+          {filteredBatches.length === 0 ? (
+            <div className="col-span-full text-center py-10 text-slate-400 text-xs font-bold">
+              No batches currently found under the "{filter.toUpperCase()}" category.
+            </div>
+          ) : (
+            filteredBatches.map(batch => {
+              const mc = calculateMoisture(batch.initialWeight, batch.currentWeight, batch.initialMoisture);
               const barColor = moistureBarColor(mc);
-              const sparkColor = batch.status === 'complete' ? '#22c55e' : '#f59e0b';
+              const sparkColor = batch.status === 'complete' ? '#10b981' : batch.status === 'drying' ? '#f59e0b' : '#94a3b8';
+
               return (
-                <div key={batch.id} className="border border-gray-100 rounded-2xl p-5 hover:shadow-md hover:border-gray-200 transition-all bg-white group">
-                  {/* Card Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="font-black text-gray-900 text-base">{batch.name}</h3>
-                      <p className="text-[11px] text-gray-400 font-medium mt-0.5">Batch {batch.id}</p>
+                <div key={batch.id} className="border border-slate-200/80 rounded-2xl p-5 hover:shadow-md transition-all bg-white flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-base">{batch.name}</h3>
+                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                          Batch {batch.id}
+                        </p>
+                      </div>
+                      <StatusBadge status={batch.status} />
                     </div>
-                    <StatusBadge status={batch.status} />
+
+                    <div className="grid grid-cols-3 gap-2 mb-4 bg-slate-50 p-3 rounded-xl text-center">
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-semibold">Weight</p>
+                        <p className="text-xs font-bold text-slate-800">{(batch.currentWeight / 1000).toFixed(2)} kg</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-semibold">Temp</p>
+                        <p className="text-xs font-bold text-slate-800">
+                          {batch.temp > 0 ? `${batch.temp}°C` : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-semibold">Quality</p>
+                        <p className={`text-xs font-bold ${batch.quality === 'Grade A' ? 'text-emerald-600' : 'text-orange-500'}`}>
+                          {batch.quality}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mb-3">
+                      <div className="flex justify-between text-[10px] font-semibold text-slate-400 mb-1">
+                        <span>Moisture Level</span>
+                        <span className="text-slate-700 font-bold">{mc.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{ width: `${(mc / 80) * 100}%`, backgroundColor: barColor }}
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Stats row */}
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-semibold mb-0.5">Weight</p>
-                      <p className="text-sm font-bold text-gray-800">{(batch.weight / 1000).toFixed(2)} kg</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-semibold mb-0.5">Temp</p>
-                      <p className={`text-sm font-bold ${tempColor(batch.temp)}`}>
-                        {batch.temp > 0 ? `${batch.temp}°C` : '—'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-semibold mb-0.5">Quality</p>
-                      <p className={`text-sm font-bold ${batch.quality === 'Grade A' ? 'text-green-500' : 'text-orange-400'}`}>
-                        {batch.quality}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Moisture bar */}
-                  <div className="mb-3">
-                    <div className="flex justify-between text-[10px] font-semibold text-gray-400 mb-1.5">
-                      <span>Moisture Level</span>
-                      <span className="text-gray-700 font-bold">{mc.toFixed(1)}%</span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-300"
-                        style={{ width: `${(mc / 80) * 100}%`, background: barColor }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Trend sparkline */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-gray-400 font-semibold">Moisture trend</span>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-2">
+                    <span className="text-[10px] text-slate-400 font-semibold">Moisture Curve</span>
                     <Sparkline data={batch.moistureTrend} color={sparkColor} />
                   </div>
                 </div>
               );
-            })}
-          </div>
+            })
+          )}
         </div>
 
-      </main>
+      </div>
+
     </div>
   );
 }
