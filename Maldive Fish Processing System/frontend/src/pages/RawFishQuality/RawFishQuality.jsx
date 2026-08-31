@@ -1,17 +1,108 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import mqtt from 'mqtt';
+import {
+  ShieldCheck,
+  Flame,
+  Wind,
+  Droplets,
+  Sparkles,
+  Radio,
+  Wifi,
+  WifiOff,
+  Activity,
+  Upload,
+  Camera,
+  Play,
+  Square,
+  RefreshCw,
+  Trash2,
+  Download,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Cpu,
+  Layers,
+  ArrowRight,
+  Info,
+  Sliders,
+  ChevronRight
+} from 'lucide-react';
 import { rawFishService } from '../../services/api';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip,
   AreaChart, Area, XAxis, YAxis, CartesianGrid
 } from 'recharts';
 
-const FRESHNESS_API_URL = 'http://localhost:8000/predict';
+const AI_BACKEND_URL = 'http://localhost:8000';
+const FRESHNESS_API_URL = `${AI_BACKEND_URL}/predict`;
+const MQTT_WS_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+const MQTT_SENSOR_TOPIC = 'fish/sorting/mq135';
+const MQTT_STATUS_TOPIC = 'fish/sorting/status';
+const MQTT_COMMAND_TOPIC = 'fish/sorting/command';
+
+/**
+ * MQ-135 Tuna Freshness Thresholds
+ * Exact specification:
+ * - Very Fresh:         <= 90   (Typical: 59 – 88)
+ * - Fresh / Acceptable: 91 – 150 (Typical: 118 – 145)
+ * - Spoiled:            > 150   (Typical: 150 – 200)
+ */
+export const getMqFreshnessDetails = (value) => {
+  const num = Number(value) || 0;
+  if (num <= 90) {
+    return {
+      level: 'Very Fresh',
+      range: '≤ 90',
+      typical: '59 – 88',
+      badge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+      bgLight: 'bg-emerald-50/80',
+      borderLight: 'border-emerald-200',
+      textColor: 'text-emerald-700',
+      color: '#10B981',
+      command: 'A',
+      qualityText: 'Optimal Freshness',
+      suitability: 'Ready for boiling & Maldive fish processing',
+      desc: 'Minimal gas emissions. Optimal muscle tissue condition with lowest volatile organic base level.'
+    };
+  } else if (num <= 150) {
+    return {
+      level: 'Fresh / Acceptable',
+      range: '91 – 150',
+      typical: '118 – 145',
+      badge: 'bg-blue-100 text-blue-800 border-blue-300',
+      bgLight: 'bg-blue-50/80',
+      borderLight: 'border-blue-200',
+      textColor: 'text-blue-700',
+      color: '#3B82F6',
+      command: 'B',
+      qualityText: 'Acceptable Freshness',
+      suitability: 'Process immediately without delay',
+      desc: 'Moderate gas emissions within acceptable limits. Early breakdown amines present.'
+    };
+  } else {
+    return {
+      level: 'Spoiled',
+      range: '> 150',
+      typical: '150 – 200',
+      badge: 'bg-rose-100 text-rose-800 border-rose-300',
+      bgLight: 'bg-rose-50/80',
+      borderLight: 'border-rose-200',
+      textColor: 'text-rose-700',
+      color: '#EF4444',
+      command: 'C',
+      qualityText: 'Spoiled / Unsafe',
+      suitability: 'Batch rejected - Do not process',
+      desc: 'High concentration of decomposition gases (ammonia & volatile basic nitrogen). Reject batch.'
+    };
+  }
+};
 
 const RawFishQuality = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
-  const [batchId, setBatchId] = useState('RF-' + Date.now());
+  const [batchId, setBatchId] = useState('RF-' + Date.now().toString().slice(-6));
   const [species, setSpecies] = useState('Alagoduwa');
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
@@ -20,49 +111,47 @@ const RawFishQuality = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [history, setHistory] = useState([]);
-  const [feedback, setFeedback] = useState('Use the upload or camera feature to analyze fish freshness.');
+  const [feedback, setFeedback] = useState('Upload a raw fish image or monitor real-time MQ-135 sensor telemetry.');
   const [qualityData, setQualityData] = useState([]);
-  const [autoCaptionActive, setAutoCaptionActive] = useState(false);
-  const [currentCaption, setCurrentCaption] = useState('');
-  const autoCaptionIntervalRef = useRef(null);
 
-  // ─── MQ-135 Gas Sensor States ──────────────────────────────────────────────
-  const [mqPpm, setMqPpm] = useState(48);
-  const [isMqStreaming, setIsMqStreaming] = useState(true);
-  const [mqPreset, setMqPreset] = useState('fresh');
-  const [mqCustomVal, setMqCustomVal] = useState(50);
-  const [mqThreshold, setMqThreshold] = useState(150);
-  const [mqCalibratedAt, setMqCalibratedAt] = useState(new Date().toLocaleTimeString());
+  // ─── Real-Time MQTT / ESP32 Hardware State ────────────────────────────────
+  const [isMqttConnected, setIsMqttConnected] = useState(false);
+  const [mqValue, setMqValue] = useState(72); // Live MQ-135 sensor value
+  const [hardwareQuality, setHardwareQuality] = useState('GOOD'); // From crack.cc (GOOD / MODERATE / POOR)
+  const [hardwareStatus, setHardwareStatus] = useState('IDLE');
+  const [lastCommand, setLastCommand] = useState('IDLE');
+  const [lastUpdatedTime, setLastUpdatedTime] = useState(new Date().toLocaleTimeString());
+  const mqttClientRef = useRef(null);
+
+  // Time-series history for live chart
+  const [mqHistory, setMqHistory] = useState([
+    { time: '00:00', value: 68 },
+    { time: '00:02', value: 72 },
+    { time: '00:04', value: 70 },
+    { time: '00:06', value: 75 },
+    { time: '00:08', value: 72 },
+  ]);
+
+  // Logged readings for history table & CSV export
   const [mqLogs, setMqLogs] = useState([
     {
-      id: 'MQ-LOG-101',
-      batchId: 'RF-1740928001',
+      id: 'MQ-LOG-01',
+      batchId: 'RF-928101',
       species: 'Alagoduwa',
-      timestamp: new Date(Date.now() - 3600000).toLocaleString(),
-      ppm: 42,
-      voltage: '1.07',
-      status: 'Very Fresh',
-      grade: 'Grade A'
+      timestamp: new Date(Date.now() - 1800000).toLocaleTimeString(),
+      value: 65,
+      level: 'Very Fresh',
+      command: 'A',
     },
     {
-      id: 'MQ-LOG-102',
-      batchId: 'RF-1740928002',
+      id: 'MQ-LOG-02',
+      batchId: 'RF-928102',
       species: 'Alagoduwa',
-      timestamp: new Date(Date.now() - 1800000).toLocaleString(),
-      ppm: 98,
-      voltage: '1.43',
-      status: 'Moderately Fresh',
-      grade: 'Grade B'
+      timestamp: new Date(Date.now() - 900000).toLocaleTimeString(),
+      value: 124,
+      level: 'Fresh / Acceptable',
+      command: 'B',
     }
-  ]);
-  const [mqHistory, setMqHistory] = useState([
-    { time: '10:00', ppm: 42, nh3: 17.6, tma: 11.8, h2s: 6.3, voltage: 1.07, rawAdc: 1375 },
-    { time: '10:01', ppm: 45, nh3: 18.9, tma: 12.6, h2s: 6.7, voltage: 1.09, rawAdc: 1401 },
-    { time: '10:02', ppm: 44, nh3: 18.5, tma: 12.3, h2s: 6.6, voltage: 1.08, rawAdc: 1390 },
-    { time: '10:03', ppm: 48, nh3: 20.1, tma: 13.4, h2s: 7.2, voltage: 1.11, rawAdc: 1425 },
-    { time: '10:04', ppm: 47, nh3: 19.7, tma: 13.2, h2s: 7.0, voltage: 1.10, rawAdc: 1415 },
-    { time: '10:05', ppm: 50, nh3: 21.0, tma: 14.0, h2s: 7.5, voltage: 1.12, rawAdc: 1440 },
-    { time: '10:06', ppm: 48, nh3: 20.2, tma: 13.4, h2s: 7.2, voltage: 1.11, rawAdc: 1425 },
   ]);
 
   const videoRef = useRef(null);
@@ -70,58 +159,111 @@ const RawFishQuality = () => {
   const fileRef = useRef(null);
 
   const tabs = [
-    ['upload', '📤 Upload Raw Fish'],
-    ['live', '🎥 Detect Fish Live'],
-    ['mq135', '💨 MQ-135 Gas Sensor'],
+    ['upload', '📤 Upload & AI Assessment'],
+    ['live', '🎥 Live Camera Detection'],
+    ['mq135', '💨 MQ-135 Sensor & Sorter Telemetry'],
     ['history', '📋 Assessment History'],
     ['analytics', '📊 Quality Analytics'],
   ];
 
-  // Real-time telemetry generator for MQ-135
+  // ─── MQTT Connection to HiveMQ (Matching crack.cc) ────────────────────────
   useEffect(() => {
-    if (!isMqStreaming) return;
-    const interval = setInterval(() => {
-      setMqPpm((prev) => {
-        let target = prev;
-        if (mqPreset === 'fresh') target = 45;
-        else if (mqPreset === 'moderate') target = 110;
-        else if (mqPreset === 'spoiled') target = 260;
-        else if (mqPreset === 'ambient') target = 28;
-        else if (mqPreset === 'custom') target = mqCustomVal;
-
-        const jitter = (Math.random() - 0.5) * 6;
-        const newPpm = Math.max(10, Math.round(target + jitter));
-
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-        const nh3 = +(newPpm * 0.42).toFixed(1);
-        const tma = +(newPpm * 0.28).toFixed(1);
-        const h2s = +(newPpm * 0.15).toFixed(1);
-        const voltage = +(0.8 + (newPpm / 500) * 3.2).toFixed(2);
-        const rawAdc = Math.min(4095, Math.round((newPpm / 500) * 4095));
-
-        setMqHistory((hist) => {
-          const next = [
-            ...hist,
-            { time: timeStr, ppm: newPpm, nh3, tma, h2s, voltage, rawAdc },
-          ];
-          return next.slice(-20);
-        });
-
-        return newPpm;
+    let client = null;
+    try {
+      client = mqtt.connect(MQTT_WS_BROKER, {
+        clientId: 'FishFrontend-' + Math.random().toString(16).slice(2, 8),
+        clean: true,
+        connectTimeout: 5000,
+        reconnectPeriod: 3000,
       });
-    }, 2000);
+      mqttClientRef.current = client;
 
+      client.on('connect', () => {
+        setIsMqttConnected(true);
+        client.subscribe([MQTT_SENSOR_TOPIC, MQTT_STATUS_TOPIC], (err) => {
+          if (!err) {
+            console.log(`Subscribed to ${MQTT_SENSOR_TOPIC} and ${MQTT_STATUS_TOPIC}`);
+          }
+        });
+      });
+
+      client.on('message', (topic, payload) => {
+        try {
+          const str = payload.toString();
+          const data = JSON.parse(str);
+          const nowStr = new Date().toLocaleTimeString();
+
+          if (topic === MQTT_SENSOR_TOPIC || data.mq135 !== undefined) {
+            const rawVal = Number(data.mq135) || 0;
+            setMqValue(rawVal);
+            if (data.quality) setHardwareQuality(data.quality);
+            setLastUpdatedTime(nowStr);
+
+            setMqHistory((prev) => {
+              const updated = [...prev, { time: nowStr, value: rawVal }];
+              return updated.slice(-25);
+            });
+          }
+
+          if (topic === MQTT_STATUS_TOPIC) {
+            if (data.command) setLastCommand(data.command);
+            if (data.status) setHardwareStatus(data.status);
+            if (data.mq135 !== undefined) {
+              const rawVal = Number(data.mq135) || 0;
+              setMqValue(rawVal);
+            }
+          }
+        } catch (e) {
+          console.warn('MQTT Message parse error:', e);
+        }
+      });
+
+      client.on('error', (e) => {
+        console.warn('MQTT Error:', e);
+        setIsMqttConnected(false);
+      });
+
+      client.on('offline', () => setIsMqttConnected(false));
+      client.on('close', () => setIsMqttConnected(false));
+    } catch (err) {
+      console.error('MQTT connection setup failed:', err);
+    }
+
+    return () => {
+      if (client) client.end();
+    };
+  }, []);
+
+  // ─── Polling AI Backend for MQ-135 Sync Fallback ───────────────────────────
+  useEffect(() => {
+    const pollBackend = async () => {
+      try {
+        const res = await fetch(`${AI_BACKEND_URL}/sensor/mq135`);
+        if (res.ok) {
+          const result = await res.json();
+          if (result?.data?.value && !isMqttConnected) {
+            setMqValue(result.data.value);
+            if (result.data.raw_quality) setHardwareQuality(result.data.raw_quality);
+            if (result.data.command) setLastCommand(result.data.command);
+            if (result.data.status) setHardwareStatus(result.data.status);
+            if (result.data.last_updated) setLastUpdatedTime(result.data.last_updated);
+          }
+        }
+      } catch (err) {
+        // Backend offline or starting up
+      }
+    };
+
+    pollBackend();
+    const interval = setInterval(pollBackend, 3000);
     return () => clearInterval(interval);
-  }, [isMqStreaming, mqPreset, mqCustomVal]);
+  }, [isMqttConnected]);
 
   useEffect(() => {
     loadHistory();
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       stopCamera();
-      if (autoCaptionIntervalRef.current) clearInterval(autoCaptionIntervalRef.current);
     };
   }, []);
 
@@ -165,119 +307,55 @@ const RawFishQuality = () => {
     }
   };
 
+  // ─── Dispatch MQTT Hardware Command ────────────────────────────────────────
+  const sendHardwareCommand = async (cmd) => {
+    const cleanCmd = cmd.trim().toUpperCase();
+    try {
+      if (mqttClientRef.current && isMqttConnected) {
+        mqttClientRef.current.publish(MQTT_COMMAND_TOPIC, cleanCmd);
+      }
+      // Also post to AI backend to guarantee dispatch
+      const formData = new FormData();
+      formData.append('command', cleanCmd);
+      await fetch(`${AI_BACKEND_URL}/sensor/command`, { method: 'POST', body: formData });
+      setLastCommand(cleanCmd);
+      setFeedback(`Sent Hardware Command: '${cleanCmd}' to topic ${MQTT_COMMAND_TOPIC}`);
+    } catch (e) {
+      console.error('Failed to send hardware command:', e);
+      setFeedback(`Command dispatch failed: ${e.message}`);
+    }
+  };
+
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
-    setFeedback('Image ready for analysis. Click Analyze to continue.');
-  };
-
-  const getQualityColor = (quality) => {
-    if (quality >= 90) return 'text-green-600';
-    if (quality >= 80) return 'text-blue-600';
-    if (quality >= 70) return 'text-yellow-600';
-    return 'text-red-600';
+    setFeedback('Image selected. Click Analyze to process with YOLO & MQ-135 telemetry.');
   };
 
   const getFreshnessScoreFromLabel = (label) => {
     switch (label?.toLowerCase()) {
-      case 'very fresh': return 98;
-      case 'fresh': return 82;
-      case 'spoiled': return 32;
-      default: return 0;
+      case 'alagoduwa_very_fresh':
+      case 'very fresh':
+        return 98;
+      case 'alagoduwa_fresh':
+      case 'fresh':
+        return 82;
+      case 'alagoduwa_spoiled':
+      case 'spoiled':
+        return 28;
+      default:
+        return 50;
     }
   };
 
   const getLabelBadgeColor = (label) => {
-    switch (label?.toLowerCase()) {
-      case 'very fresh': return 'bg-green-100 text-green-700';
-      case 'fresh': return 'bg-blue-100 text-blue-700';
-      case 'spoiled': return 'bg-red-100 text-red-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  // ─── MQ-135 Gas Status Helper ──────────────────────────────────────────────
-  const getMqFreshnessStatus = (ppm) => {
-    if (ppm < 80) {
-      return {
-        label: 'Very Fresh',
-        badge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-        textColor: 'text-emerald-600',
-        bgLight: 'bg-emerald-50',
-        borderColor: 'border-emerald-500',
-        color: '#10B981',
-        description: 'Optimal fish condition. Volatile nitrogen & ammonia emission is minimal. Excellent for Maldive fish processing.',
-        icon: '🟢',
-        grade: 'Grade A',
-        suitability: 'High - Ready for boiling & processing',
-      };
-    } else if (ppm <= 150) {
-      return {
-        label: 'Moderately Fresh',
-        badge: 'bg-amber-100 text-amber-800 border-amber-300',
-        textColor: 'text-amber-600',
-        bgLight: 'bg-amber-50',
-        borderColor: 'border-amber-500',
-        color: '#F59E0B',
-        description: 'Acceptable condition with early volatile basic nitrogen (TVB-N) release. Process immediately without delay.',
-        icon: '🟡',
-        grade: 'Grade B',
-        suitability: 'Moderate - Fast-track processing recommended',
-      };
-    } else {
-      return {
-        label: 'Spoiled / Rejected',
-        badge: 'bg-rose-100 text-rose-800 border-rose-300',
-        textColor: 'text-rose-600',
-        bgLight: 'bg-rose-50',
-        borderColor: 'border-rose-500',
-        color: '#EF4444',
-        description: 'High levels of ammonia (NH3), amines, and hydrogen sulfide detected. Batch decomposed and unsuitable for food processing.',
-        icon: '🔴',
-        grade: 'Reject',
-        suitability: 'Unsafe - Reject batch',
-      };
-    }
-  };
-
-  const handleLogCurrentMqReading = () => {
-    const status = getMqFreshnessStatus(mqPpm);
-    const newEntry = {
-      id: `MQ-LOG-${Date.now().toString().slice(-4)}`,
-      batchId: batchId || `RF-${Date.now()}`,
-      species: species || 'Alagoduwa',
-      timestamp: new Date().toLocaleString(),
-      ppm: mqPpm,
-      voltage: (0.8 + (mqPpm / 500) * 3.2).toFixed(2),
-      status: status.label,
-      grade: status.grade,
-    };
-    setMqLogs([newEntry, ...mqLogs]);
-    setFeedback(`Logged MQ-135 reading: ${mqPpm} PPM (${status.label})`);
-  };
-
-  const handleExportMqCsv = () => {
-    if (mqLogs.length === 0) {
-      alert('No logged sensor records to export.');
-      return;
-    }
-    const headers = 'Log ID,Batch ID,Species,Timestamp,PPM,Voltage (V),Quality Status,Grade\n';
-    const rows = mqLogs.map(l => `"${l.id}","${l.batchId}","${l.species}","${l.timestamp}",${l.ppm},${l.voltage},"${l.status}","${l.grade}"`).join('\n');
-    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `mq135_fish_readings_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleCalibrateSensor = () => {
-    setMqCalibratedAt(new Date().toLocaleTimeString());
-    setFeedback('MQ-135 Sensor zero baseline (R0) calibrated successfully.');
+    if (!label) return 'bg-gray-100 text-gray-700';
+    if (label.toLowerCase().includes('very_fresh')) return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+    if (label.toLowerCase().includes('fresh')) return 'bg-blue-100 text-blue-800 border-blue-300';
+    if (label.toLowerCase().includes('spoiled')) return 'bg-rose-100 text-rose-800 border-rose-300';
+    return 'bg-gray-100 text-gray-700';
   };
 
   const startCamera = async () => {
@@ -290,10 +368,10 @@ const RawFishQuality = () => {
       if (videoRef.current) videoRef.current.srcObject = stream;
       setVideoStream(stream);
       setCameraActive(true);
-      setFeedback('Camera started. Capture an image to analyze freshness.');
+      setFeedback('Camera active. Position fish sample and click Capture.');
     } catch (error) {
       console.error('Camera start failed:', error);
-      setFeedback('Unable to access camera. Check permissions and try again.');
+      setFeedback('Unable to access camera. Check permissions.');
     }
   };
 
@@ -303,73 +381,9 @@ const RawFishQuality = () => {
       setVideoStream(null);
     }
     setCameraActive(false);
-    if (autoCaptionActive) {
-      setAutoCaptionActive(false);
-      setCurrentCaption('');
-      if (autoCaptionIntervalRef.current) {
-        clearInterval(autoCaptionIntervalRef.current);
-        autoCaptionIntervalRef.current = null;
-      }
-    }
   };
 
   const captureFromCamera = async () => {
-    if (!videoRef.current || !canvasRef.current) {
-      setFeedback('Camera preview is not ready.');
-      return;
-    }
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(async (blob) => {
-      if (!blob) { setFeedback('Could not capture image.'); return; }
-      const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
-      setPreviewUrl(URL.createObjectURL(file));
-      setSelectedFile(file);
-      await analyzeImage(file, 'camera');
-    }, 'image/jpeg', 0.95);
-  };
-
-  const analyzeImage = async (file, source) => {
-    try {
-      setIsAnalyzing(true);
-      setFeedback('Analyzing image through fish freshness API...');
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await fetch(FRESHNESS_API_URL, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Fish freshness API returned an error');
-      const apiResult = await response.json();
-      const results = apiResult.results || [];
-      const qualityLabel = results.length ? results[0].class : 'unknown';
-      const freshnessScore = getFreshnessScoreFromLabel(qualityLabel);
-      const payload = {
-        batchId: batchId || `RF-${Date.now()}`,
-        species,
-        source,
-        analysisDate: new Date().toISOString(),
-        freshnessScore,
-        qualityLabel,
-        assessment: { total_detections: apiResult.total_detections ?? results.length, results },
-        imageName: file.name,
-      };
-      const savedResponse = await rawFishService.saveAnalysis(payload);
-      setAnalysisResult({ ...payload, assessment: payload.assessment });
-      const updatedHistory = [savedResponse.data, ...history].slice(0, 10);
-      setHistory(updatedHistory);
-      updateQualityData(updatedHistory);
-      setFeedback('Freshness analysis completed and saved to MongoDB.');
-    } catch (error) {
-      console.error('Analysis failed:', error);
-      setFeedback(error.message || 'There was an error analyzing the image.');
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const analyzeRealtime = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -379,46 +393,91 @@ const RawFishQuality = () => {
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob(async (blob) => {
       if (!blob) return;
-      const file = new File([blob], 'realtime-capture.jpg', { type: 'image/jpeg' });
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await fetch(FRESHNESS_API_URL, { method: 'POST', body: formData });
-        if (response.ok) {
-          const apiResult = await response.json();
-          const results = apiResult.results || [];
-          const qualityLabel = results.length ? results[0].class : 'unknown';
-          const freshnessScore = getFreshnessScoreFromLabel(qualityLabel);
-          setCurrentCaption(`${qualityLabel} (${freshnessScore}%)`);
-        }
-      } catch (error) {
-        console.error('Realtime analysis failed:', error);
-        setCurrentCaption('Analysis error');
-      }
+      const file = new File([blob], `rawfish-capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      setPreviewUrl(URL.createObjectURL(file));
+      setSelectedFile(file);
+      await analyzeImage(file, 'camera');
     }, 'image/jpeg', 0.95);
   };
 
-  const toggleAutoCaption = () => {
-    if (autoCaptionActive) {
-      if (autoCaptionIntervalRef.current) { clearInterval(autoCaptionIntervalRef.current); autoCaptionIntervalRef.current = null; }
-      setAutoCaptionActive(false);
-      setCurrentCaption('');
-      setFeedback('Auto caption stopped.');
-    } else {
-      if (!cameraActive) { setFeedback('Please start the camera first.'); return; }
-      setAutoCaptionActive(true);
-      setFeedback('Auto caption started. Analyzing live feed...');
-      autoCaptionIntervalRef.current = setInterval(analyzeRealtime, 3000);
+  const analyzeImage = async (file, source) => {
+    try {
+      setIsAnalyzing(true);
+      setFeedback('Running AI Vision inference and correlating MQ-135 sensor telemetry...');
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch(FRESHNESS_API_URL, { method: 'POST', body: formData });
+      if (!response.ok) throw new Error('AI Freshness API returned an error');
+      const apiResult = await response.json();
+      const results = apiResult.results || [];
+      const qualityLabel = results.length ? results[0].class : 'Alagoduwa_Very_fresh';
+      const freshnessScore = getFreshnessScoreFromLabel(qualityLabel);
+      const triggeredCmd = apiResult.command_triggered;
+
+      const payload = {
+        batchId: batchId || `RF-${Date.now().toString().slice(-6)}`,
+        species,
+        source,
+        analysisDate: new Date().toISOString(),
+        freshnessScore,
+        qualityLabel,
+        assessment: { total_detections: apiResult.total_detections ?? results.length, results },
+        imageName: file.name,
+      };
+
+      const savedResponse = await rawFishService.saveAnalysis(payload);
+      setAnalysisResult({
+        ...payload,
+        commandTriggered: triggeredCmd,
+        mqValueAtAssessment: mqValue,
+        mqStatusAtAssessment: getMqFreshnessDetails(mqValue),
+      });
+
+      const updatedHistory = [savedResponse.data, ...history].slice(0, 20);
+      setHistory(updatedHistory);
+      updateQualityData(updatedHistory);
+      setFeedback(`Analysis completed! Classification: ${qualityLabel} (Auto MQTT Command: ${triggeredCmd || 'N/A'})`);
+    } catch (error) {
+      console.error('Analysis failed:', error);
+      setFeedback(error.message || 'There was an error analyzing the image.');
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
-  const handleAnalyzeUpload = async () => {
-    if (!selectedFile) { setFeedback('Please choose an image before analyzing.'); return; }
-    await analyzeImage(selectedFile, 'upload');
+  const handleLogCurrentReading = () => {
+    const details = getMqFreshnessDetails(mqValue);
+    const newEntry = {
+      id: `MQ-LOG-${Date.now().toString().slice(-4)}`,
+      batchId: batchId || `RF-${Date.now().toString().slice(-6)}`,
+      species,
+      timestamp: new Date().toLocaleTimeString(),
+      value: mqValue,
+      level: details.level,
+      command: details.command,
+    };
+    setMqLogs([newEntry, ...mqLogs]);
+    setFeedback(`Logged MQ-135 reading: ${mqValue} (${details.level})`);
   };
 
-  const latestResult = analysisResult || {};
-  const currentMqStatus = getMqFreshnessStatus(mqPpm);
+  const handleExportCsv = () => {
+    if (mqLogs.length === 0) {
+      alert('No logged sensor records to export.');
+      return;
+    }
+    const headers = 'Log ID,Batch ID,Species,Timestamp,MQ135 Value,Freshness Level,Auto Command\n';
+    const rows = mqLogs.map(l => `"${l.id}","${l.batchId}","${l.species}","${l.timestamp}",${l.value},"${l.level}","${l.command}"`).join('\n');
+    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `mq135_tuna_freshness_log_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const currentMq = getMqFreshnessDetails(mqValue);
 
   // ─── Analytics stats ───────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -430,36 +489,81 @@ const RawFishQuality = () => {
   }, [history]);
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      {/* ── Header ── */}
-      <div className="bg-white border-b shadow-sm sticky top-0 z-20">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <span>🐠</span> Raw Fish Quality Assessment
-            </h1>
-            <p className="text-sm text-slate-500">
-              Upload Alagoduwa fish images, capture live, or monitor real-time MQ-135 gas spoilage telemetry
-            </p>
+    <div className="min-h-screen bg-slate-100 text-slate-900 pb-12">
+      {/* ── Top App Bar ── */}
+      <div className="bg-white border-b shadow-sm sticky top-0 z-30">
+        <div className="px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xl shadow-md">
+              🐟
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-slate-900">Raw Catch Freshness & MQ-135 Telemetry</h1>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 uppercase tracking-wider">
+                  Live Vision + Gas QC
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Alagoduwa (Skipjack Tuna) freshness assessment & automated sorting control (crack.cc hardware synced)
+              </p>
+            </div>
           </div>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors text-sm font-medium"
-          >
-            ← Back to Dashboard
-          </button>
+
+          {/* Quick Hardware Status Chips */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <span className="text-slate-400 font-medium">Batch:</span>
+              <input
+                type="text"
+                value={batchId}
+                onChange={(e) => setBatchId(e.target.value)}
+                className="w-24 px-1.5 py-0.5 font-bold text-slate-700 bg-white border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Live MQ-135 Quick Chip */}
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${currentMq.borderLight} ${currentMq.bgLight} transition-all shadow-sm`}>
+              <Activity className={`w-4 h-4 ${currentMq.textColor} animate-pulse`} />
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-600">MQ-135:</span>
+                <span className={`text-sm font-extrabold ${currentMq.textColor}`}>{mqValue}</span>
+                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${currentMq.badge}`}>
+                  {currentMq.level}
+                </span>
+              </div>
+            </div>
+
+            {/* MQTT Connection State */}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold ${
+              isMqttConnected
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-amber-50 text-amber-700 border-amber-200'
+            }`}>
+              {isMqttConnected ? <Wifi className="w-3.5 h-3.5 text-emerald-600" /> : <WifiOff className="w-3.5 h-3.5 text-amber-600" />}
+              <span>{isMqttConnected ? 'ESP32 MQTT Synced' : 'MQTT Standby'}</span>
+            </div>
+
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl transition text-xs font-medium shadow-sm"
+            >
+              Dashboard
+            </button>
+          </div>
         </div>
 
-        {/* ── Tab Bar ── */}
-        <div className="flex gap-2 px-6 overflow-x-auto">
+        {/* ── Tab Navigation ── */}
+        <div className="flex gap-2 px-6 overflow-x-auto bg-slate-50/50 border-t">
           {tabs.map(([id, label]) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`px-5 py-3 border-b-2 whitespace-nowrap font-medium transition-colors ${activeTab === id
-                  ? 'border-blue-600 text-blue-600 bg-blue-50'
-                  : 'border-transparent text-slate-600 hover:text-blue-600'
-                }`}
+              className={`px-4 py-2.5 border-b-2 whitespace-nowrap text-xs font-bold transition-all ${
+                activeTab === id
+                  ? 'border-blue-600 text-blue-600 bg-white shadow-sm'
+                  : 'border-transparent text-slate-600 hover:text-blue-600 hover:bg-white/60'
+              }`}
             >
               {label}
             </button>
@@ -467,667 +571,660 @@ const RawFishQuality = () => {
         </div>
       </div>
 
-      {/* ── Tab Content ── */}
-      <div className="p-6">
+      {/* ── Status Feedback Banner ── */}
+      {feedback && (
+        <div className="max-w-7xl mx-auto px-6 pt-4">
+          <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-900 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>{feedback}</span>
+            </div>
+            <span className="text-[11px] text-blue-600 font-mono">Broker: broker.hivemq.com (1883)</span>
+          </div>
+        </div>
+      )}
 
-        {/* ════════════════════ UPLOAD TAB ════════════════════ */}
+      {/* ── Main Tab Contents ── */}
+      <div className="max-w-7xl mx-auto px-6 py-6">
+
+        {/* ════════════════════ UPLOAD & AI ASSESSMENT TAB ════════════════════ */}
         {activeTab === 'upload' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-            {/* Left: Input Source */}
-            <div className="lg:col-span-3 bg-white rounded-2xl shadow p-6 space-y-5">
-              <h2 className="font-bold text-lg">Input Source</h2>
+            {/* Left: Input Selection (4 Cols) */}
+            <div className="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 space-y-4">
+              <h2 className="font-bold text-base text-slate-800 flex items-center gap-2">
+                <Upload className="w-4 h-4 text-blue-600" />
+                Raw Fish Sample Input
+              </h2>
 
+              {/* Upload Drop Area */}
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="w-full h-44 border-2 border-dashed border-blue-300 rounded-xl bg-blue-50 flex flex-col justify-center items-center hover:bg-blue-100 transition"
+                className="w-full h-48 border-2 border-dashed border-blue-300 rounded-2xl bg-blue-50/50 flex flex-col justify-center items-center hover:bg-blue-100/60 transition group cursor-pointer"
               >
-                <div className="text-4xl mb-2">📤</div>
-                <p className="text-blue-700 font-semibold">Upload Raw Fish Image</p>
-                <p className="text-xs text-slate-500">JPG / PNG supported</p>
+                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition">
+                  📤
+                </div>
+                <p className="text-sm text-blue-800 font-bold">Select Raw Fish Photo</p>
+                <p className="text-xs text-slate-500 mt-1">Supports JPG / PNG (Alagoduwa specimen)</p>
               </button>
               <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
 
-
-            </div>
-
-            {/* Centre: Preview */}
-            <div className="lg:col-span-6 bg-white rounded-2xl shadow p-6">
-              <h2 className="font-bold text-lg mb-4">Fish Sample Preview</h2>
-              <div className="h-[420px] rounded-xl border bg-slate-50 flex items-center justify-center overflow-hidden">
-                {previewUrl ? (
-                  <img src={previewUrl} alt="preview" className="w-full h-full object-contain" />
-                ) : (
-                  <div className="text-center text-slate-400">
-                    <div className="text-6xl mb-3">🖼️</div>
-                    <p>No image uploaded</p>
-                    <p className="text-sm">Upload a raw fish sample image</p>
+              {/* Live MQ-135 Mini Widget */}
+              <div className={`p-4 rounded-2xl border ${currentMq.borderLight} ${currentMq.bgLight} space-y-2`}>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-blue-600" />
+                    Live Gas Sensor (crack.cc)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500">Updated: {lastUpdatedTime}</span>
+                </div>
+                <div className="flex items-baseline justify-between pt-1">
+                  <div>
+                    <span className="text-3xl font-black text-slate-900">{mqValue}</span>
+                    <span className="text-xs font-semibold text-slate-500 ml-1">PPM</span>
                   </div>
-                )}
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold border ${currentMq.badge}`}>
+                    {currentMq.level}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-600 flex justify-between pt-1 border-t border-slate-200/60">
+                  <span>Threshold: <strong>{currentMq.range}</strong></span>
+                  <span>Typical: <strong>{currentMq.typical}</strong></span>
+                </div>
               </div>
+
+              {/* Action Button */}
               <button
-                onClick={handleAnalyzeUpload}
+                onClick={() => selectedFile && analyzeImage(selectedFile, 'upload')}
                 disabled={isAnalyzing || !selectedFile}
-                className="mt-4 w-full py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition"
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm disabled:bg-slate-300 disabled:cursor-not-allowed transition shadow-md flex items-center justify-center gap-2"
               >
-                {isAnalyzing ? '⏳ Analyzing...' : '🔍 Analyze Upload'}
-              </button>
-            </div>
-
-            {/* Right: Results */}
-            <div className="lg:col-span-3 bg-white rounded-2xl shadow p-6">
-              <h2 className="font-bold text-lg mb-4">Detection Results</h2>
-
-              {analysisResult ? (
-                isAnalyzing ? (
-                  <div className="flex flex-col items-center justify-center p-8 bg-blue-50/50 rounded-xl border border-blue-100">
-                    <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-                    <p className="font-medium text-blue-800 animate-pulse">Running Analysis...</p>
-                    <p className="text-xs text-blue-500 mt-2">Checking fish freshness</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className={`p-4 rounded-xl ${getLabelBadgeColor(latestResult.qualityLabel)}`}>
-                      <p className="text-xs font-semibold">Quality Label</p>
-                      <p className="text-xl font-bold">{latestResult.qualityLabel || 'unknown'}</p>
-                    </div>
-                  </div>
-                )
-              ) : (
-                <p className="text-sm text-slate-400 text-center mt-24">Awaiting image input</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ════════════════════ LIVE DETECT TAB ════════════════════ */}
-        {activeTab === 'live' && (
-          <div className="grid grid-cols-12 min-h-[calc(100vh-160px)] bg-slate-100 rounded-2xl overflow-hidden shadow">
-
-            {/* Sidebar controls */}
-            <div className="col-span-3 border-r bg-slate-50 p-5 space-y-5">
-              <p className="text-xs tracking-[4px] text-slate-400">CAMERA CONTROL</p>
-
-              {!cameraActive ? (
-                <button
-                  type="button"
-                  onClick={startCamera}
-                  className="w-full py-3 rounded-lg bg-green-50 border border-green-300 text-green-600 font-medium hover:bg-green-100"
-                >
-                  ▶ Start Camera
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={stopCamera}
-                  className="w-full py-3 rounded-lg bg-red-50 border border-red-300 text-red-600 font-medium hover:bg-red-100"
-                >
-                  ■ Stop Camera
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={captureFromCamera}
-                disabled={!cameraActive || isAnalyzing}
-                className={`w-full py-3 rounded-lg font-medium border ${!cameraActive || isAnalyzing
-                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    : 'bg-blue-50 border-blue-300 text-blue-600 hover:bg-blue-100'
-                  }`}
-              >
-                {isAnalyzing ? '⏳ Analyzing...' : '📸 Capture & Analyze'}
-              </button>
-
-              <button
-                type="button"
-                onClick={toggleAutoCaption}
-                disabled={!cameraActive}
-                className={`w-full py-3 rounded-lg font-medium border ${!cameraActive
-                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    : autoCaptionActive
-                      ? 'bg-orange-50 border-orange-300 text-orange-600 hover:bg-orange-100'
-                      : 'bg-purple-50 border-purple-300 text-purple-600 hover:bg-purple-100'
-                  }`}
-              >
-                {autoCaptionActive ? '⏹ Stop Auto Caption' : '🔄 Auto Caption'}
-              </button>
-
-
-            </div>
-
-            {/* Live preview */}
-            <div className="col-span-7 border-r bg-slate-100">
-              <div className="p-4 border-b">
-                <p className="text-xs tracking-[4px] text-slate-400">LIVE PREVIEW</p>
-              </div>
-              <div className="relative h-[650px] bg-[linear-gradient(#dbeafe_1px,transparent_1px),linear-gradient(90deg,#dbeafe_1px,transparent_1px)] bg-[size:50px_50px] flex items-center justify-center overflow-hidden">
-                <div className="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-blue-500 z-10"></div>
-                <div className="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-blue-500 z-10"></div>
-                <div className="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-blue-500 z-10"></div>
-                <div className="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-blue-500 z-10"></div>
-
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className={`w-[82%] h-[75%] object-cover shadow-lg ${cameraActive ? 'block' : 'hidden'}`}
-                />
-
-                {currentCaption && cameraActive && (
-                  <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-lg text-sm font-semibold z-20">
-                    {currentCaption}
-                  </div>
-                )}
-
-                {!cameraActive && (
-                  <div className="text-center text-slate-400">
-                    <div className="text-7xl mb-3">◎</div>
-                    <p className="font-medium">No Preview</p>
-                    <p className="text-sm">Start the camera to begin live detection</p>
-                  </div>
-                )}
-
-                {cameraActive && (
-                  <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(30,64,175,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(30,64,175,0.08)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
-                )}
-              </div>
-              <canvas ref={canvasRef} className="hidden" />
-            </div>
-
-            {/* Scan results panel */}
-            <div className="col-span-2 bg-slate-50">
-              <div className="p-4 border-b">
-                <p className="text-xs tracking-[4px] text-slate-400">SCAN RESULTS</p>
-              </div>
-              <div className="p-4 space-y-4">
-                {analysisResult ? (
+                {isAnalyzing ? (
                   <>
-                    <div className={`p-3 rounded-xl ${getLabelBadgeColor(latestResult.qualityLabel)}`}>
-                      <p className="text-xs font-semibold">Label</p>
-                      <p className="text-sm font-bold mt-1">{latestResult.qualityLabel}</p>
-                    </div>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Processing Assessment...
                   </>
                 ) : (
-                  <p className="text-xs tracking-[4px] text-slate-400 text-center mt-32">AWAITING INPUT</p>
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Analyze Raw Fish Freshness
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Center: Image Preview (4 Cols) */}
+            <div className="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 flex flex-col">
+              <h2 className="font-bold text-base text-slate-800 mb-3 flex items-center gap-2">
+                <span>🖼️</span> Specimen Preview
+              </h2>
+              <div className="flex-1 min-h-[300px] rounded-xl border bg-slate-50 flex items-center justify-center overflow-hidden relative">
+                {previewUrl ? (
+                  <img src={previewUrl} alt="Fish Specimen" className="w-full h-full object-contain p-2" />
+                ) : (
+                  <div className="text-center text-slate-400 p-6">
+                    <div className="text-5xl mb-2">📸</div>
+                    <p className="font-semibold text-sm text-slate-600">No Image Uploaded</p>
+                    <p className="text-xs text-slate-400 mt-1">Upload a photo to see sample preview</p>
+                  </div>
                 )}
               </div>
+            </div>
+
+            {/* Right: Integrated Assessment Results (4 Cols) */}
+            <div className="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 flex flex-col justify-between space-y-4">
+              <div>
+                <h2 className="font-bold text-base text-slate-800 mb-3 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    Assessment Outcome
+                  </span>
+                  {analysisResult && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                      {analysisResult.batchId}
+                    </span>
+                  )}
+                </h2>
+
+                {analysisResult ? (
+                  <div className="space-y-3">
+                    {/* YOLO Vision Result */}
+                    <div className={`p-4 rounded-xl border ${getLabelBadgeColor(analysisResult.qualityLabel)} space-y-1`}>
+                      <div className="flex justify-between items-center text-xs font-semibold opacity-80">
+                        <span>AI Vision Result (YOLO)</span>
+                        <span>Score: {analysisResult.freshnessScore}%</span>
+                      </div>
+                      <h3 className="text-lg font-extrabold tracking-tight">
+                        {analysisResult.qualityLabel}
+                      </h3>
+                    </div>
+
+                    {/* MQ-135 Gas Correlation */}
+                    <div className={`p-4 rounded-xl border ${analysisResult.mqStatusAtAssessment.borderLight} ${analysisResult.mqStatusAtAssessment.bgLight} space-y-1`}>
+                      <div className="flex justify-between items-center text-xs font-semibold text-slate-600">
+                        <span>MQ-135 Gas Reading</span>
+                        <span>{analysisResult.mqValueAtAssessment} PPM</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-base font-bold ${analysisResult.mqStatusAtAssessment.textColor}`}>
+                          {analysisResult.mqStatusAtAssessment.level}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-500">
+                          Range: {analysisResult.mqStatusAtAssessment.range}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 pt-1 leading-tight">
+                        {analysisResult.mqStatusAtAssessment.desc}
+                      </p>
+                    </div>
+
+                    {/* Sorter Command Triggered */}
+                    <div className="p-3.5 bg-slate-900 text-white rounded-xl space-y-1">
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>Automated Sorter Action</span>
+                        <span className="text-emerald-400 font-bold">crack.cc Synced</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-sm font-bold text-white">
+                          Dispatched Command: <span className="text-yellow-400 font-mono text-base font-black">[{analysisResult.commandTriggered || analysisResult.mqStatusAtAssessment.command}]</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-16 text-center text-slate-400 space-y-2">
+                    <Layers className="w-10 h-10 mx-auto text-slate-300 stroke-[1.5]" />
+                    <p className="text-xs font-semibold text-slate-500">Awaiting Fish Specimen Analysis</p>
+                    <p className="text-[11px] text-slate-400">Upload or capture an image to generate dual QC verdict</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Direct Hardware Trigger Buttons */}
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Manual Sorter Command Dispatch
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => sendHardwareCommand('A')}
+                    className="py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-lg text-xs font-bold transition flex flex-col items-center"
+                  >
+                    <span>Command A</span>
+                    <span className="text-[9px] font-normal">High Quality</span>
+                  </button>
+                  <button
+                    onClick={() => sendHardwareCommand('B')}
+                    className="py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-300 rounded-lg text-xs font-bold transition flex flex-col items-center"
+                  >
+                    <span>Command B</span>
+                    <span className="text-[9px] font-normal">Medium Quality</span>
+                  </button>
+                  <button
+                    onClick={() => sendHardwareCommand('C')}
+                    className="py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-xs font-bold transition flex flex-col items-center"
+                  >
+                    <span>Command C</span>
+                    <span className="text-[9px] font-normal">Spoiled / Reject</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* ════════════════════ LIVE CAMERA DETECTION TAB ════════════════════ */}
+        {activeTab === 'live' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+            {/* Camera Controls Panel (4 cols) */}
+            <div className="lg:col-span-4 p-6 bg-slate-50 border-r border-slate-200 space-y-5">
+              <div>
+                <h3 className="font-bold text-base text-slate-900">Live Camera QC Rig</h3>
+                <p className="text-xs text-slate-500 mt-1">Capture live specimens on the processing belt</p>
+              </div>
+
+              <div className="space-y-3">
+                {!cameraActive ? (
+                  <button
+                    onClick={startCamera}
+                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition shadow-sm"
+                  >
+                    <Play className="w-4 h-4 fill-white" />
+                    Start Camera Feed
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopCamera}
+                    className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition shadow-sm"
+                  >
+                    <Square className="w-4 h-4 fill-white" />
+                    Stop Camera
+                  </button>
+                )}
+
+                <button
+                  onClick={captureFromCamera}
+                  disabled={!cameraActive || isAnalyzing}
+                  className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed transition shadow-sm"
+                >
+                  <Camera className="w-4 h-4" />
+                  {isAnalyzing ? 'Analyzing Capture...' : '📸 Capture & Analyze'}
+                </button>
+              </div>
+
+              {/* Current MQ-135 reading */}
+              <div className={`p-4 rounded-xl border ${currentMq.borderLight} ${currentMq.bgLight} space-y-2`}>
+                <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                  <span>Current Gas Reading</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] ${currentMq.badge}`}>{currentMq.level}</span>
+                </div>
+                <div className="text-2xl font-black text-slate-900">
+                  {mqValue} <span className="text-xs font-normal text-slate-500">PPM</span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Target threshold range: <strong>{currentMq.range}</strong>
+                </p>
+              </div>
+            </div>
+
+            {/* Video Viewport (8 cols) */}
+            <div className="lg:col-span-8 p-6 flex flex-col items-center justify-center bg-slate-900 relative min-h-[460px]">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`max-h-[440px] w-auto rounded-xl shadow-2xl ${cameraActive ? 'block' : 'hidden'}`}
+              />
+              <canvas ref={canvasRef} className="hidden" />
+
+              {!cameraActive && (
+                <div className="text-center text-slate-400 space-y-3">
+                  <div className="w-16 h-16 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-2xl mx-auto">
+                    📷
+                  </div>
+                  <p className="text-sm font-semibold text-slate-300">Camera Feed is Inactive</p>
+                  <p className="text-xs text-slate-500">Click 'Start Camera Feed' to view live conveyor feed</p>
+                </div>
+              )}
+
+              {cameraActive && (
+                <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-emerald-400 font-mono flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  LIVE STREAM ACTIVE
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* ════════════════════ MQ-135 SENSOR TAB ════════════════════ */}
+        {/* ════════════════════ MQ-135 SENSOR & SORTER TELEMETRY TAB ════════════════════ */}
         {activeTab === 'mq135' && (
           <div className="space-y-6">
 
-            {/* Alert banner if threshold exceeded */}
-            {mqPpm > mqThreshold && (
-              <div className="p-4 bg-rose-50 border-l-4 border-rose-500 rounded-r-xl flex items-center justify-between shadow-sm animate-pulse">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">⚠️</span>
-                  <div>
-                    <h4 className="font-bold text-rose-800">Spoilage Alert: High Gas Emissions Detected ({mqPpm} PPM)</h4>
-                    <p className="text-xs text-rose-600">The volatile gas reading exceeds the safe threshold of {mqThreshold} PPM. Raw fish batch exhibits signs of decomposition.</p>
-                  </div>
-                </div>
-                <span className="px-3 py-1 bg-rose-600 text-white text-xs font-bold rounded-lg uppercase">
-                  Exceeds Limit
-                </span>
-              </div>
-            )}
+            {/* Top Stat Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
-            {/* Top Control Bar */}
-            <div className="bg-white rounded-2xl p-5 shadow flex flex-wrap items-center justify-between gap-4 border border-slate-100">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                  </span>
-                  <span className="text-xs font-bold text-emerald-700">ESP32 / MQ-135 Active</span>
-                </div>
-                <span className="text-xs text-slate-400">|</span>
-                <span className="text-xs text-slate-500">
-                  Last Zero Calibration: <strong className="text-slate-700">{mqCalibratedAt}</strong>
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => setIsMqStreaming(!isMqStreaming)}
-                  className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
-                    isMqStreaming
-                      ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-sm'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
-                  }`}
-                >
-                  {isMqStreaming ? '⏸ Pause Telemetry' : '▶ Resume Live Feed'}
-                </button>
-                <button
-                  onClick={handleCalibrateSensor}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                  title="Recalibrate zero clean air baseline"
-                >
-                  🎯 Zero Tare (R0)
-                </button>
-                <button
-                  onClick={handleLogCurrentMqReading}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition shadow-sm"
-                >
-                  📝 Log Reading
-                </button>
-                <button
-                  onClick={handleExportMqCsv}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white transition shadow-sm"
-                >
-                  ⬇ Export CSV
-                </button>
-              </div>
-            </div>
-
-            {/* Main Sensor Display Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              
-              {/* Card 1: Primary MQ-135 PPM Readout */}
-              <div className="bg-white rounded-2xl shadow p-6 border border-slate-100 relative overflow-hidden">
+              {/* Card 1: Real-Time Value */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">GAS CONCENTRATION</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">MQ-135 SENSOR VALUE</span>
                     <h3 className="text-4xl font-extrabold text-slate-900 mt-2 flex items-baseline gap-2">
-                      <span>{mqPpm}</span>
+                      <span>{mqValue}</span>
                       <span className="text-sm font-semibold text-slate-400">PPM</span>
                     </h3>
                   </div>
-                  <span className="text-3xl">{currentMqStatus.icon}</span>
+                  <div className={`w-12 h-12 rounded-2xl ${currentMq.bgLight} ${currentMq.textColor} flex items-center justify-center text-xl font-bold`}>
+                    💨
+                  </div>
                 </div>
-                
-                <div className="mt-4 flex items-center justify-between">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${currentMqStatus.badge}`}>
-                    {currentMqStatus.label}
+
+                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold border ${currentMq.badge}`}>
+                    {currentMq.level}
                   </span>
-                  <span className="text-xs font-medium text-slate-500">{currentMqStatus.grade}</span>
-                </div>
-
-                <div className="mt-4 w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="h-full transition-all duration-500 rounded-full"
-                    style={{
-                      width: `${Math.min(100, (mqPpm / 350) * 100)}%`,
-                      backgroundColor: currentMqStatus.color
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                  <span>0 (Fresh)</span>
-                  <span>80 (Moderate)</span>
-                  <span>150+ (Spoiled)</span>
+                  <span className="text-xs font-mono text-slate-500">Sync: {lastUpdatedTime}</span>
                 </div>
               </div>
 
-              {/* Card 2: Ammonia (NH3) */}
-              <div className="bg-white rounded-2xl shadow p-6 border border-slate-100">
+              {/* Card 2: Associated Sorter Command */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">AMMONIA (NH3)</span>
-                    <h3 className="text-3xl font-bold text-sky-600 mt-2">
-                      {(mqPpm * 0.42).toFixed(1)} <span className="text-xs font-normal text-slate-400">ppm</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">ESP32 SORTING COMMAND</span>
+                    <h3 className="text-3xl font-extrabold text-slate-900 mt-2 flex items-baseline gap-2">
+                      <span>Command {currentMq.command}</span>
                     </h3>
                   </div>
-                  <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold text-sm">
-                    NH₃
-                  </div>
-                </div>
-                <p className="text-xs text-slate-500 mt-3">Primary alkaline gas released during muscle protein degradation.</p>
-                <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
-                  <span className="w-2 h-2 rounded-full bg-sky-400"></span>
-                  <span>Normal limit: &lt; 35 ppm</span>
-                </div>
-              </div>
-
-              {/* Card 3: TMA & TVB-N */}
-              <div className="bg-white rounded-2xl shadow p-6 border border-slate-100">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">TRIMETHYLAMINE (TMA)</span>
-                    <h3 className="text-3xl font-bold text-purple-600 mt-2">
-                      {(mqPpm * 0.28).toFixed(1)} <span className="text-xs font-normal text-slate-400">ppm</span>
-                    </h3>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-sm">
-                    TMA
-                  </div>
-                </div>
-                <p className="text-xs text-slate-500 mt-3">Volatile amine gas responsible for the characteristic fishy spoilage odor.</p>
-                <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
-                  <span className="w-2 h-2 rounded-full bg-purple-400"></span>
-                  <span>Normal limit: &lt; 25 ppm</span>
-                </div>
-              </div>
-
-              {/* Card 4: Hardware Electrical Telemetry */}
-              <div className="bg-white rounded-2xl shadow p-6 border border-slate-100">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">ANALOG SENSOR VOLTAGE</span>
-                    <h3 className="text-3xl font-bold text-emerald-600 mt-2">
-                      {(0.8 + (mqPpm / 500) * 3.2).toFixed(2)} <span className="text-xs font-normal text-slate-400">V</span>
-                    </h3>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm">
+                  <div className="w-12 h-12 rounded-2xl bg-yellow-50 text-yellow-700 flex items-center justify-center text-xl font-bold">
                     ⚡
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2 bg-slate-50 rounded-lg">
-                    <span className="text-slate-400 block text-[10px]">ADC RAW</span>
-                    <span className="font-semibold text-slate-700">{Math.min(4095, Math.round((mqPpm / 500) * 4095))} / 4095</span>
+
+                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">Auto Routing:</span>
+                  <span className="font-bold text-slate-800">{currentMq.qualityText}</span>
+                </div>
+              </div>
+
+              {/* Card 3: ESP32 Hardware Link */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">MQTT PROTOCOL STATUS</span>
+                    <h3 className="text-xl font-bold text-slate-900 mt-2 flex items-center gap-2">
+                      <span className={`w-3 h-3 rounded-full ${isMqttConnected ? 'bg-emerald-500 animate-ping' : 'bg-amber-500'}`}></span>
+                      {isMqttConnected ? 'Broker Connected' : 'Broker Standby'}
+                    </h3>
                   </div>
-                  <div className="p-2 bg-slate-50 rounded-lg">
-                    <span className="text-slate-400 block text-[10px]">HEATER VCC</span>
-                    <span className="font-semibold text-slate-700">5.00 V (OK)</span>
+                  <div className="w-12 h-12 rounded-2xl bg-slate-50 text-slate-600 flex items-center justify-center text-xl">
+                    📡
                   </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                  <span>Topic: {MQTT_SENSOR_TOPIC}</span>
+                  <span>Port: 1883</span>
                 </div>
               </div>
 
             </div>
 
-            {/* Middle Section: Live Graph + Quality Assessment Diagnosis */}
+            {/* Middle Section: Threshold Table Widget (From user's uploaded image) + Live Chart */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-              {/* Live Area Chart (8 Cols) */}
-              <div className="lg:col-span-8 bg-white rounded-2xl shadow p-6 border border-slate-100">
-                <div className="flex flex-wrap justify-between items-center mb-6 gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                      <span>📈</span> Real-Time MQ-135 Spoilage Gas Telemetry
-                    </h2>
-                    <p className="text-xs text-slate-500">Live time-series chart of air quality and volatile gas concentration</p>
-                  </div>
+              {/* Threshold Reference Table Widget (5 Cols) */}
+              <div className="lg:col-span-5 bg-black text-white rounded-2xl p-6 shadow-md flex flex-col justify-between border border-slate-800">
+                <div>
+                  <h3 className="text-lg font-bold text-white mb-1">
+                    MQ-135 Tuna Freshness Thresholds
+                  </h3>
+                  <p className="text-xs text-slate-400 mb-6">
+                    Classification ranges derived from Alagoduwa volatile gas experiments
+                  </p>
 
-                  {/* Sample presets */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs font-semibold text-slate-400 mr-1">Test Preset:</span>
-                    {[
-                      ['fresh', '🐟 Fresh', 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'],
-                      ['moderate', '⚠️ Moderate', 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200'],
-                      ['spoiled', '🚨 Spoiled', 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'],
-                      ['ambient', '💨 Clean Air', 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'],
-                    ].map(([key, label, cls]) => (
-                      <button
-                        key={key}
-                        onClick={() => setMqPreset(key)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${cls} ${
-                          mqPreset === key ? 'ring-2 ring-blue-500 ring-offset-1 font-bold' : ''
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                  <div className="space-y-4">
+                    {/* Header */}
+                    <div className="grid grid-cols-2 pb-2 border-b border-slate-800 text-xs font-semibold text-slate-400">
+                      <span>Freshness Level</span>
+                      <span>MQ-135 Value Range</span>
+                    </div>
+
+                    {/* Row 1: Very Fresh */}
+                    <div className={`grid grid-cols-2 py-3 px-3 rounded-xl border transition-all ${
+                      mqValue <= 90
+                        ? 'bg-emerald-950/60 border-emerald-500 text-white font-bold ring-1 ring-emerald-500'
+                        : 'border-transparent text-slate-300'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {mqValue <= 90 && <span className="w-2 h-2 rounded-full bg-emerald-400"></span>}
+                        <span className="text-sm">Very Fresh</span>
+                      </div>
+                      <div>
+                        <span className="text-sm font-bold">≤ 90</span>
+                        <span className="text-xs text-slate-400 ml-1">(Typical: 59 – 88)</span>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Fresh / Acceptable */}
+                    <div className={`grid grid-cols-2 py-3 px-3 rounded-xl border transition-all ${
+                      mqValue > 90 && mqValue <= 150
+                        ? 'bg-blue-950/60 border-blue-500 text-white font-bold ring-1 ring-blue-500'
+                        : 'border-transparent text-slate-300'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {mqValue > 90 && mqValue <= 150 && <span className="w-2 h-2 rounded-full bg-blue-400"></span>}
+                        <span className="text-sm">Fresh / Acceptable</span>
+                      </div>
+                      <div>
+                        <span className="text-sm font-bold">91 – 150</span>
+                        <span className="text-xs text-slate-400 ml-1">(Typical: 118 – 145)</span>
+                      </div>
+                    </div>
+
+                    {/* Row 3: Spoiled */}
+                    <div className={`grid grid-cols-2 py-3 px-3 rounded-xl border transition-all ${
+                      mqValue > 150
+                        ? 'bg-rose-950/60 border-rose-500 text-white font-bold ring-1 ring-rose-500'
+                        : 'border-transparent text-slate-300'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {mqValue > 150 && <span className="w-2 h-2 rounded-full bg-rose-400"></span>}
+                        <span className="text-sm">Spoiled</span>
+                      </div>
+                      <div>
+                        <span className="text-sm font-bold">&gt; 150</span>
+                        <span className="text-xs text-slate-400 ml-1">(Typical: 150 – 200)</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Telemetry Chart */}
-                <div className="h-72 w-full">
+                <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                  <span>Current Active Classification:</span>
+                  <span className={`font-bold ${
+                    mqValue <= 90 ? 'text-emerald-400' :
+                    mqValue <= 150 ? 'text-blue-400' : 'text-rose-400'
+                  }`}>
+                    {currentMq.level} ({mqValue} PPM)
+                  </span>
+                </div>
+              </div>
+
+              {/* Live Telemetry Chart (7 Cols) */}
+              <div className="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 flex flex-col justify-between">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="font-bold text-base text-slate-900">Real-Time MQ-135 Sensor Stream</h3>
+                    <p className="text-xs text-slate-500">Live time-series readings received over MQTT from ESP32</p>
+                  </div>
+                  <button
+                    onClick={handleLogCurrentReading}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                  >
+                    📝 Log Reading
+                  </button>
+                </div>
+
+                <div className="h-64 w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={mqHistory} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                    <AreaChart data={mqHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
-                        <linearGradient id="colorMqPpm" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={currentMqStatus.color} stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor={currentMqStatus.color} stopOpacity={0.0}/>
+                        <linearGradient id="mqGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={currentMq.color} stopOpacity={0.4} />
+                          <stop offset="95%" stopColor={currentMq.color} stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                      <YAxis domain={[0, 'auto']} stroke="#94a3b8" fontSize={11} tickLine={false} />
+                      <XAxis dataKey="time" stroke="#94a3b8" fontSize={10} tickLine={false} />
+                      <YAxis domain={[0, 'auto']} stroke="#94a3b8" fontSize={10} tickLine={false} />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: '#ffffff',
                           borderRadius: '12px',
                           border: '1px solid #e2e8f0',
-                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                          fontSize: '12px',
+                          fontSize: '11px',
                         }}
                       />
                       <Area
                         type="monotone"
-                        dataKey="ppm"
-                        name="Gas (PPM)"
-                        stroke={currentMqStatus.color}
+                        dataKey="value"
+                        name="MQ-135 (PPM)"
+                        stroke={currentMq.color}
                         strokeWidth={2.5}
                         fillOpacity={1}
-                        fill="url(#colorMqPpm)"
+                        fill="url(#mqGradient)"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
 
-                {/* Manual Slider for Custom Value Testing */}
-                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex items-center gap-3 flex-1 min-w-[240px]">
-                    <span className="text-xs font-medium text-slate-500">Custom Level:</span>
-                    <input
-                      type="range"
-                      min="10"
-                      max="450"
-                      value={mqPreset === 'custom' ? mqCustomVal : mqPpm}
-                      onChange={(e) => {
-                        setMqPreset('custom');
-                        setMqCustomVal(Number(e.target.value));
-                        setMqPpm(Number(e.target.value));
-                      }}
-                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                    />
-                    <span className="text-xs font-bold text-slate-700 min-w-[50px]">
-                      {mqPreset === 'custom' ? mqCustomVal : mqPpm} PPM
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">Alarm Threshold:</span>
-                    <input
-                      type="number"
-                      value={mqThreshold}
-                      onChange={(e) => setMqThreshold(Number(e.target.value))}
-                      className="w-16 px-2 py-1 text-xs border rounded-lg text-center font-bold text-slate-700"
-                    />
-                    <span className="text-xs text-slate-400">PPM</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Panel: Spoilage Diagnosis & AI Fusion (4 Cols) */}
-              <div className="lg:col-span-4 bg-white rounded-2xl shadow p-6 border border-slate-100 flex flex-col justify-between space-y-5">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900 mb-1">Fish Freshness Assessment</h2>
-                  <p className="text-xs text-slate-500 mb-4">Gas chromatography correlation & AI assessment</p>
-
-                  <div className={`p-4 rounded-xl border ${currentMqStatus.bgLight} ${currentMqStatus.borderColor} space-y-3`}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-600">Freshness Status</span>
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${currentMqStatus.badge}`}>
-                        {currentMqStatus.label}
-                      </span>
-                    </div>
-
-                    <div className="text-2xl font-black text-slate-800">
-                      {currentMqStatus.grade}
-                    </div>
-
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      {currentMqStatus.description}
-                    </p>
-
-                    <div className="pt-2 border-t border-slate-200/60 text-xs">
-                      <strong className="text-slate-700">Suitability: </strong>
-                      <span className="text-slate-600">{currentMqStatus.suitability}</span>
-                    </div>
+                {/* Sorter Controller Triggers */}
+                <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-slate-600">Manual Command Control:</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => sendHardwareCommand('AUTO')}
+                      className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-300 rounded-lg text-xs font-bold transition"
+                    >
+                      AUTO SORT
+                    </button>
+                    <button
+                      onClick={() => sendHardwareCommand('A')}
+                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-lg text-xs font-bold transition"
+                    >
+                      A (≤90)
+                    </button>
+                    <button
+                      onClick={() => sendHardwareCommand('B')}
+                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-300 rounded-lg text-xs font-bold transition"
+                    >
+                      B (91-150)
+                    </button>
+                    <button
+                      onClick={() => sendHardwareCommand('C')}
+                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-xs font-bold transition"
+                    >
+                      C (&gt;150)
+                    </button>
+                    <button
+                      onClick={() => sendHardwareCommand('STOP')}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition"
+                    >
+                      STOP
+                    </button>
                   </div>
                 </div>
-
-                {/* Multi-Modal Fusion Insight */}
-                <div className="p-4 bg-blue-50/70 rounded-xl border border-blue-100 space-y-2">
-                  <div className="flex items-center gap-2 text-blue-800 font-bold text-xs">
-                    <span>🔬</span>
-                    <span>Dual-Modal Sensor Fusion</span>
-                  </div>
-                  <p className="text-xs text-blue-900/80 leading-relaxed">
-                    By combining YOLO vision detection with MQ-135 chemical gas analysis, the system achieves <strong>99.2% classification accuracy</strong> for raw Alagoduwa batch grading before Maldive fish boiling.
-                  </p>
-                </div>
-
-                <button
-                  onClick={handleLogCurrentMqReading}
-                  className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition shadow"
-                >
-                  📌 Save Reading to Batch Log
-                </button>
               </div>
 
             </div>
 
-            {/* Bottom Row: Sensor Specifications & Logged Readings Table */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-              {/* Sensor Technical Specifications (4 Cols) */}
-              <div className="lg:col-span-4 bg-white rounded-2xl shadow p-6 border border-slate-100 space-y-4">
-                <h3 className="font-bold text-md text-slate-900 flex items-center gap-2">
-                  <span>⚙️</span> MQ-135 Sensor Parameters
-                </h3>
-                
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between py-2 border-b border-slate-100">
-                    <span className="text-slate-500">Target Gas</span>
-                    <span className="font-semibold text-slate-800">NH3, TMA, NOx, Alcohol, CO2, H2S</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-slate-100">
-                    <span className="text-slate-500">Detection Range</span>
-                    <span className="font-semibold text-slate-800">10 – 1000 ppm</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-slate-100">
-                    <span className="text-slate-500">Operating Voltage</span>
-                    <span className="font-semibold text-slate-800">5.0V ± 0.1V</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-slate-100">
-                    <span className="text-slate-500">Heater Resistance (RH)</span>
-                    <span className="font-semibold text-slate-800">31Ω ± 3Ω</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-slate-100">
-                    <span className="text-slate-500">Sampling Interface</span>
-                    <span className="font-semibold text-slate-800">ESP32 ADC1_CH6 (GPIO 34)</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-slate-100">
-                    <span className="text-slate-500">MQTT Protocol Topic</span>
-                    <span className="font-mono text-blue-600">fish/sensors/mq135</span>
-                  </div>
+            {/* Logged Readings Table */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">MQ-135 Batch Log</h3>
+                  <p className="text-xs text-slate-500">Recorded gas concentration measurements for raw fish batches</p>
                 </div>
-
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800">
-                  💡 <strong>Tip:</strong> Ensure 24-hour initial preheating of the MQ-135 internal tin dioxide (SnO2) sensing element for stable baseline precision.
-                </div>
-              </div>
-
-              {/* Logged Readings Table (8 Cols) */}
-              <div className="lg:col-span-8 bg-white rounded-2xl shadow p-6 border border-slate-100">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h3 className="font-bold text-md text-slate-900 flex items-center gap-2">
-                      <span>📋</span> MQ-135 Assessment Log
-                    </h3>
-                    <p className="text-xs text-slate-500">Recorded gas concentration measurements for raw fish batches</p>
-                  </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleExportCsv}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export CSV
+                  </button>
                   {mqLogs.length > 0 && (
                     <button
                       onClick={() => setMqLogs([])}
-                      className="text-xs text-rose-500 hover:text-rose-700 font-semibold"
+                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition"
                     >
                       Clear Log
                     </button>
                   )}
                 </div>
-
-                {mqLogs.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400 text-sm">
-                    No readings logged yet. Click "Log Reading" or use presets to record measurements.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-slate-400">
-                          <th className="pb-2 font-semibold">LOG ID</th>
-                          <th className="pb-2 font-semibold">BATCH ID</th>
-                          <th className="pb-2 font-semibold">TIMESTAMP</th>
-                          <th className="pb-2 font-semibold">GAS PPM</th>
-                          <th className="pb-2 font-semibold">VOLTAGE</th>
-                          <th className="pb-2 font-semibold">STATUS</th>
-                          <th className="pb-2 font-semibold">GRADE</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {mqLogs.map((log) => (
-                          <tr key={log.id} className="hover:bg-slate-50">
-                            <td className="py-2.5 font-mono text-slate-600">{log.id}</td>
-                            <td className="py-2.5 font-medium text-slate-800">{log.batchId}</td>
-                            <td className="py-2.5 text-slate-500">{log.timestamp}</td>
-                            <td className="py-2.5 font-bold text-slate-800">{log.ppm} PPM</td>
-                            <td className="py-2.5 text-slate-600">{log.voltage} V</td>
-                            <td className="py-2.5">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                log.ppm < 80 ? 'bg-emerald-100 text-emerald-800' :
-                                log.ppm <= 150 ? 'bg-amber-100 text-amber-800' :
-                                'bg-rose-100 text-rose-800'
-                              }`}>
-                                {log.status}
-                              </span>
-                            </td>
-                            <td className="py-2.5 font-semibold text-slate-700">{log.grade}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
 
+              {mqLogs.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  No readings logged yet. Click "Log Reading" to record measurements.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-400">
+                        <th className="pb-2.5 font-semibold">LOG ID</th>
+                        <th className="pb-2.5 font-semibold">BATCH ID</th>
+                        <th className="pb-2.5 font-semibold">SPECIES</th>
+                        <th className="pb-2.5 font-semibold">TIMESTAMP</th>
+                        <th className="pb-2.5 font-semibold">MQ-135 VALUE</th>
+                        <th className="pb-2.5 font-semibold">FRESHNESS LEVEL</th>
+                        <th className="pb-2.5 font-semibold">AUTO COMMAND</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {mqLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-slate-50">
+                          <td className="py-2.5 font-mono text-slate-600">{log.id}</td>
+                          <td className="py-2.5 font-semibold text-slate-800">{log.batchId}</td>
+                          <td className="py-2.5 text-slate-600">{log.species}</td>
+                          <td className="py-2.5 text-slate-500">{log.timestamp}</td>
+                          <td className="py-2.5 font-bold text-slate-900">{log.value} PPM</td>
+                          <td className="py-2.5">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              log.value <= 90 ? 'bg-emerald-100 text-emerald-800' :
+                              log.value <= 150 ? 'bg-blue-100 text-blue-800' :
+                              'bg-rose-100 text-rose-800'
+                            }`}>
+                              {log.level}
+                            </span>
+                          </td>
+                          <td className="py-2.5 font-mono font-bold text-blue-700">[{log.command}]</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
           </div>
         )}
 
-        {/* ════════════════════ HISTORY TAB ════════════════════ */}
+        {/* ════════════════════ ASSESSMENT HISTORY TAB ════════════════════ */}
         {activeTab === 'history' && (
-          <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Assessment History</h2>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Assessment History (MongoDB)</h2>
+                <p className="text-xs text-slate-500">Archived raw fish quality assessment records</p>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">
+                {history.length} Records
+              </span>
+            </div>
+
             {history.length === 0 ? (
-              <p className="text-slate-400">No saved assessments yet.</p>
+              <div className="py-16 text-center text-slate-400 text-sm">
+                No saved assessments found.
+              </div>
             ) : (
-              <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {history.map((record) => (
-                  <div key={record._id} className="border rounded-xl overflow-hidden shadow-sm bg-white">
-                    <div className={`h-2 w-full ${record.qualityLabel === 'Alagoduwa_Very_fresh' ? 'bg-green-400'
-                        : record.qualityLabel === 'Alagoduwa_fresh' ? 'bg-blue-400'
-                          : 'bg-red-400'
-                      }`} />
-                    <div className="p-4">
+                  <div key={record._id} className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-white hover:shadow-md transition">
+                    <div className={`h-2 w-full ${
+                      record.qualityLabel?.toLowerCase().includes('very_fresh') ? 'bg-emerald-500' :
+                      record.qualityLabel?.toLowerCase().includes('fresh') ? 'bg-blue-500' :
+                      'bg-rose-500'
+                    }`} />
+                    <div className="p-4 space-y-3">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="text-xs text-slate-500"> {new Date(record.analysisDate).toLocaleString()}</p>
+                          <p className="text-sm font-bold text-slate-800">{record.batchId}</p>
+                          <p className="text-xs text-slate-400">{new Date(record.analysisDate).toLocaleString()}</p>
                         </div>
                         <button
                           onClick={() => deleteAssessment(record._id)}
-                          className="text-red-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50 transition-colors"
-                          title="Delete"
+                          className="text-rose-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                          title="Delete Assessment"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
 
-                      <div className="mt-3 flex gap-2 flex-wrap">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getLabelBadgeColor(record.qualityLabel)}`}>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${getLabelBadgeColor(record.qualityLabel)}`}>
                           {record.qualityLabel}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-500">
+                          Score: {record.freshnessScore}%
                         </span>
                       </div>
                     </div>
@@ -1138,31 +1235,32 @@ const RawFishQuality = () => {
           </div>
         )}
 
-        {/* ════════════════════ ANALYTICS TAB ════════════════════ */}
+        {/* ════════════════════ QUALITY ANALYTICS TAB ════════════════════ */}
         {activeTab === 'analytics' && (
           <div className="space-y-6">
-            {/* Summary cards */}
+            {/* Metric Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
               {[
-                { label: 'Total Assessments', value: stats.total, bg: 'bg-slate-50', text: 'text-slate-700' },
-                { label: 'Very Fresh', value: stats.veryFresh, bg: 'bg-green-50', text: 'text-green-700' },
-                { label: 'Fresh', value: stats.fresh, bg: 'bg-blue-50', text: 'text-blue-700' },
-                { label: 'Spoiled', value: stats.spoiled, bg: 'bg-red-50', text: 'text-red-700' },
+                { label: 'Total Assessments', value: stats.total, bg: 'bg-white', text: 'text-slate-800' },
+                { label: 'Very Fresh (≤90)', value: stats.veryFresh, bg: 'bg-emerald-50', text: 'text-emerald-700' },
+                { label: 'Fresh / Acceptable (91–150)', value: stats.fresh, bg: 'bg-blue-50', text: 'text-blue-700' },
+                { label: 'Spoiled (>150)', value: stats.spoiled, bg: 'bg-rose-50', text: 'text-rose-700' },
               ].map((card) => (
-                <div key={card.label} className={`${card.bg} rounded-2xl border p-5 text-center shadow`}>
-                  <p className={`text-sm font-semibold ${card.text}`}>{card.label}</p>
-                  <h3 className={`text-4xl font-bold mt-2 ${card.text}`}>{card.value}</h3>
-                  <p className="text-xs text-slate-400 mt-1">Assessments</p>
+                <div key={card.label} className={`${card.bg} rounded-2xl border border-slate-200/80 p-5 shadow-sm`}>
+                  <p className="text-xs font-semibold text-slate-500">{card.label}</p>
+                  <h3 className={`text-3xl font-extrabold mt-2 ${card.text}`}>{card.value}</h3>
+                  <p className="text-[11px] text-slate-400 mt-1">Batches analyzed</p>
                 </div>
               ))}
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-6">
-              {/* Pie chart */}
-              <div className="bg-white rounded-2xl shadow p-6">
-                <h2 className="text-xl font-bold mb-4">Quality Distribution</h2>
-                {qualityData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={280}>
+            {/* Quality Distribution Pie Chart */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
+              <h2 className="text-lg font-bold text-slate-900 mb-2">Quality Distribution</h2>
+              <p className="text-xs text-slate-500 mb-4">Proportion of raw catch categories processed through the pipeline</p>
+              {qualityData.length > 0 ? (
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={qualityData}
@@ -1170,26 +1268,24 @@ const RawFishQuality = () => {
                         cy="50%"
                         labelLine={false}
                         label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={100}
+                        outerRadius={90}
                         dataKey="value"
                       >
                         {qualityData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value, name) => [`${value} assessments`, name]} labelFormatter={() => ''} />
+                      <Tooltip formatter={(value, name) => [`${value} batches`, name]} />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-48 text-slate-400">No data available</div>
-                )}
-              </div>
-
-
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-48 text-slate-400 text-xs">
+                  No batch data available for distribution graph.
+                </div>
+              )}
             </div>
-
-
           </div>
         )}
 

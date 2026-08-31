@@ -70,23 +70,122 @@ threshold_settings = {
 # MQTT Configuration
 MQTT_BROKER = "broker.hivemq.com"
 MQTT_PORT = 1883
-MQTT_TOPIC = "fish/sorting/command"
+MQTT_COMMAND_TOPIC = "fish/sorting/command"
+MQTT_SENSOR_TOPIC = "fish/sorting/mq135"
+MQTT_STATUS_TOPIC = "fish/sorting/status"
 
 mqtt_client = mqtt.Client()
 
+import json
+from datetime import datetime
+
+# Global store for latest MQ-135 sensor readings
+latest_mq135_data = {
+    "value": 0,
+    "raw_quality": "UNKNOWN",
+    "freshness_level": "UNKNOWN",
+    "threshold_range": "Waiting for sensor...",
+    "typical_range": "",
+    "command": "IDLE",
+    "status": "IDLE",
+    "last_updated": None
+}
+
+def classify_mq135_freshness(value: int) -> dict:
+    """
+    MQ-135 Tuna Freshness Thresholds:
+    Very Fresh: <= 90 (Typical: 59 - 88)
+    Fresh / Acceptable: 91 - 150 (Typical: 118 - 145)
+    Spoiled: > 150 (Typical: 150 - 200)
+    """
+    if value <= 90:
+        return {
+            "level": "Very Fresh",
+            "range": "<= 90",
+            "typical": "59 - 88",
+            "auto_command": "A"
+        }
+    elif value <= 150:
+        return {
+            "level": "Fresh / Acceptable",
+            "range": "91 - 150",
+            "typical": "118 - 145",
+            "auto_command": "B"
+        }
+    else:
+        return {
+            "level": "Spoiled",
+            "range": "> 150",
+            "typical": "150 - 200",
+            "auto_command": "C"
+        }
+
+def on_mqtt_message(client, userdata, msg):
+    global latest_mq135_data
+    try:
+        payload_str = msg.payload.decode("utf-8", errors="ignore").strip()
+        data = json.loads(payload_str)
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        if msg.topic == MQTT_SENSOR_TOPIC or "mq135" in data:
+            val = int(data.get("mq135", 0))
+            quality_info = classify_mq135_freshness(val)
+            latest_mq135_data.update({
+                "value": val,
+                "raw_quality": data.get("quality", "UNKNOWN"),
+                "freshness_level": quality_info["level"],
+                "threshold_range": quality_info["range"],
+                "typical_range": quality_info["typical"],
+                "auto_command": quality_info["auto_command"],
+                "last_updated": now_str
+            })
+            if "status" in data:
+                latest_mq135_data["status"] = data["status"]
+            if "command" in data:
+                latest_mq135_data["command"] = data["command"]
+
+        elif msg.topic == MQTT_STATUS_TOPIC:
+            if "command" in data:
+                latest_mq135_data["command"] = data["command"]
+            if "status" in data:
+                latest_mq135_data["status"] = data["status"]
+            if "mq135" in data:
+                val = int(data.get("mq135", 0))
+                quality_info = classify_mq135_freshness(val)
+                latest_mq135_data.update({
+                    "value": val,
+                    "raw_quality": data.get("quality", latest_mq135_data["raw_quality"]),
+                    "freshness_level": quality_info["level"],
+                    "threshold_range": quality_info["range"],
+                    "typical_range": quality_info["typical"],
+                    "auto_command": quality_info["auto_command"],
+                    "last_updated": now_str
+                })
+    except Exception as e:
+        print(f" Error parsing MQTT message on {msg.topic}: {e}")
+
+def on_mqtt_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print(" Connected to MQTT Broker successfully!")
+        client.subscribe([(MQTT_SENSOR_TOPIC, 0), (MQTT_STATUS_TOPIC, 0)])
+        print(f" Subscribed to topics: '{MQTT_SENSOR_TOPIC}', '{MQTT_STATUS_TOPIC}'")
+    else:
+        print(f" MQTT Connect failed with code {rc}")
+
 def init_mqtt():
     try:
+        mqtt_client.on_connect = on_mqtt_connect
+        mqtt_client.on_message = on_mqtt_message
         mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
         mqtt_client.loop_start()
-        print(" Connected to MQTT Broker successfully!")
     except Exception as e:
         print(f" MQTT Connection failed: {str(e)}")
 
 def publish_mqtt_command(command: str, description: str = ""):
     try:
         if command:
-            mqtt_client.publish(MQTT_TOPIC, command)
-            print(f" MQTT Published Command: '{command}' ({description}) to '{MQTT_TOPIC}'")
+            mqtt_client.publish(MQTT_COMMAND_TOPIC, command)
+            print(f" MQTT Published Command: '{command}' ({description}) to '{MQTT_COMMAND_TOPIC}'")
     except Exception as e:
         print(f" Failed to publish MQTT command '{command}': {str(e)}")
 
@@ -349,10 +448,41 @@ async def predict_fish_freshness(
             "total_detections": len(detections),
             "results": detections,
             "command_triggered": triggered_command,
+            "mq135_sensor": latest_mq135_data,
             "filename": file.filename
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Freshness prediction failed: {str(e)}")
+
+# ==================== MQ-135 Sensor Endpoints ====================
+
+@app.get("/sensor/mq135")
+def get_latest_mq135():
+    """
+    Returns latest real-time MQ-135 gas sensor data received via MQTT from ESP32.
+    Thresholds:
+    - Very Fresh: <= 90 (Typical: 59 - 88)
+    - Fresh / Acceptable: 91 - 150 (Typical: 118 - 145)
+    - Spoiled: > 150 (Typical: 150 - 200)
+    """
+    return {
+        "sensor": "MQ-135",
+        "data": latest_mq135_data,
+        "threshold_reference": [
+            {"level": "Very Fresh", "range": "<= 90", "typical": "59 - 88", "auto_command": "A"},
+            {"level": "Fresh / Acceptable", "range": "91 - 150", "typical": "118 - 145", "auto_command": "B"},
+            {"level": "Spoiled", "range": "> 150", "typical": "150 - 200", "auto_command": "C"}
+        ]
+    }
+
+@app.post("/sensor/command")
+async def trigger_hardware_command(command: str = Form(...)):
+    """
+    Manual hardware control command: 'A', 'B', 'C', 'AUTO', 'STOP', 'S'
+    """
+    cmd = command.strip().upper()
+    publish_mqtt_command(cmd, f"Manual trigger: {cmd}")
+    return {"status": "success", "command_sent": cmd, "topic": MQTT_COMMAND_TOPIC}
 
 # ==================== Unified Predict Endpoint (Default Route for Frontend) ====================
 

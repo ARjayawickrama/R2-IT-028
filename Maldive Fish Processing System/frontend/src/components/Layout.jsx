@@ -348,7 +348,7 @@ export default function Layout({ children }) {
         {
           path: "/raw-fish-quality",
           icon: ShieldCheck,
-          label: "Raw Catch Freshness",
+          label: "Raw fish Freshness",
           badge: "AI VISION",
           badgeColor: "#10B981",
           iconColor: "#10B981",
