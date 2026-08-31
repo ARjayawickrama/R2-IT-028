@@ -77,10 +77,11 @@ const Layout = ({ children }) => {
 
   const navItems = [
     { path: "/dashboard",                icon: "⬡", label: "Dashboard" },
-    { path: "/dried-fish-quality",       icon: "◈", label: "Dried Fish Quality" },
+    { path: "/raw-fish-quality",         icon: "◎", label: "Raw Fish Quality" },
     { path: "/boile-control",            icon: "⬟", label: "Salt Control" },
     { path: "/environmental-monitoring", icon: "◉", label: "Environment" },
-    { path: "/raw-fish-quality",         icon: "◎", label: "Raw Fish Quality" },
+    { path: "/dried-fish-quality",       icon: "◈", label: "Dried Fish Quality" },
+    { path: "/inventory",                icon: "▤", label: "Inventory & Batches" },
     { path: "/system-settings",          icon: "⬡", label: "System Settings" },
   ];
 
@@ -88,6 +89,7 @@ const Layout = ({ children }) => {
     {
       key: "toolsMenu", label: "Tools",
       items: [
+        { icon: "▤", label: "Inventory Management", path: "/inventory" },
         { icon: "◈", label: "Fish Detection", path: "/boile-control" },
         { icon: "◉", label: "Quality Analysis", path: "/dashboard" },
         { icon: "⬟", label: "Energy Monitor", path: "/dashboard" },

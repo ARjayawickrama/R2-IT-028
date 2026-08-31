@@ -13,6 +13,7 @@ import EnvironmentalMonitoring from './pages/EnvironmentalMonitoring/Environment
 import DryFish from './pages/EnvironmentalMonitoring/dry_fish';
 import RawFishQuality from './pages/RawFishQuality/RawFishQuality';
 import SystemSettings from './pages/SystemSettings/SystemSettings';
+import Inventory from './pages/Inventory/Inventory';
 
 function App() {
   return (
@@ -90,6 +91,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <SystemSettings />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Inventory />
                 </Layout>
               </ProtectedRoute>
             }
