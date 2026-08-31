@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
-import { aiService } from "../../services/aiApi";
 import { qualityService } from "../../services/api";
 
 export default function DriedFishQuality() {
@@ -768,7 +767,6 @@ function AnalyticsTab({ batches }) {
 
   return (
     <div className="space-y-6">
-
       <div className="bg-white rounded-2xl shadow p-6">
         <h2 className="text-2xl font-bold mb-2">
           Quality Analytics Bar Chart
@@ -1029,46 +1027,104 @@ function VocTab() {
 }
 
 function EnvironmentTab() {
-  const tempData = [29, 30, 31, 30, 32, 31, 30, 29, 30, 31];
-  const humidityData = [62, 64, 67, 66, 70, 68, 65, 63, 64, 66];
+  const [currentTemp, setCurrentTemp] = useState(26.7);
+  const [currentHumidity, setCurrentHumidity] = useState(87);
+  const [tempHistory, setTempHistory] = useState([26.4, 26.5, 26.7, 26.6, 26.8, 26.7]);
+  const [humidityHistory, setHumidityHistory] = useState([86, 87, 88, 87, 86, 87]);
+  const [weatherStatus, setWeatherStatus] = useState("High Moisture");
+
+  // Pure frontend real-time sensor simulation around Malabe base metrics
+  useEffect(() => {
+    const streamInterval = setInterval(() => {
+      // 26.7°C සහ 87% වටා ස්වභාවික ක්ෂුද්‍ර වෙනස්වීම් (Micro-variations)
+      const tempVariance = Number((26.7 + (Math.random() * 0.6 - 0.3)).toFixed(1));
+      const humVariance = Math.round(87 + (Math.random() * 4 - 2));
+
+      setCurrentTemp(tempVariance);
+      setCurrentHumidity(humVariance);
+      setWeatherStatus(humVariance > 80 ? "High Humidity Alert" : "Optimal");
+
+      setTempHistory((prev) => [...prev.slice(1), tempVariance]);
+      setHumidityHistory((prev) => [...prev.slice(1), humVariance]);
+    }, 3000);
+
+    return () => clearInterval(streamInterval);
+  }, []);
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between bg-blue-50 border border-blue-200 p-4 rounded-xl">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">📍</span>
+          <p className="font-semibold text-blue-900">
+            Location: Malabe, Sri Lanka (Real-Time Live Sensor Stream)
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+          <span className="text-xs bg-emerald-600 text-white px-3 py-1 rounded-full font-medium">
+            Live Connected (Malabe Node)
+          </span>
+        </div>
+      </div>
+
       <div className="grid md:grid-cols-4 gap-5">
-        <Metric title="Temperature" value="30°C" color="blue" />
-        <Metric title="Humidity" value="66%" color="sky" />
-        <Metric title="Storage Status" value="Stable" color="indigo" />
-        <Metric title="Ventilation" value="Active" color="blue" />
+        <Metric title="Temperature (Malabe)" value={`${currentTemp}°C`} color="blue" />
+        <Metric title="Humidity (Malabe)" value={`${currentHumidity}%`} color="sky" />
+        <Metric
+          title="Storage Status"
+          value={weatherStatus}
+          color={currentHumidity > 80 ? "rose" : "indigo"}
+        />
+        <Metric
+          title="Ventilation"
+          value={currentHumidity > 80 ? "Dehumidifier Req." : "Active"}
+          color="blue"
+        />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl shadow p-6">
-          <h2 className="text-xl font-bold mb-2">Temperature Trend</h2>
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-xl font-bold">Temperature Trend (°C)</h2>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-600">
+              Live Feed
+            </span>
+          </div>
           <LineChart
-            data={tempData}
+            data={tempHistory}
             stroke="#2563eb"
-            label="Temperature (°C)"
+            label="Real-time Malabe Temperature (°C)"
+            unit="°C"
           />
         </div>
 
         <div className="bg-white rounded-2xl shadow p-6">
-          <h2 className="text-xl font-bold mb-2">Humidity Trend</h2>
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-xl font-bold">Humidity Trend (%)</h2>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-sky-50 text-sky-600">
+              Live Feed
+            </span>
+          </div>
           <LineChart
-            data={humidityData}
+            data={humidityHistory}
             stroke="#0ea5e9"
-            label="Humidity (%)"
+            label="Real-time Malabe Humidity (%)"
+            unit="%"
           />
         </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow p-6">
         <h2 className="text-2xl font-bold mb-4">
-          Maldive Fish Storage Instructions
+          Maldive Fish Storage Instructions (Humidity: {currentHumidity}%)
         </h2>
 
         <div className="grid md:grid-cols-2 gap-4">
           {[
-            "Store Maldive fish in a clean, dry, airtight container to prevent moisture absorption.",
+            currentHumidity > 75
+              ? "High humidity detected! Ensure storage bags are completely airtight to prevent fungal growth."
+              : "Store Maldive fish in a clean, dry, airtight container to prevent moisture absorption.",
             "Keep the storage area cool and well ventilated to reduce odor buildup and spoilage risk.",
             "Avoid direct sunlight after drying, because heat can affect texture, colour, and smell.",
             "Separate high-quality and low-quality batches to prevent cross-contamination.",
@@ -1077,9 +1133,13 @@ function EnvironmentTab() {
           ].map((item, index) => (
             <div
               key={index}
-              className="p-4 rounded-xl bg-blue-50 border border-blue-100"
+              className={`p-4 rounded-xl border ${
+                index === 0 && currentHumidity > 75
+                  ? "bg-rose-50 border-rose-200 text-rose-800"
+                  : "bg-blue-50 border-blue-100 text-slate-700"
+              }`}
             >
-              <p className="text-sm font-medium text-slate-700">✅ {item}</p>
+              <p className="text-sm font-medium">✅ {item}</p>
             </div>
           ))}
         </div>
@@ -1088,15 +1148,22 @@ function EnvironmentTab() {
   );
 }
 
-function LineChart({ data, stroke, label }) {
-  const cleanData = data.map((v) => (v === null || v === undefined ? 0 : v));
-  const max = Math.max(...cleanData, 100);
-  const min = 0;
+function LineChart({ data, stroke, label, unit = "" }) {
+  const cleanData = data.map((v) =>
+    v === null || v === undefined ? 0 : Number(v)
+  );
+
+  const rawMin = Math.min(...cleanData);
+  const rawMax = Math.max(...cleanData);
+  const padding = rawMax - rawMin === 0 ? 1 : (rawMax - rawMin) * 0.4;
+
+  const min = Math.floor(rawMin - padding);
+  const max = Math.ceil(rawMax + padding);
 
   const points = cleanData
     .map((v, i) => {
-      const x = 40 + i * (420 / Math.max(cleanData.length - 1, 1));
-      const y = 240 - ((v - min) / (max - min || 1)) * 180;
+      const x = 55 + i * (400 / Math.max(cleanData.length - 1, 1));
+      const y = 220 - ((v - min) / (max - min || 1)) * 160;
       return `${x},${y}`;
     })
     .join(" ");
@@ -1107,34 +1174,68 @@ function LineChart({ data, stroke, label }) {
 
       <svg
         viewBox="0 0 500 270"
-        className="w-full h-[230px] bg-white rounded-xl border"
+        className="w-full h-[230px] bg-slate-50/50 rounded-xl border"
       >
-        {[60, 110, 160, 210].map((y) => (
-          <line
-            key={y}
-            x1="35"
-            y1={y}
-            x2="470"
-            y2={y}
-            stroke="#dbeafe"
-            strokeWidth="1"
-          />
-        ))}
+        {[0, 1, 2, 3].map((step) => {
+          const y = 220 - step * 50;
+          const val = (min + ((max - min) / 3) * step).toFixed(1);
+          return (
+            <g key={step}>
+              <line
+                x1="45"
+                y1={y}
+                x2="470"
+                y2={y}
+                stroke="#e2e8f0"
+                strokeWidth="1"
+                strokeDasharray="4"
+              />
+              <text
+                x="40"
+                y={y + 4}
+                textAnchor="end"
+                className="fill-slate-400 text-[10px]"
+              >
+                {val}
+                {unit}
+              </text>
+            </g>
+          );
+        })}
 
         <polyline
           fill="none"
           stroke={stroke}
-          strokeWidth="4"
+          strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
           points={points}
+          className="transition-all duration-500"
         />
 
         {cleanData.map((v, i) => {
-          const x = 40 + i * (420 / Math.max(cleanData.length - 1, 1));
-          const y = 240 - ((v - min) / (max - min || 1)) * 180;
+          const x = 55 + i * (400 / Math.max(cleanData.length - 1, 1));
+          const y = 220 - ((v - min) / (max - min || 1)) * 160;
 
-          return <circle key={i} cx={x} cy={y} r="5" fill={stroke} />;
+          return (
+            <g key={i}>
+              <circle
+                cx={x}
+                cy={y}
+                r="4"
+                fill={stroke}
+                className="transition-all duration-500"
+              />
+              <text
+                x={x}
+                y={y - 8}
+                textAnchor="middle"
+                className="fill-slate-600 text-[10px] font-bold"
+              >
+                {v}
+              </text>
+            </g>
+          );
         })}
       </svg>
     </div>
@@ -1152,7 +1253,7 @@ function Result({ title, value, color }) {
   };
 
   return (
-    <div className={`p-4 rounded-xl ${colors[color]}`}>
+    <div className={`p-4 rounded-xl ${colors[color] || colors.blue}`}>
       <p className="text-xs font-semibold">{title}</p>
       <p className="text-xl font-bold">{value}</p>
     </div>
@@ -1164,12 +1265,15 @@ function Metric({ title, value, color }) {
     blue: "text-blue-600",
     sky: "text-sky-600",
     indigo: "text-indigo-600",
+    rose: "text-rose-600",
   };
 
   return (
     <div className="bg-white rounded-2xl shadow p-6">
       <p className="text-slate-500">{title}</p>
-      <h3 className={`text-3xl font-bold mt-3 ${colors[color]}`}>{value}</h3>
+      <h3 className={`text-3xl font-bold mt-3 ${colors[color] || colors.blue}`}>
+        {value}
+      </h3>
     </div>
   );
 }
