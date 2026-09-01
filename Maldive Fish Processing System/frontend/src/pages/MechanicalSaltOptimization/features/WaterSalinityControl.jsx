@@ -187,17 +187,17 @@ export default function BoilerDashboard() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // 1. Initial Load: API Sync
+  // 1. Initial Load: Database එකෙන් අලුත්ම Fish Record එක ලබාගෙන Batch Parameters වලට දැමීම
   useEffect(() => {
     const fetchLatestFishData = async () => {
       try {
         const res = await fetch('http://localhost:8000/api/measurements');
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          const latest = data[0];
+          const latest = data[0]; // අලුත්ම record එක
           const weightNum = parseFloat(latest.fish_weight.replace(' kg', '')) || 0.0;
           const thickCm = parseFloat(latest.fish_thickness.replace(' cm', '')) || 0.0;
-          const thickMm = +(thickCm * 10).toFixed(1);
+          const thickMm = +(thickCm * 10).toFixed(1); // cm to mm
 
           setTanks(prev => prev.map(t =>
             t.id === activeId ? { ...t, fishWeight: weightNum, thickness: thickMm } : t
@@ -212,12 +212,14 @@ export default function BoilerDashboard() {
     fetchLatestFishData();
   }, [activeId]);
 
-  // 2. Real-time Live Sync: MQTT
+  // 2. Real-time Live Sync: MQTT හරහා Laser & Scale එකෙන් Data එන විට auto-update වීම
   useEffect(() => {
+    // HiveMQ WebSocket Port 8884 / 8000
     const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
 
     client.on('connect', () => {
       setIsMqttConnected(true);
+      // Temperature & TDS topics
       client.subscribe(['aquasense/water/temperature', 'aquasense/water/tds', 'fish-inspector/measurement/data']);
     });
 
@@ -235,11 +237,13 @@ export default function BoilerDashboard() {
           const tdsVal = parseFloat(msg);
           setIsSaltDetected(!isNaN(tdsVal) && tdsVal > 250);
         } else if (topic === 'fish-inspector/measurement/data') {
+          // Live Laser & Scale Telemetry
           const d = JSON.parse(msg);
           if (d.peak_cm !== undefined && d.weight !== undefined) {
             const liveWeight = parseFloat(d.weight) || 0.0;
             const liveThickMm = (parseFloat(d.peak_cm) * 10.0) || 0.0;
 
+            // මාළුවා ස්කෑන් වී අගයන් ලැබුණු විට Active Tank එකට Auto-Fill කිරීම
             if (liveWeight > 0 || liveThickMm > 0) {
               setTanks(prev => prev.map(t =>
                 t.id === activeId ? { ...t, fishWeight: liveWeight, thickness: liveThickMm } : t
@@ -311,7 +315,7 @@ export default function BoilerDashboard() {
         setRemainingSeconds(predictedTime * 60);
         setPredictionStatus('AI Optimized & Running');
       } catch (error) {
-        const estimated = Math.round((activeTank.fishWeight * 5) + ((activeTank.thickness / 10) * 3)) || 45;
+        const estimated = Math.round((activeTank.fishWeight * 5) + ((activeTank.thickness / 10) * 3));
         const waterLiters = Math.min(activeTank.thickness > 0 ? (activeTank.thickness / 10) : 3.5, activeTank.maxCapacity);
         const saltGrams = waterLiters * 1000 * 0.03;
 
@@ -588,44 +592,14 @@ export default function BoilerDashboard() {
             </div>
           </Card>
 
-          {/* AI Automated Cooking Timer Card (Displays on Start) */}
-          {activeTank.isCycling && (
-            <Card style={{
-              padding: '16px 20px',
-              background: processState === 'BOILING_ACTIVE' ? C.dangerSoft : C.primarySoft,
-              border: `1px solid ${processState === 'BOILING_ACTIVE' ? '#FCA5A5' : C.primary}`,
-              textAlign: 'center'
-            }}>
-              <div style={{
-                fontSize: 10.5,
-                fontWeight: 700,
-                color: processState === 'BOILING_ACTIVE' ? C.danger : C.primaryDark,
-                letterSpacing: '1px',
-                fontFamily: FONT_DISPLAY,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6
-              }}>
-                <Timer size={14} />
-                {processState === 'BOILING_ACTIVE' ? 'BOILING IN PROGRESS' : 'ESTIMATED COOKING TIME'}
+          {processState === 'BOILING_ACTIVE' && (
+            <Card style={{ padding: '16px 20px', background: C.dangerSoft, border: '1px solid #FCA5A5', textAlign: 'center' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: C.danger, letterSpacing: '1px', fontFamily: FONT_DISPLAY, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Timer size={14} /> BOILING IN PROGRESS
               </div>
-
-              <div style={{
-                fontSize: 30,
-                fontWeight: 700,
-                fontFamily: FONT_MONO,
-                color: processState === 'BOILING_ACTIVE' ? C.danger : C.primaryDark,
-                margin: '6px 0'
-              }}>
+              <div style={{ fontSize: 30, fontWeight: 700, fontFamily: FONT_MONO, color: C.danger, margin: '6px 0' }}>
                 {Math.floor(remainingSeconds / 60)}:{('0' + (remainingSeconds % 60)).slice(-2)} Mins
               </div>
-
-              {processState !== 'BOILING_ACTIVE' && (
-                <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 600 }}>
-                  (Countdown will start once water reaches 98°C)
-                </div>
-              )}
             </Card>
           )}
 
