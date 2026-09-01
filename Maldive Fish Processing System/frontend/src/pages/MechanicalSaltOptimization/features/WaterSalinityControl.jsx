@@ -492,7 +492,7 @@ export default function BoilerDashboard() {
               </label>
               <div style={{ position: 'relative' }}>
                 <Scale size={16} color={C.muted} style={{ position: 'absolute', left: 14, top: 14 }} />
-                <input type="number" step="0.01" value={activeTank.fishWeight}
+                <input type="number" step="0.01" value={activeTank.fishWeight || 8}
                   onChange={(e) => handleInputChange('fishWeight', e.target.value)} style={fieldStyle} />
               </div>
             </div>
