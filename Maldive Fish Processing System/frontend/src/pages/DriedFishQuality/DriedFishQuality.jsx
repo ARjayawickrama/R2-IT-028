@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
+import mqtt from "mqtt";
 import { qualityService } from "../../services/api";
 
 export default function DriedFishQuality() {
@@ -27,7 +28,7 @@ export default function DriedFishQuality() {
     ["camera", "Live Quality Scan"],
     ["batches", "Uploaded Batches"],
     ["analytics", "Quality Analytics"],
-    ["voc", "VOC Sensor Readings"],
+    ["mq135", "💨 MQ-135 Quality & Drying Monitor"],
     ["environment", "Storage Environment"],
   ];
 
@@ -289,7 +290,7 @@ export default function DriedFishQuality() {
             🐟 Maldive Fish Quality Assessment System
           </h1>
           <p className="text-sm text-slate-500">
-            Image-based quality checking, batch monitoring, VOC analysis, and
+            Image-based quality checking, batch monitoring, MQ-135 drying & quality analysis, and
             storage guidance
           </p>
         </div>
@@ -339,7 +340,7 @@ export default function DriedFishQuality() {
         )}
 
         {activeTab === "analytics" && <AnalyticsTab batches={batches} />}
-        {activeTab === "voc" && <VocTab />}
+        {(activeTab === "mq135" || activeTab === "voc") && <Mq135Tab />}
         {activeTab === "environment" && <EnvironmentTab />}
       </div>
     </div>
@@ -938,88 +939,690 @@ function QualityBarChart({ data, total }) {
   );
 }
 
-function VocTab() {
+const DRIED_FISH_MQ_THRESHOLDS = [
+  {
+    category: "High Quality",
+    dryingLevel: "Optimum (Mid-Drying)",
+    range: "50 – 80",
+    min: 50,
+    max: 80,
+    badge: "bg-emerald-100 text-emerald-800 border-emerald-300",
+    tagBg: "bg-emerald-500",
+    color: "#10B981",
+    textColor: "text-emerald-700",
+    bgLight: "bg-emerald-50",
+    borderLight: "border-emerald-200",
+    advice: "Optimal moisture balance and aromatic profile. Product is ready for final quality grading, packaging, and commercial distribution.",
+  },
+  {
+    category: "Medium Quality",
+    dryingLevel: "Over-Dried",
+    range: "81 – 115",
+    min: 81,
+    max: 115,
+    badge: "bg-amber-100 text-amber-800 border-amber-300",
+    tagBg: "bg-amber-500",
+    color: "#F59E0B",
+    textColor: "text-amber-700",
+    bgLight: "bg-amber-50",
+    borderLight: "border-amber-200",
+    advice: "Over-dried batch with hardened texture and reduced volatile emission. Suitable for standard retail with moisture-sealed packaging.",
+  },
+  {
+    category: "Low Quality",
+    dryingLevel: "Under-Dried",
+    range: "> 115 (120 – 160+)",
+    min: 116,
+    max: 999,
+    badge: "bg-rose-100 text-rose-800 border-rose-300",
+    tagBg: "bg-rose-500",
+    color: "#EF4444",
+    textColor: "text-rose-700",
+    bgLight: "bg-rose-50",
+    borderLight: "border-rose-200",
+    advice: "Under-dried product with high residual water content and elevated gas emission. Spoilage risk is high; further sun or chamber drying required.",
+  },
+];
+
+export const classifyDriedFishMq = (value) => {
+  if (value === null || value === undefined || value === "" || isNaN(Number(value))) {
+    return {
+      category: "Sensor Standby / OFF",
+      dryingLevel: "OFF / Standby",
+      range: "N/A",
+      badge: "bg-slate-100 text-slate-500 border-slate-300",
+      tagBg: "bg-slate-400",
+      color: "#94A3B8",
+      textColor: "text-slate-500",
+      bgLight: "bg-slate-50",
+      borderLight: "border-slate-200",
+      advice: "MQ-135 sensor is currently OFF or awaiting telemetry. Connect ESP32 hardware or turn on simulator to stream live data.",
+    };
+  }
+
+  const val = Number(value);
+  if (val <= 80) {
+    return DRIED_FISH_MQ_THRESHOLDS[0];
+  } else if (val <= 115) {
+    return DRIED_FISH_MQ_THRESHOLDS[1];
+  } else {
+    return DRIED_FISH_MQ_THRESHOLDS[2];
+  }
+};
+
+function Mq135Tab() {
+  const [mqValue, setMqValue] = useState(null);
+  const [isMqttConnected, setIsMqttConnected] = useState(false);
+  const [mode, setMode] = useState("live"); // 'live', 'sim', or 'off'
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const mqttClientRef = useRef(null);
+
+  // MQTT Connection effect
+  useEffect(() => {
+    let client = null;
+    try {
+      client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt", {
+        clientId: "DriedFish-" + Math.random().toString(16).slice(2, 8),
+        clean: true,
+        connectTimeout: 5000,
+        reconnectPeriod: 3000,
+      });
+      mqttClientRef.current = client;
+
+      client.on("connect", () => {
+        setIsMqttConnected(true);
+        client.subscribe(["fish/sorting/mq135", "fish/sorting/status"], (err) => {
+          if (!err) console.log("Subscribed to fish/sorting/mq135 & fish/sorting/status");
+        });
+      });
+
+      client.on("message", (topic, payload) => {
+        if (mode === "off") return;
+        try {
+          const data = JSON.parse(payload.toString());
+          if (data.status === "OFF" || data.status === "STOP" || data.status === "DISCONNECTED") {
+            setMqValue(null);
+            return;
+          }
+
+          if (data.mq135 !== undefined && data.mq135 !== null) {
+            const val = Number(data.mq135);
+            if (!isNaN(val)) {
+              setMqValue(val);
+              const nowStr = new Date().toLocaleTimeString();
+              setLastUpdated(nowStr);
+              setHistory((prev) => [...prev.slice(-20), val]);
+              const details = classifyDriedFishMq(val);
+              setLogs((prev) => [
+                {
+                  id: Date.now(),
+                  time: nowStr,
+                  value: val,
+                  category: details.category,
+                  dryingLevel: details.dryingLevel,
+                },
+                ...prev.slice(0, 24),
+              ]);
+            } else {
+              setMqValue(null);
+            }
+          }
+        } catch (e) {
+          console.warn("MQTT parse error:", e);
+        }
+      });
+
+      client.on("error", () => {
+        setIsMqttConnected(false);
+        if (mode === "live") setMqValue(null);
+      });
+      client.on("offline", () => {
+        setIsMqttConnected(false);
+        if (mode === "live") setMqValue(null);
+      });
+      client.on("close", () => {
+        setIsMqttConnected(false);
+        if (mode === "live") setMqValue(null);
+      });
+    } catch (err) {
+      console.warn("MQTT setup error:", err);
+    }
+
+    return () => {
+      if (client) client.end();
+    };
+  }, [mode]);
+
+  // Background micro-simulation if simulated mode
+  useEffect(() => {
+    if (mode === "sim") {
+      // Start with default 68 if null
+      if (mqValue === null) {
+        setMqValue(68);
+        setHistory([64, 66, 68]);
+      }
+      const interval = setInterval(() => {
+        setMqValue((prev) => {
+          const base = prev === null ? 68 : prev;
+          const delta = Math.round(Math.random() * 6 - 3);
+          const next = Math.max(45, Math.min(160, base + delta));
+          const nowStr = new Date().toLocaleTimeString();
+          setLastUpdated(nowStr);
+          setHistory((h) => [...h.slice(-20), next]);
+          const details = classifyDriedFishMq(next);
+          setLogs((prevLogs) => [
+            {
+              id: Date.now(),
+              time: nowStr,
+              value: next,
+              category: details.category,
+              dryingLevel: details.dryingLevel,
+            },
+            ...prevLogs.slice(0, 24),
+          ]);
+          return next;
+        });
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [mode]);
+
+  const updateManualValue = (newVal) => {
+    if (newVal === null || newVal === "" || isNaN(Number(newVal))) {
+      setMqValue(null);
+      return;
+    }
+    const val = Number(newVal);
+    setMqValue(val);
+    const nowStr = new Date().toLocaleTimeString();
+    setLastUpdated(nowStr);
+    setHistory((h) => [...h.slice(-20), val]);
+    const details = classifyDriedFishMq(val);
+    setLogs((prev) => [
+      {
+        id: Date.now(),
+        time: nowStr,
+        value: val,
+        category: details.category,
+        dryingLevel: details.dryingLevel,
+      },
+      ...prev.slice(0, 24),
+    ]);
+  };
+
+  const handleTurnSensorOff = () => {
+    setMode("off");
+    setMqValue(null);
+    setLastUpdated(new Date().toLocaleTimeString());
+  };
+
+  const exportCsv = () => {
+    const headers = "Log ID,Timestamp,MQ-135 Value,Quality Category,Drying Level\n";
+    const rows = logs
+      .map(
+        (l) => `${l.id},"${l.time}",${l.value},"${l.category}","${l.dryingLevel}"`
+      )
+      .join("\n");
+    const blob = new Blob([headers + rows], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dried_fish_mq135_telemetry_${Date.now()}.csv`;
+    a.click();
+  };
+
+  const current = classifyDriedFishMq(mqValue);
+
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-2xl shadow p-8">
-        <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
-          <div className="w-20 h-20 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-4xl mb-5">
-            🧪
+      {/* Real-time Status Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold">
+            💨
           </div>
-
-          <h2 className="text-2xl font-bold text-slate-900 mb-3">
-            VOC Sensor Monitoring
-          </h2>
-
-          <p className="text-slate-500 leading-7">
-            VOC sensor reading analysis is planned as an advanced monitoring
-            feature for the next development phase. In the current progress
-            presentation, the system mainly focuses on image-based Maldive fish
-            quality classification and batch management.
-          </p>
-
-          <div className="mt-6 px-5 py-3 rounded-xl bg-amber-50 border border-amber-200">
-            <p className="text-sm font-semibold text-amber-700">
-              Status: Under Development
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              Live MQ-135 Gas Telemetry & Drying Stage Monitor
+            </h2>
+            <p className="text-xs text-slate-500">
+              HiveMQ Broker: <code className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">broker.hivemq.com:8884</code> | Topic: <code className="text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">fish/sorting/mq135</code>
             </p>
           </div>
         </div>
-      </div>
 
-      <div className="grid md:grid-cols-3 gap-5">
-        <div className="bg-white rounded-2xl shadow p-6 border border-slate-100">
-          <p className="text-slate-500">VOC Sensor Integration</p>
-          <h3 className="text-2xl font-bold mt-3 text-blue-600">
-            Planned
-          </h3>
-          <p className="text-sm text-slate-500 mt-3">
-            Hardware sensor connection will be added in the next phase.
-          </p>
-        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200">
+            <span
+              className={`w-2.5 h-2.5 rounded-full ${
+                mode === "off" || mqValue === null
+                  ? "bg-slate-400"
+                  : isMqttConnected
+                  ? "bg-emerald-500 animate-ping"
+                  : mode === "sim"
+                  ? "bg-sky-500 animate-pulse"
+                  : "bg-amber-500"
+              }`}
+            ></span>
+            <span className="text-xs font-semibold text-slate-700">
+              {mode === "off"
+                ? "Sensor OFF (Null Value)"
+                : mqValue === null
+                ? "Sensor Standby / Awaiting Packet"
+                : isMqttConnected
+                ? "MQTT Live Stream Active"
+                : mode === "sim"
+                ? "Simulation Mode"
+                : "Standby / Awaiting Packet"}
+            </span>
+          </div>
 
-        <div className="bg-white rounded-2xl shadow p-6 border border-slate-100">
-          <p className="text-slate-500">Odor Risk Detection</p>
-          <h3 className="text-2xl font-bold mt-3 text-sky-600">
-            Upcoming
-          </h3>
-          <p className="text-sm text-slate-500 mt-3">
-            Odor-based spoilage risk analysis will be introduced later.
-          </p>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow p-6 border border-slate-100">
-          <p className="text-slate-500">Real-Time Graph</p>
-          <h3 className="text-2xl font-bold mt-3 text-indigo-600">
-            Next Phase
-          </h3>
-          <p className="text-sm text-slate-500 mt-3">
-            Live VOC trend visualization will be displayed after sensor setup.
-          </p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow p-6">
-        <h2 className="text-xl font-bold mb-4">
-          Planned VOC Monitoring Workflow
-        </h2>
-
-        <div className="grid md:grid-cols-4 gap-4">
-          {[
-            "Connect VOC sensor module",
-            "Collect real-time gas readings",
-            "Analyze odor/spoilage risk",
-            "Display live sensor graph",
-          ].map((item, index) => (
-            <div
-              key={index}
-              className="p-4 rounded-xl bg-slate-50 border border-slate-200"
+          <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+            <button
+              onClick={() => {
+                setMode("live");
+              }}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                mode === "live"
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
             >
-              <p className="text-sm font-semibold text-slate-700">
-                Step {index + 1}
+              Hardware Stream
+            </button>
+            <button
+              onClick={() => {
+                setMode("sim");
+              }}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                mode === "sim"
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Auto-Simulator
+            </button>
+            <button
+              onClick={handleTurnSensorOff}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                mode === "off"
+                  ? "bg-rose-600 text-white shadow-sm"
+                  : "text-rose-600 hover:bg-rose-50"
+              }`}
+            >
+              Sensor OFF
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main KPI Cards */}
+      <div className="grid md:grid-cols-4 gap-5">
+        <div className="bg-white rounded-2xl shadow p-6 border border-slate-100">
+          <div className="flex justify-between items-start">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Current MQ-135 Gas Value
+            </p>
+            <span className="text-[10px] text-slate-400 font-mono">
+              {mqValue !== null ? `Updated: ${lastUpdated || "Live"}` : "Status: Sensor OFF"}
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2 mt-3">
+            <h3 className={`text-4xl font-extrabold ${mqValue !== null ? "text-slate-900" : "text-slate-400"}`}>
+              {mqValue !== null ? mqValue : "--"}
+            </h3>
+            <span className="text-sm font-medium text-slate-400">
+              {mqValue !== null ? "PPM / Raw" : "(null)"}
+            </span>
+          </div>
+          <div className="mt-3 w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+            <div
+              className={`h-full transition-all duration-500 ${
+                mqValue === null
+                  ? "bg-slate-300 w-0"
+                  : mqValue <= 80
+                  ? "bg-emerald-500"
+                  : mqValue <= 115
+                  ? "bg-amber-500"
+                  : "bg-rose-500"
+              }`}
+              style={{ width: mqValue === null ? "0%" : `${Math.min(100, (mqValue / 180) * 100)}%` }}
+            ></div>
+          </div>
+        </div>
+
+        <div className={`rounded-2xl shadow p-6 border ${current.bgLight} ${current.borderLight}`}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Quality Category
+          </p>
+          <h3 className={`text-2xl font-bold mt-3 ${current.textColor}`}>
+            {current.category}
+          </h3>
+          <span
+            className={`inline-block mt-3 px-3 py-1 text-xs font-bold rounded-full border ${current.badge}`}
+          >
+            Range: {current.range}
+          </span>
+        </div>
+
+        <div className={`rounded-2xl shadow p-6 border ${current.bgLight} ${current.borderLight}`}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Drying Level
+          </p>
+          <h3 className={`text-2xl font-bold mt-3 ${current.textColor}`}>
+            {current.dryingLevel}
+          </h3>
+          <p className="text-xs text-slate-500 mt-3">
+            {mqValue === null
+              ? "Sensor is standby or offline"
+              : mqValue <= 80
+              ? "Mid-drying moisture balance reached"
+              : mqValue <= 115
+              ? "Low moisture, high brittleness"
+              : "High moisture, high volatile emission"}
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow p-6 border border-slate-100 flex flex-col justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Processing Recommendation
+            </p>
+            <p className="text-xs text-slate-700 font-medium mt-2 leading-relaxed">
+              {current.advice}
+            </p>
+          </div>
+          <div className="mt-3 flex gap-1">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                mqValue === null
+                  ? "bg-slate-400"
+                  : mqValue <= 80
+                  ? "bg-emerald-500"
+                  : mqValue <= 115
+                  ? "bg-amber-500"
+                  : "bg-rose-500"
+              }`}
+            ></span>
+            <span className="text-[10px] font-semibold text-slate-500">
+              {mqValue === null ? "Sensor Offline" : "Auto-classified from calibrated telemetry"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Official Drying Ranges Reference Table & Interactive Testing */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Table representation matching prompt */}
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow p-6 border border-slate-100">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Final Product Quality & Drying Ranges (MQ-135)
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Standard classification thresholds for Maldive fish drying stages
               </p>
-              <p className="text-sm text-slate-500 mt-2">{item}</p>
             </div>
-          ))}
+            <span className="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1 rounded-full border border-blue-200">
+              Specification Matrix
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50/70">
+                  <th className="py-3 px-4 rounded-l-xl">Quality Category</th>
+                  <th className="py-3 px-4">Drying Level</th>
+                  <th className="py-3 px-4">MQ-135 Range</th>
+                  <th className="py-3 px-4 rounded-r-xl">Current Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {DRIED_FISH_MQ_THRESHOLDS.map((row) => {
+                  const isActive =
+                    mqValue !== null &&
+                    ((row.category === "High Quality" && mqValue <= 80) ||
+                      (row.category === "Medium Quality" && mqValue > 80 && mqValue <= 115) ||
+                      (row.category === "Low Quality" && mqValue > 115));
+
+                  return (
+                    <tr
+                      key={row.category}
+                      className={`transition-all ${
+                        isActive
+                          ? `${row.bgLight} font-semibold ring-2 ring-inset ${
+                              row.category === "High Quality"
+                                ? "ring-emerald-400"
+                                : row.category === "Medium Quality"
+                                ? "ring-amber-400"
+                                : "ring-rose-400"
+                            }`
+                          : "hover:bg-slate-50/50"
+                      }`}
+                    >
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-3 h-3 rounded-full ${
+                              row.category === "High Quality"
+                                ? "bg-emerald-500"
+                                : row.category === "Medium Quality"
+                                ? "bg-amber-500"
+                                : "bg-rose-500"
+                            }`}
+                          ></span>
+                          <span className="text-slate-900">{row.category}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-slate-700">{row.dryingLevel}</td>
+                      <td className="py-4 px-4">
+                        <span className={`px-2.5 py-1 rounded-md text-xs font-mono font-bold ${row.badge}`}>
+                          {row.range}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        {isActive ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                            ACTIVE READING
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">Standby</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
+            <span className="text-base">💡</span>
+            <span>
+              <strong>Sensor Note:</strong> Lower MQ-135 PPM (50–80) signifies optimum moisture extraction during mid-drying, whereas values above 115 indicate excess volatile gases from under-dried samples.
+            </span>
+          </div>
+        </div>
+
+        {/* Live Simulator & Quick Calibration Tool */}
+        <div className="bg-white rounded-2xl shadow p-6 border border-slate-100 flex flex-col justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">
+              Interactive Value Test & Slider
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Test and verify real-time classification response
+            </p>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <div className="flex justify-between text-xs font-bold mb-2">
+                  <span className="text-slate-600">Simulate MQ-135 Value</span>
+                  <span className="text-blue-600 font-mono text-sm">
+                    {mqValue !== null ? `${mqValue} PPM` : "null (OFF)"}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="40"
+                  max="170"
+                  value={mqValue !== null ? mqValue : 40}
+                  onChange={(e) => updateManualValue(e.target.value)}
+                  className="w-full accent-blue-600 cursor-pointer h-2 bg-slate-200 rounded-lg"
+                />
+                <div className="flex justify-between text-[10px] text-slate-400 font-mono mt-1">
+                  <span>40 (Optimum)</span>
+                  <span>80</span>
+                  <span>115</span>
+                  <span>170 (Under-Dried)</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <p className="text-xs font-semibold text-slate-600">
+                  Quick Benchmark Presets:
+                </p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  <button
+                    onClick={() => updateManualValue(65)}
+                    className="px-2 py-2 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all text-center"
+                  >
+                    Optimum
+                    <span className="block text-[10px] font-mono text-emerald-600">65 PPM</span>
+                  </button>
+                  <button
+                    onClick={() => updateManualValue(98)}
+                    className="px-2 py-2 text-xs font-semibold rounded-xl bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all text-center"
+                  >
+                    Over-Dried
+                    <span className="block text-[10px] font-mono text-amber-600">98 PPM</span>
+                  </button>
+                  <button
+                    onClick={() => updateManualValue(140)}
+                    className="px-2 py-2 text-xs font-semibold rounded-xl bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-all text-center"
+                  >
+                    Under-Dried
+                    <span className="block text-[10px] font-mono text-rose-600">140 PPM</span>
+                  </button>
+                  <button
+                    onClick={handleTurnSensorOff}
+                    className="px-2 py-2 text-xs font-semibold rounded-xl bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 transition-all text-center"
+                  >
+                    Set OFF
+                    <span className="block text-[10px] font-mono text-slate-500">null</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-5 border-t border-slate-100">
+            <button
+              onClick={exportCsv}
+              className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm"
+            >
+              <span>📥</span> Download Telemetry Log (.CSV)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Real-time MQ-135 SVG Trend Chart & Recent Log */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-2xl shadow p-6 border border-slate-100">
+          <div className="flex justify-between items-center mb-2">
+            <div>
+              <h2 className="text-xl font-bold">MQ-135 Telemetry Trend (PPM)</h2>
+              <p className="text-xs text-slate-400">
+                Green Zone: 50–80 (Optimum) | Yellow: 81–115 (Over-Dried) | Red: &gt;115 (Under-Dried)
+              </p>
+            </div>
+            <span
+              className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                mqValue !== null ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {mqValue !== null ? "Live Stream" : "Sensor OFF"}
+            </span>
+          </div>
+          {history.length > 0 ? (
+            <LineChart
+              data={history}
+              stroke={current.color}
+              label="Continuous MQ-135 Sensor Stream"
+              unit=" PPM"
+            />
+          ) : (
+            <div className="w-full h-[230px] bg-slate-50/50 rounded-xl border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 text-xs">
+              <span className="text-2xl mb-1">🔌</span>
+              <p className="font-medium">No live stream telemetry data</p>
+              <p className="text-[11px] text-slate-400">Sensor is OFF / Standby</p>
+            </div>
+          )}
+        </div>
+
+        {/* Live Telemetry History Log */}
+        <div className="bg-white rounded-2xl shadow p-6 border border-slate-100 flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-slate-900">
+                Recent Sensor Telemetry Log
+              </h2>
+              <span className="text-xs text-slate-400">Last {logs.length} readings</span>
+            </div>
+
+            <div className="overflow-y-auto max-h-[220px] space-y-2 pr-1">
+              {logs.length > 0 ? (
+                logs.map((log) => {
+                  const isOpt = log.value <= 80;
+                  const isOver = log.value > 80 && log.value <= 115;
+                  return (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            isOpt ? "bg-emerald-500" : isOver ? "bg-amber-500" : "bg-rose-500"
+                          }`}
+                        ></span>
+                        <span className="font-mono text-slate-500">{log.time}</span>
+                        <span className="font-bold text-slate-800">{log.value} PPM</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            isOpt
+                              ? "bg-emerald-100 text-emerald-800"
+                              : isOver
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-rose-100 text-rose-800"
+                          }`}
+                        >
+                          {log.category}
+                        </span>
+                        <span className="text-slate-500 text-[11px]">{log.dryingLevel}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-10 text-slate-400 text-xs">
+                  Awaiting sensor telemetry logs...
+                </div>
+              )}
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-400 mt-4 text-center">
+            Synchronized with ESP32 Hardware via HiveMQ MQTT WebSockets
+          </p>
         </div>
       </div>
     </div>

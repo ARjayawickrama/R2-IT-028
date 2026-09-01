@@ -127,18 +127,37 @@ def on_mqtt_message(client, userdata, msg):
         data = json.loads(payload_str)
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        if msg.topic == MQTT_SENSOR_TOPIC or "mq135" in data:
-            val = int(data.get("mq135", 0))
-            quality_info = classify_mq135_freshness(val)
+        status_val = data.get("status", "").upper()
+        if status_val in ["OFF", "STOP", "DISCONNECTED"]:
             latest_mq135_data.update({
-                "value": val,
-                "raw_quality": data.get("quality", "UNKNOWN"),
-                "freshness_level": quality_info["level"],
-                "threshold_range": quality_info["range"],
-                "typical_range": quality_info["typical"],
-                "auto_command": quality_info["auto_command"],
+                "value": None,
+                "freshness_level": "Sensor OFF / Standby",
+                "threshold_range": "N/A",
+                "typical_range": "N/A",
+                "status": status_val,
+                "command": data.get("command", latest_mq135_data["command"]),
                 "last_updated": now_str
             })
+            return
+
+        if msg.topic == MQTT_SENSOR_TOPIC or "mq135" in data:
+            raw_mq = data.get("mq135")
+            if raw_mq is not None:
+                val = int(raw_mq)
+                quality_info = classify_mq135_freshness(val)
+                latest_mq135_data.update({
+                    "value": val,
+                    "raw_quality": data.get("quality", "UNKNOWN"),
+                    "freshness_level": quality_info["level"],
+                    "threshold_range": quality_info["range"],
+                    "typical_range": quality_info["typical"],
+                    "auto_command": quality_info["auto_command"],
+                    "last_updated": now_str
+                })
+            else:
+                latest_mq135_data["value"] = None
+                latest_mq135_data["freshness_level"] = "Sensor Standby / OFF"
+
             if "status" in data:
                 latest_mq135_data["status"] = data["status"]
             if "command" in data:
@@ -149,8 +168,8 @@ def on_mqtt_message(client, userdata, msg):
                 latest_mq135_data["command"] = data["command"]
             if "status" in data:
                 latest_mq135_data["status"] = data["status"]
-            if "mq135" in data:
-                val = int(data.get("mq135", 0))
+            if "mq135" in data and data["mq135"] is not None:
+                val = int(data["mq135"])
                 quality_info = classify_mq135_freshness(val)
                 latest_mq135_data.update({
                     "value": val,
@@ -161,6 +180,8 @@ def on_mqtt_message(client, userdata, msg):
                     "auto_command": quality_info["auto_command"],
                     "last_updated": now_str
                 })
+            elif "mq135" in data and data["mq135"] is None:
+                latest_mq135_data["value"] = None
     except Exception as e:
         print(f" Error parsing MQTT message on {msg.topic}: {e}")
 
@@ -289,7 +310,9 @@ def home():
         "mqtt": {
             "broker": MQTT_BROKER,
             "port": MQTT_PORT,
-            "topic": MQTT_TOPIC
+            "command_topic": MQTT_COMMAND_TOPIC,
+            "sensor_topic": MQTT_SENSOR_TOPIC,
+            "status_topic": MQTT_STATUS_TOPIC
         }
     }
 
