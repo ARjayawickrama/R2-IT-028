@@ -55,7 +55,7 @@ export default function Measurement() {
     return num >= 1.0 ? num : 0.0;
   };
 
-  // 1. Fetch records safely from MongoDB
+  // 1. Fetch records safely from MongoDB via FastAPI
   const loadDatabaseRecords = async () => {
     try {
       const res = await fetch(`${BACKEND_IP}/api/measurements`);
@@ -481,7 +481,7 @@ export default function Measurement() {
         </div>
       </div>
 
-      {/* ────────────────── POP-UP MODAL (DATABASE RECORDS) ────────────────── */}
+      {/* Pop-up Modal (Database Records) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[10000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6">
           <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden">
