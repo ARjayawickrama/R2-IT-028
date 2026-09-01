@@ -27,7 +27,10 @@ import {
   ArrowRight,
   Info,
   Sliders,
-  ChevronRight
+  ChevronRight,
+  Video,
+  VideoOff,
+  Settings
 } from 'lucide-react';
 import { rawFishService } from '../../services/api';
 import {
@@ -44,13 +47,30 @@ const MQTT_COMMAND_TOPIC = 'fish/sorting/command';
 
 /**
  * MQ-135 Tuna Freshness Thresholds
- * Exact specification:
+ * Reference Table:
  * - Very Fresh:         <= 90   (Typical: 59 – 88)
  * - Fresh / Acceptable: 91 – 150 (Typical: 118 – 145)
  * - Spoiled:            > 150   (Typical: 150 – 200)
  */
 export const getMqFreshnessDetails = (value) => {
-  const num = Number(value) || 0;
+  if (value === null || value === undefined || value === '' || isNaN(Number(value))) {
+    return {
+      level: 'Awaiting Telemetry',
+      range: 'Standby',
+      typical: 'N/A',
+      badge: 'bg-slate-100 text-slate-600 border-slate-300',
+      bgLight: 'bg-slate-50',
+      borderLight: 'border-slate-200',
+      textColor: 'text-slate-500',
+      color: '#94A3B8',
+      command: 'IDLE',
+      qualityText: 'Waiting for Sensor...',
+      suitability: 'Awaiting MQ-135 reading from ESP32',
+      desc: 'Hardware is connecting to HiveMQ broker. Waiting for live sensor packet on fish/sorting/mq135.'
+    };
+  }
+
+  const num = Number(value);
   if (num <= 90) {
     return {
       level: 'Very Fresh',
@@ -64,7 +84,7 @@ export const getMqFreshnessDetails = (value) => {
       command: 'A',
       qualityText: 'Optimal Freshness',
       suitability: 'Ready for boiling & Maldive fish processing',
-      desc: 'Minimal gas emissions. Optimal muscle tissue condition with lowest volatile organic base level.'
+      desc: 'Minimal volatile gas emissions. Optimal muscle tissue condition with lowest volatile organic base level.'
     };
   } else if (num <= 150) {
     return {
@@ -106,53 +126,34 @@ const RawFishQuality = () => {
   const [species, setSpecies] = useState('Alagoduwa');
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
+
+  // ─── Camera / Live Stream States ───────────────────────────────────────────
   const [cameraActive, setCameraActive] = useState(false);
   const [videoStream, setVideoStream] = useState(null);
+  const [videoDevices, setVideoDevices] = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
+
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [history, setHistory] = useState([]);
-  const [feedback, setFeedback] = useState('Upload a raw fish image or monitor real-time MQ-135 sensor telemetry.');
+  const [feedback, setFeedback] = useState('Ready for assessment. Connect ESP32 or upload a raw fish image.');
   const [qualityData, setQualityData] = useState([]);
 
-  // ─── Real-Time MQTT / ESP32 Hardware State ────────────────────────────────
+  // ─── Real-Time MQTT / ESP32 Hardware State (No Dummy Initial Values) ──────
   const [isMqttConnected, setIsMqttConnected] = useState(false);
-  const [mqValue, setMqValue] = useState(72); // Live MQ-135 sensor value
-  const [hardwareQuality, setHardwareQuality] = useState('GOOD'); // From crack.cc (GOOD / MODERATE / POOR)
-  const [hardwareStatus, setHardwareStatus] = useState('IDLE');
+  const [mqValue, setMqValue] = useState(null); // Real-time MQ-135 value from ESP32 (null = waiting)
+  const [hardwareQuality, setHardwareQuality] = useState(null);
+  const [hardwareStatus, setHardwareStatus] = useState('STANDBY');
   const [lastCommand, setLastCommand] = useState('IDLE');
-  const [lastUpdatedTime, setLastUpdatedTime] = useState(new Date().toLocaleTimeString());
+  const [lastUpdatedTime, setLastUpdatedTime] = useState(null);
   const mqttClientRef = useRef(null);
 
-  // Time-series history for live chart
-  const [mqHistory, setMqHistory] = useState([
-    { time: '00:00', value: 68 },
-    { time: '00:02', value: 72 },
-    { time: '00:04', value: 70 },
-    { time: '00:06', value: 75 },
-    { time: '00:08', value: 72 },
-  ]);
+  // Time-series history for live chart (Starts clean)
+  const [mqHistory, setMqHistory] = useState([]);
 
-  // Logged readings for history table & CSV export
-  const [mqLogs, setMqLogs] = useState([
-    {
-      id: 'MQ-LOG-01',
-      batchId: 'RF-928101',
-      species: 'Alagoduwa',
-      timestamp: new Date(Date.now() - 1800000).toLocaleTimeString(),
-      value: 65,
-      level: 'Very Fresh',
-      command: 'A',
-    },
-    {
-      id: 'MQ-LOG-02',
-      batchId: 'RF-928102',
-      species: 'Alagoduwa',
-      timestamp: new Date(Date.now() - 900000).toLocaleTimeString(),
-      value: 124,
-      level: 'Fresh / Acceptable',
-      command: 'B',
-    }
-  ]);
+  // Logged readings for history table & CSV export (Starts clean)
+  const [mqLogs, setMqLogs] = useState([]);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -165,6 +166,113 @@ const RawFishQuality = () => {
     ['history', '📋 Assessment History'],
     ['analytics', '📊 Quality Analytics'],
   ];
+
+  // ─── Enumerate Camera Devices ─────────────────────────────────────────────
+  const refreshCameraDevices = async () => {
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+        setVideoDevices(videoInputs);
+        if (videoInputs.length > 0 && !selectedDeviceId) {
+          setSelectedDeviceId(videoInputs[0].deviceId);
+        }
+      }
+    } catch (e) {
+      console.warn('Could not enumerate video devices:', e);
+    }
+  };
+
+  useEffect(() => {
+    refreshCameraDevices();
+  }, []);
+
+  // ─── Video Ref Stream Binder Effect ───────────────────────────────────────
+  useEffect(() => {
+    if (videoRef.current && videoStream) {
+      videoRef.current.srcObject = videoStream;
+      videoRef.current
+        .play()
+        .then(() => {
+          setCameraActive(true);
+        })
+        .catch((err) => {
+          console.warn('Video play attempt:', err);
+        });
+    }
+  }, [videoStream, activeTab]);
+
+  // ─── Camera Control Handlers ──────────────────────────────────────────────
+  const startCamera = async (deviceIdToUse) => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setFeedback('Webcam access is not supported in this browser.');
+      return;
+    }
+
+    try {
+      setIsCameraLoading(true);
+      setFeedback('Initializing webcam connection...');
+
+      // Stop any existing stream
+      if (videoStream) {
+        videoStream.getTracks().forEach((t) => t.stop());
+      }
+
+      const devId = deviceIdToUse || selectedDeviceId;
+      const constraints = {
+        video: devId
+          ? { deviceId: { exact: devId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+        audio: false,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setVideoStream(stream);
+      setCameraActive(true);
+      setIsCameraLoading(false);
+      setFeedback('Webcam connected successfully! Position fish specimen and capture.');
+
+      // Refresh device list with granted labels
+      refreshCameraDevices();
+    } catch (error) {
+      console.error('Camera connection failed:', error);
+      setIsCameraLoading(false);
+      setCameraActive(false);
+      setFeedback(`Camera error: ${error.message || 'Please check webcam permissions.'}`);
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoStream) {
+      videoStream.getTracks().forEach((track) => track.stop());
+      setVideoStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+    setFeedback('Webcam stopped.');
+  };
+
+  const captureFromCamera = async () => {
+    if (!videoRef.current || !canvasRef.current) {
+      setFeedback('Webcam is not ready for capture.');
+      return;
+    }
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], `webcam-capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      setPreviewUrl(URL.createObjectURL(file));
+      setSelectedFile(file);
+      await analyzeImage(file, 'camera');
+    }, 'image/jpeg', 0.95);
+  };
 
   // ─── MQTT Connection to HiveMQ (Matching crack.cc) ────────────────────────
   useEffect(() => {
@@ -194,23 +302,27 @@ const RawFishQuality = () => {
           const nowStr = new Date().toLocaleTimeString();
 
           if (topic === MQTT_SENSOR_TOPIC || data.mq135 !== undefined) {
-            const rawVal = Number(data.mq135) || 0;
-            setMqValue(rawVal);
-            if (data.quality) setHardwareQuality(data.quality);
-            setLastUpdatedTime(nowStr);
+            const rawVal = Number(data.mq135);
+            if (!isNaN(rawVal)) {
+              setMqValue(rawVal);
+              if (data.quality) setHardwareQuality(data.quality);
+              setLastUpdatedTime(nowStr);
 
-            setMqHistory((prev) => {
-              const updated = [...prev, { time: nowStr, value: rawVal }];
-              return updated.slice(-25);
-            });
+              setMqHistory((prev) => {
+                const updated = [...prev, { time: nowStr, value: rawVal }];
+                return updated.slice(-25);
+              });
+            }
           }
 
           if (topic === MQTT_STATUS_TOPIC) {
             if (data.command) setLastCommand(data.command);
             if (data.status) setHardwareStatus(data.status);
             if (data.mq135 !== undefined) {
-              const rawVal = Number(data.mq135) || 0;
-              setMqValue(rawVal);
+              const rawVal = Number(data.mq135);
+              if (!isNaN(rawVal)) {
+                setMqValue(rawVal);
+              }
             }
           }
         } catch (e) {
@@ -234,30 +346,7 @@ const RawFishQuality = () => {
     };
   }, []);
 
-  // ─── Polling AI Backend for MQ-135 Sync Fallback ───────────────────────────
-  useEffect(() => {
-    const pollBackend = async () => {
-      try {
-        const res = await fetch(`${AI_BACKEND_URL}/sensor/mq135`);
-        if (res.ok) {
-          const result = await res.json();
-          if (result?.data?.value && !isMqttConnected) {
-            setMqValue(result.data.value);
-            if (result.data.raw_quality) setHardwareQuality(result.data.raw_quality);
-            if (result.data.command) setLastCommand(result.data.command);
-            if (result.data.status) setHardwareStatus(result.data.status);
-            if (result.data.last_updated) setLastUpdatedTime(result.data.last_updated);
-          }
-        }
-      } catch (err) {
-        // Backend offline or starting up
-      }
-    };
 
-    pollBackend();
-    const interval = setInterval(pollBackend, 3000);
-    return () => clearInterval(interval);
-  }, [isMqttConnected]);
 
   useEffect(() => {
     loadHistory();
@@ -279,7 +368,7 @@ const RawFishQuality = () => {
 
   const updateQualityData = (historyRecords) => {
     const counts = { 'very fresh': 0, 'fresh': 0, 'spoiled': 0 };
-    historyRecords.forEach(record => {
+    historyRecords.forEach((record) => {
       const label = record.qualityLabel;
       if (label === 'Alagoduwa_Very_fresh') counts['very fresh']++;
       else if (label === 'Alagoduwa_fresh') counts['fresh']++;
@@ -289,7 +378,7 @@ const RawFishQuality = () => {
       { name: 'Very Fresh', value: counts['very fresh'], color: '#10B981' },
       { name: 'Fresh', value: counts['fresh'], color: '#3B82F6' },
       { name: 'Spoiled', value: counts['spoiled'], color: '#EF4444' }
-    ].filter(item => item.value > 0);
+    ].filter((item) => item.value > 0);
     setQualityData(data);
   };
 
@@ -297,7 +386,7 @@ const RawFishQuality = () => {
     if (!window.confirm('Are you sure you want to delete this assessment?')) return;
     try {
       await rawFishService.deleteAssessment(id);
-      const updatedHistory = history.filter(record => record._id !== id);
+      const updatedHistory = history.filter((record) => record._id !== id);
       setHistory(updatedHistory);
       updateQualityData(updatedHistory);
       setFeedback('Assessment deleted successfully.');
@@ -314,7 +403,6 @@ const RawFishQuality = () => {
       if (mqttClientRef.current && isMqttConnected) {
         mqttClientRef.current.publish(MQTT_COMMAND_TOPIC, cleanCmd);
       }
-      // Also post to AI backend to guarantee dispatch
       const formData = new FormData();
       formData.append('command', cleanCmd);
       await fetch(`${AI_BACKEND_URL}/sensor/command`, { method: 'POST', body: formData });
@@ -356,48 +444,6 @@ const RawFishQuality = () => {
     if (label.toLowerCase().includes('fresh')) return 'bg-blue-100 text-blue-800 border-blue-300';
     if (label.toLowerCase().includes('spoiled')) return 'bg-rose-100 text-rose-800 border-rose-300';
     return 'bg-gray-100 text-gray-700';
-  };
-
-  const startCamera = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setFeedback('Camera is not available in this browser.');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setVideoStream(stream);
-      setCameraActive(true);
-      setFeedback('Camera active. Position fish sample and click Capture.');
-    } catch (error) {
-      console.error('Camera start failed:', error);
-      setFeedback('Unable to access camera. Check permissions.');
-    }
-  };
-
-  const stopCamera = () => {
-    if (videoStream) {
-      videoStream.getTracks().forEach((track) => track.stop());
-      setVideoStream(null);
-    }
-    setCameraActive(false);
-  };
-
-  const captureFromCamera = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      const file = new File([blob], `rawfish-capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      setPreviewUrl(URL.createObjectURL(file));
-      setSelectedFile(file);
-      await analyzeImage(file, 'camera');
-    }, 'image/jpeg', 0.95);
   };
 
   const analyzeImage = async (file, source) => {
@@ -446,6 +492,10 @@ const RawFishQuality = () => {
   };
 
   const handleLogCurrentReading = () => {
+    if (mqValue === null) {
+      alert('No active MQ-135 reading from ESP32 yet.');
+      return;
+    }
     const details = getMqFreshnessDetails(mqValue);
     const newEntry = {
       id: `MQ-LOG-${Date.now().toString().slice(-4)}`,
@@ -481,9 +531,9 @@ const RawFishQuality = () => {
 
   // ─── Analytics stats ───────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const veryFresh = history.filter(b => b.qualityLabel === 'Alagoduwa_Very_fresh').length;
-    const fresh = history.filter(b => b.qualityLabel === 'Alagoduwa_fresh').length;
-    const spoiled = history.filter(b => b.qualityLabel === 'Alagoduwa_Spoiled').length;
+    const veryFresh = history.filter((b) => b.qualityLabel === 'Alagoduwa_Very_fresh').length;
+    const fresh = history.filter((b) => b.qualityLabel === 'Alagoduwa_fresh').length;
+    const spoiled = history.filter((b) => b.qualityLabel === 'Alagoduwa_Spoiled').length;
     const total = history.length;
     return { veryFresh, fresh, spoiled, total };
   }, [history]);
@@ -522,12 +572,14 @@ const RawFishQuality = () => {
               />
             </div>
 
-            {/* Live MQ-135 Quick Chip */}
+            {/* Live MQ-135 Quick Chip (Real-time, No dummy values) */}
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${currentMq.borderLight} ${currentMq.bgLight} transition-all shadow-sm`}>
-              <Activity className={`w-4 h-4 ${currentMq.textColor} animate-pulse`} />
+              <Activity className={`w-4 h-4 ${currentMq.textColor} ${mqValue !== null ? 'animate-pulse' : ''}`} />
               <div className="flex items-baseline gap-1.5">
                 <span className="text-[11px] font-semibold text-slate-600">MQ-135:</span>
-                <span className={`text-sm font-extrabold ${currentMq.textColor}`}>{mqValue}</span>
+                <span className={`text-sm font-extrabold ${currentMq.textColor}`}>
+                  {mqValue !== null ? `${mqValue} PPM` : '--'}
+                </span>
                 <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${currentMq.badge}`}>
                   {currentMq.level}
                 </span>
@@ -535,11 +587,10 @@ const RawFishQuality = () => {
             </div>
 
             {/* MQTT Connection State */}
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold ${
-              isMqttConnected
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold ${isMqttConnected
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 : 'bg-amber-50 text-amber-700 border-amber-200'
-            }`}>
+              }`}>
               {isMqttConnected ? <Wifi className="w-3.5 h-3.5 text-emerald-600" /> : <WifiOff className="w-3.5 h-3.5 text-amber-600" />}
               <span>{isMqttConnected ? 'ESP32 MQTT Synced' : 'MQTT Standby'}</span>
             </div>
@@ -558,12 +609,16 @@ const RawFishQuality = () => {
           {tabs.map(([id, label]) => (
             <button
               key={id}
-              onClick={() => setActiveTab(id)}
-              className={`px-4 py-2.5 border-b-2 whitespace-nowrap text-xs font-bold transition-all ${
-                activeTab === id
+              onClick={() => {
+                setActiveTab(id);
+                if (id === 'live' && !cameraActive) {
+                  startCamera();
+                }
+              }}
+              className={`px-4 py-2.5 border-b-2 whitespace-nowrap text-xs font-bold transition-all ${activeTab === id
                   ? 'border-blue-600 text-blue-600 bg-white shadow-sm'
                   : 'border-transparent text-slate-600 hover:text-blue-600 hover:bg-white/60'
-              }`}
+                }`}
             >
               {label}
             </button>
@@ -619,11 +674,15 @@ const RawFishQuality = () => {
                     <Activity className="w-3.5 h-3.5 text-blue-600" />
                     Live Gas Sensor (crack.cc)
                   </span>
-                  <span className="text-[10px] font-mono text-slate-500">Updated: {lastUpdatedTime}</span>
+                  <span className="text-[10px] font-mono text-slate-500">
+                    {lastUpdatedTime ? `Updated: ${lastUpdatedTime}` : 'Awaiting ESP32'}
+                  </span>
                 </div>
                 <div className="flex items-baseline justify-between pt-1">
                   <div>
-                    <span className="text-3xl font-black text-slate-900">{mqValue}</span>
+                    <span className="text-3xl font-black text-slate-900">
+                      {mqValue !== null ? mqValue : '--'}
+                    </span>
                     <span className="text-xs font-semibold text-slate-500 ml-1">PPM</span>
                   </div>
                   <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold border ${currentMq.badge}`}>
@@ -706,7 +765,7 @@ const RawFishQuality = () => {
                     <div className={`p-4 rounded-xl border ${analysisResult.mqStatusAtAssessment.borderLight} ${analysisResult.mqStatusAtAssessment.bgLight} space-y-1`}>
                       <div className="flex justify-between items-center text-xs font-semibold text-slate-600">
                         <span>MQ-135 Gas Reading</span>
-                        <span>{analysisResult.mqValueAtAssessment} PPM</span>
+                        <span>{analysisResult.mqValueAtAssessment !== null ? `${analysisResult.mqValueAtAssessment} PPM` : 'N/A'}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className={`text-base font-bold ${analysisResult.mqStatusAtAssessment.textColor}`}>
@@ -780,51 +839,102 @@ const RawFishQuality = () => {
 
         {/* ════════════════════ LIVE CAMERA DETECTION TAB ════════════════════ */}
         {activeTab === 'live' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden p-6">
             {/* Camera Controls Panel (4 cols) */}
-            <div className="lg:col-span-4 p-6 bg-slate-50 border-r border-slate-200 space-y-5">
+            <div className="lg:col-span-4 space-y-5 bg-slate-50 p-5 rounded-2xl border border-slate-200/80">
               <div>
-                <h3 className="font-bold text-base text-slate-900">Live Camera QC Rig</h3>
-                <p className="text-xs text-slate-500 mt-1">Capture live specimens on the processing belt</p>
+                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                  <Video className="w-5 h-5 text-blue-600" />
+                  Live Webcam QC Rig
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Connect local webcam or USB camera feed for instant on-conveyor fish freshness scans.
+                </p>
               </div>
 
+              {/* Camera Source Selector */}
+              {videoDevices.length > 1 && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                    <Settings className="w-3.5 h-3.5 text-slate-400" />
+                    Select Camera Device:
+                  </label>
+                  <select
+                    value={selectedDeviceId}
+                    onChange={(e) => {
+                      setSelectedDeviceId(e.target.value);
+                      if (cameraActive) {
+                        startCamera(e.target.value);
+                      }
+                    }}
+                    className="w-full text-xs p-2.5 rounded-xl border bg-white font-medium text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    {videoDevices.map((d, idx) => (
+                      <option key={d.deviceId || idx} value={d.deviceId}>
+                        {d.label || `Camera ${idx + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Action Buttons */}
               <div className="space-y-3">
                 {!cameraActive ? (
                   <button
-                    onClick={startCamera}
-                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition shadow-sm"
+                    onClick={() => startCamera()}
+                    disabled={isCameraLoading}
+                    className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition shadow-md disabled:bg-slate-300"
                   >
-                    <Play className="w-4 h-4 fill-white" />
-                    Start Camera Feed
+                    {isCameraLoading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Connecting Camera...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 fill-white" />
+                        Connect & Start Webcam
+                      </>
+                    )}
                   </button>
                 ) : (
-                  <button
-                    onClick={stopCamera}
-                    className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition shadow-sm"
-                  >
-                    <Square className="w-4 h-4 fill-white" />
-                    Stop Camera
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={stopCamera}
+                      className="py-3 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                    >
+                      <VideoOff className="w-3.5 h-3.5" />
+                      Disconnect
+                    </button>
+                    <button
+                      onClick={() => startCamera()}
+                      className="py-3 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Restart
+                    </button>
+                  </div>
                 )}
 
                 <button
                   onClick={captureFromCamera}
                   disabled={!cameraActive || isAnalyzing}
-                  className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed transition shadow-sm"
+                  className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed transition shadow-md"
                 >
                   <Camera className="w-4 h-4" />
-                  {isAnalyzing ? 'Analyzing Capture...' : '📸 Capture & Analyze'}
+                  {isAnalyzing ? 'Analyzing Specimen...' : '📸 Capture & Analyze'}
                 </button>
               </div>
 
-              {/* Current MQ-135 reading */}
+              {/* Real-time MQ-135 Gas Reading */}
               <div className={`p-4 rounded-xl border ${currentMq.borderLight} ${currentMq.bgLight} space-y-2`}>
                 <div className="flex justify-between items-center text-xs font-bold text-slate-700">
                   <span>Current Gas Reading</span>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] ${currentMq.badge}`}>{currentMq.level}</span>
                 </div>
                 <div className="text-2xl font-black text-slate-900">
-                  {mqValue} <span className="text-xs font-normal text-slate-500">PPM</span>
+                  {mqValue !== null ? `${mqValue} PPM` : '--'}
                 </div>
                 <p className="text-[11px] text-slate-500">
                   Target threshold range: <strong>{currentMq.range}</strong>
@@ -833,30 +943,40 @@ const RawFishQuality = () => {
             </div>
 
             {/* Video Viewport (8 cols) */}
-            <div className="lg:col-span-8 p-6 flex flex-col items-center justify-center bg-slate-900 relative min-h-[460px]">
+            <div className="lg:col-span-8 p-4 flex flex-col items-center justify-center bg-slate-950 rounded-2xl relative min-h-[460px] overflow-hidden border border-slate-800">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className={`max-h-[440px] w-auto rounded-xl shadow-2xl ${cameraActive ? 'block' : 'hidden'}`}
+                className={`w-full max-h-[480px] object-contain rounded-xl shadow-2xl ${cameraActive ? 'block' : 'hidden'}`}
               />
               <canvas ref={canvasRef} className="hidden" />
 
               {!cameraActive && (
-                <div className="text-center text-slate-400 space-y-3">
-                  <div className="w-16 h-16 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-2xl mx-auto">
+                <div className="text-center text-slate-400 space-y-4 p-8">
+                  <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center text-2xl mx-auto shadow-inner">
                     📷
                   </div>
-                  <p className="text-sm font-semibold text-slate-300">Camera Feed is Inactive</p>
-                  <p className="text-xs text-slate-500">Click 'Start Camera Feed' to view live conveyor feed</p>
+                  <div>
+                    <p className="text-base font-bold text-slate-200">Webcam Disconnected</p>
+                    <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                      Click <strong>'Connect & Start Webcam'</strong> above to activate live camera video streaming.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => startCamera()}
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow"
+                  >
+                    Activate Webcam Now
+                  </button>
                 </div>
               )}
 
               {cameraActive && (
-                <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-emerald-400 font-mono flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                  LIVE STREAM ACTIVE
+                <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs text-emerald-400 font-mono flex items-center gap-2 border border-emerald-500/30">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  WEBCAM STREAM LIVE
                 </div>
               )}
             </div>
@@ -870,13 +990,13 @@ const RawFishQuality = () => {
             {/* Top Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
-              {/* Card 1: Real-Time Value */}
+              {/* Card 1: Real-Time Value (No dummy values) */}
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                   <div>
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">MQ-135 SENSOR VALUE</span>
                     <h3 className="text-4xl font-extrabold text-slate-900 mt-2 flex items-baseline gap-2">
-                      <span>{mqValue}</span>
+                      <span>{mqValue !== null ? mqValue : '--'}</span>
                       <span className="text-sm font-semibold text-slate-400">PPM</span>
                     </h3>
                   </div>
@@ -889,7 +1009,9 @@ const RawFishQuality = () => {
                   <span className={`px-3 py-1 rounded-full text-xs font-bold border ${currentMq.badge}`}>
                     {currentMq.level}
                   </span>
-                  <span className="text-xs font-mono text-slate-500">Sync: {lastUpdatedTime}</span>
+                  <span className="text-xs font-mono text-slate-500">
+                    {lastUpdatedTime ? `Sync: ${lastUpdatedTime}` : 'Awaiting ESP32'}
+                  </span>
                 </div>
               </div>
 
@@ -957,13 +1079,12 @@ const RawFishQuality = () => {
                     </div>
 
                     {/* Row 1: Very Fresh */}
-                    <div className={`grid grid-cols-2 py-3 px-3 rounded-xl border transition-all ${
-                      mqValue <= 90
+                    <div className={`grid grid-cols-2 py-3 px-3 rounded-xl border transition-all ${mqValue !== null && mqValue <= 90
                         ? 'bg-emerald-950/60 border-emerald-500 text-white font-bold ring-1 ring-emerald-500'
                         : 'border-transparent text-slate-300'
-                    }`}>
+                      }`}>
                       <div className="flex items-center gap-2">
-                        {mqValue <= 90 && <span className="w-2 h-2 rounded-full bg-emerald-400"></span>}
+                        {mqValue !== null && mqValue <= 90 && <span className="w-2 h-2 rounded-full bg-emerald-400"></span>}
                         <span className="text-sm">Very Fresh</span>
                       </div>
                       <div>
@@ -973,13 +1094,12 @@ const RawFishQuality = () => {
                     </div>
 
                     {/* Row 2: Fresh / Acceptable */}
-                    <div className={`grid grid-cols-2 py-3 px-3 rounded-xl border transition-all ${
-                      mqValue > 90 && mqValue <= 150
+                    <div className={`grid grid-cols-2 py-3 px-3 rounded-xl border transition-all ${mqValue !== null && mqValue > 90 && mqValue <= 150
                         ? 'bg-blue-950/60 border-blue-500 text-white font-bold ring-1 ring-blue-500'
                         : 'border-transparent text-slate-300'
-                    }`}>
+                      }`}>
                       <div className="flex items-center gap-2">
-                        {mqValue > 90 && mqValue <= 150 && <span className="w-2 h-2 rounded-full bg-blue-400"></span>}
+                        {mqValue !== null && mqValue > 90 && mqValue <= 150 && <span className="w-2 h-2 rounded-full bg-blue-400"></span>}
                         <span className="text-sm">Fresh / Acceptable</span>
                       </div>
                       <div>
@@ -989,13 +1109,12 @@ const RawFishQuality = () => {
                     </div>
 
                     {/* Row 3: Spoiled */}
-                    <div className={`grid grid-cols-2 py-3 px-3 rounded-xl border transition-all ${
-                      mqValue > 150
+                    <div className={`grid grid-cols-2 py-3 px-3 rounded-xl border transition-all ${mqValue !== null && mqValue > 150
                         ? 'bg-rose-950/60 border-rose-500 text-white font-bold ring-1 ring-rose-500'
                         : 'border-transparent text-slate-300'
-                    }`}>
+                      }`}>
                       <div className="flex items-center gap-2">
-                        {mqValue > 150 && <span className="w-2 h-2 rounded-full bg-rose-400"></span>}
+                        {mqValue !== null && mqValue > 150 && <span className="w-2 h-2 rounded-full bg-rose-400"></span>}
                         <span className="text-sm">Spoiled</span>
                       </div>
                       <div>
@@ -1008,11 +1127,11 @@ const RawFishQuality = () => {
 
                 <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
                   <span>Current Active Classification:</span>
-                  <span className={`font-bold ${
-                    mqValue <= 90 ? 'text-emerald-400' :
-                    mqValue <= 150 ? 'text-blue-400' : 'text-rose-400'
-                  }`}>
-                    {currentMq.level} ({mqValue} PPM)
+                  <span className={`font-bold ${mqValue === null ? 'text-slate-400' :
+                      mqValue <= 90 ? 'text-emerald-400' :
+                        mqValue <= 150 ? 'text-blue-400' : 'text-rose-400'
+                    }`}>
+                    {mqValue !== null ? `${currentMq.level} (${mqValue} PPM)` : 'Awaiting ESP32 Telemetry'}
                   </span>
                 </div>
               </div>
@@ -1026,43 +1145,52 @@ const RawFishQuality = () => {
                   </div>
                   <button
                     onClick={handleLogCurrentReading}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                    disabled={mqValue === null}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition shadow-sm"
                   >
                     📝 Log Reading
                   </button>
                 </div>
 
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={mqHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="mqGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={currentMq.color} stopOpacity={0.4} />
-                          <stop offset="95%" stopColor={currentMq.color} stopOpacity={0.0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="time" stroke="#94a3b8" fontSize={10} tickLine={false} />
-                      <YAxis domain={[0, 'auto']} stroke="#94a3b8" fontSize={10} tickLine={false} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#ffffff',
-                          borderRadius: '12px',
-                          border: '1px solid #e2e8f0',
-                          fontSize: '11px',
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="value"
-                        name="MQ-135 (PPM)"
-                        stroke={currentMq.color}
-                        strokeWidth={2.5}
-                        fillOpacity={1}
-                        fill="url(#mqGradient)"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                <div className="h-64 w-full flex items-center justify-center">
+                  {mqHistory.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={mqHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="mqGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={currentMq.color} stopOpacity={0.4} />
+                            <stop offset="95%" stopColor={currentMq.color} stopOpacity={0.0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                        <XAxis dataKey="time" stroke="#94a3b8" fontSize={10} tickLine={false} />
+                        <YAxis domain={[0, 'auto']} stroke="#94a3b8" fontSize={10} tickLine={false} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#ffffff',
+                            borderRadius: '12px',
+                            border: '1px solid #e2e8f0',
+                            fontSize: '11px',
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="value"
+                          name="MQ-135 (PPM)"
+                          stroke={currentMq.color}
+                          strokeWidth={2.5}
+                          fillOpacity={1}
+                          fill="url(#mqGradient)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-center text-slate-400 text-xs p-6">
+                      <Activity className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="font-semibold text-slate-500">Awaiting Live Sensor Stream</p>
+                      <p className="text-slate-400 mt-0.5">When ESP32 publishes readings to <code>{MQTT_SENSOR_TOPIC}</code>, the live curve will appear here.</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Sorter Controller Triggers */}
@@ -1115,7 +1243,8 @@ const RawFishQuality = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={handleExportCsv}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                    disabled={mqLogs.length === 0}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Export CSV
@@ -1133,7 +1262,7 @@ const RawFishQuality = () => {
 
               {mqLogs.length === 0 ? (
                 <div className="py-8 text-center text-slate-400 text-xs">
-                  No readings logged yet. Click "Log Reading" to record measurements.
+                  No readings logged yet. When live data is received from ESP32, click "Log Reading" to record measurements.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1158,11 +1287,10 @@ const RawFishQuality = () => {
                           <td className="py-2.5 text-slate-500">{log.timestamp}</td>
                           <td className="py-2.5 font-bold text-slate-900">{log.value} PPM</td>
                           <td className="py-2.5">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              log.value <= 90 ? 'bg-emerald-100 text-emerald-800' :
-                              log.value <= 150 ? 'bg-blue-100 text-blue-800' :
-                              'bg-rose-100 text-rose-800'
-                            }`}>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${log.value <= 90 ? 'bg-emerald-100 text-emerald-800' :
+                                log.value <= 150 ? 'bg-blue-100 text-blue-800' :
+                                  'bg-rose-100 text-rose-800'
+                              }`}>
                               {log.level}
                             </span>
                           </td>
@@ -1199,11 +1327,10 @@ const RawFishQuality = () => {
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {history.map((record) => (
                   <div key={record._id} className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-white hover:shadow-md transition">
-                    <div className={`h-2 w-full ${
-                      record.qualityLabel?.toLowerCase().includes('very_fresh') ? 'bg-emerald-500' :
-                      record.qualityLabel?.toLowerCase().includes('fresh') ? 'bg-blue-500' :
-                      'bg-rose-500'
-                    }`} />
+                    <div className={`h-2 w-full ${record.qualityLabel?.toLowerCase().includes('very_fresh') ? 'bg-emerald-500' :
+                        record.qualityLabel?.toLowerCase().includes('fresh') ? 'bg-blue-500' :
+                          'bg-rose-500'
+                      }`} />
                     <div className="p-4 space-y-3">
                       <div className="flex justify-between items-start">
                         <div>
@@ -1248,7 +1375,7 @@ const RawFishQuality = () => {
               ].map((card) => (
                 <div key={card.label} className={`${card.bg} rounded-2xl border border-slate-200/80 p-5 shadow-sm`}>
                   <p className="text-xs font-semibold text-slate-500">{card.label}</p>
-                  <h3 className={`text-3xl font-extrabold mt-2 ${card.text}`}>{card.value}</h3>
+                  <h3 className="text-3xl font-extrabold mt-2 text-slate-900">{card.value}</h3>
                   <p className="text-[11px] text-slate-400 mt-1">Batches analyzed</p>
                 </div>
               ))}

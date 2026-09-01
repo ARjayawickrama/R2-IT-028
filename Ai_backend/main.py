@@ -81,11 +81,11 @@ from datetime import datetime
 
 # Global store for latest MQ-135 sensor readings
 latest_mq135_data = {
-    "value": 0,
+    "value": None,
     "raw_quality": "UNKNOWN",
-    "freshness_level": "UNKNOWN",
-    "threshold_range": "Waiting for sensor...",
-    "typical_range": "",
+    "freshness_level": "Waiting for ESP32...",
+    "threshold_range": "Standby",
+    "typical_range": "N/A",
     "command": "IDLE",
     "status": "IDLE",
     "last_updated": None
