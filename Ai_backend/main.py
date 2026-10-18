@@ -1,7 +1,7 @@
 """
 Unified AI Backend for Fish Processing System
 Consolidates:
-1. Dried Fish Quality Classification (EfficientNet-B0)
+1. Dried Fish Quality Classification 
 2. Fresh Fish Freshness Detection (YOLO)
 With integrated MQTT automation for hardware sorting commands.
 """
@@ -37,10 +37,10 @@ except ImportError:
 # Base Directory & Model Paths
 BASE_DIR = Path(__file__).resolve().parent
 MODELS_DIR = BASE_DIR / "models"
-QUALITY_MODEL_PATH = MODELS_DIR / "dried_fish_efficientnet_v3.pth"
+QUALITY_MODEL_PATH = MODELS_DIR / "dried_fish.pth"
 FRESHNESS_MODEL_PATH = MODELS_DIR / "best.pt"
 
-# Quality Classification Configuration (EfficientNet)
+# Quality Classification Configuration 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 QUALITY_CLASS_NAMES = ['High_Quality', 'Low_Quality', 'Medium_Quality']
 UNCERTAINTY_THR = 0.60
@@ -341,7 +341,7 @@ def freshness_health():
         return JSONResponse(status_code=503, content={"status": "unhealthy", "message": "Freshness model not loaded"})
     return {"status": "healthy", "message": "Freshness model is loaded and ready"}
 
-# ==================== Quality Classification Endpoint (EfficientNet) ====================
+# ==================== Quality Classification Endpoint  ====================
 
 @app.post("/quality/predict")
 async def predict_fish_quality(file: UploadFile = File(...)):
