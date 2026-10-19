@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 
 // Express MERN Database Backend (Port 5001) & Python Hardware Gateway (Port 8000)
-const DB_API_URL = "http://localhost:5001/api/measurements";
+const DB_API_URL = "http://localhost:8000/api/measurements";   
 const HARDWARE_GATEWAY = "http://localhost:8000";
 
 // Module-level persistent cache across page navigations & tab switches
