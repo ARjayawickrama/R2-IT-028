@@ -21,12 +21,7 @@ import {
 
 // ── Master Batch Registry ───────────────────────────────────────────
 const INITIAL_BATCHES = [
-  { id: 'B-001', name: 'Dried Anchovy', initialWeight: 1000, currentWeight: 1000, temp: 0, quality: 'Grade A', initialMoisture: 78.67, targetMoisture: 20, moistureTrend: [78.67] },
-  { id: 'B-002', name: 'Salted Mackerel', initialWeight: 1000, currentWeight: 1000, temp: 0, quality: 'Grade A', initialMoisture: 78.67, targetMoisture: 20, moistureTrend: [78.67] },
-  { id: 'B-003', name: 'Dried Sardine', initialWeight: 1200, currentWeight: 1200, temp: 0, quality: 'Grade B', initialMoisture: 75.00, targetMoisture: 20, moistureTrend: [75.00] },
-  { id: 'B-004', name: 'Dried Tuna', initialWeight: 2000, currentWeight: 2000, temp: 0, quality: 'Grade A', initialMoisture: 76.50, targetMoisture: 20, moistureTrend: [76.50] },
-  { id: 'B-005', name: 'Dried Prawns', initialWeight: 800, currentWeight: 800, temp: 0, quality: 'Grade A', initialMoisture: 79.20, targetMoisture: 20, moistureTrend: [79.20] },
-  { id: 'B-006', name: 'Dried Squid', initialWeight: 1500, currentWeight: 1500, temp: 0, quality: 'Grade B', initialMoisture: 77.00, targetMoisture: 20, moistureTrend: [77.00] },
+
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -96,7 +91,7 @@ export default function DryFishMonitor() {
 
   // Environmental Telemetry
   const [chamberTemp, setChamberTemp] = useState(0.0);
-  const [thermalMatrix, setThermalMatrix] = useState(() => Array(64).fill(28.5));
+  const [thermalMatrix, setThermalMatrix] = useState(null);
 
   // Dynamic Batch Pool
   const [batches, setBatches] = useState(INITIAL_BATCHES);
@@ -126,7 +121,13 @@ export default function DryFishMonitor() {
 
           // Update environmental readings & hardware states
           if (telemetry.chamber_temp !== undefined) setChamberTemp(telemetry.chamber_temp);
-          if (telemetry.thermal_grid && Array.isArray(telemetry.thermal_grid)) setThermalMatrix(telemetry.thermal_grid);
+          if (
+            Array.isArray(telemetry.thermal_grid) &&
+            telemetry.thermal_grid.length === 64 &&
+            telemetry.thermal_grid.every(value => typeof value === 'number' && Number.isFinite(value))
+          ) {
+            setThermalMatrix(telemetry.thermal_grid);
+          }
           if (telemetry.heater_ssr !== undefined) setHeaterSSR(telemetry.heater_ssr);
           if (telemetry.fan_status !== undefined) setFanStatus(telemetry.fan_status);
 
@@ -217,9 +218,11 @@ export default function DryFishMonitor() {
   };
 
   // Thermal Stats
-  const maxThermal = Math.max(...thermalMatrix, 0);
-  const minThermal = Math.min(...thermalMatrix, 100);
-  const avgThermal = thermalMatrix.reduce((a, b) => a + b, 0) / (thermalMatrix.length || 1);
+  const maxThermal = thermalMatrix ? Math.max(...thermalMatrix) : null;
+  const minThermal = thermalMatrix ? Math.min(...thermalMatrix) : null;
+  const avgThermal = thermalMatrix
+    ? thermalMatrix.reduce((total, value) => total + value, 0) / thermalMatrix.length
+    : null;
 
   const moistureBarColor = (mc) => mc <= 15 ? '#10b981' : mc <= 25 ? '#f59e0b' : '#ef4444';
 
@@ -370,24 +373,28 @@ export default function DryFishMonitor() {
       {/* ── DS18B20 Temp Probe & Pure White AMG8833 Thermal Array Display ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* DS18B20 Chamber Probe */}
+        {/* Single AMG8833 maximum-temperature reading */}
         <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-xl bg-orange-50 text-orange-500 border border-orange-100">
                 <Thermometer size={18} />
               </div>
-              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700">DS18B20 Chamber Temp</h3>
+              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700"> Max Temp</h3>
             </div>
-            <span className="text-[10px] bg-orange-50 border border-orange-200 text-orange-600 px-2.5 py-0.5 rounded-full font-bold">1-Wire Digital</span>
+            <span className="text-[10px] bg-orange-50 border border-orange-200 text-orange-600 px-2.5 py-0.5 rounded-full font-bold">MAX PIXEL</span>
           </div>
           <div className="my-4">
-            <div className="text-5xl font-black text-slate-900">{chamberTemp.toFixed(1)}°C</div>
-            <p className="text-xs text-slate-500 mt-1 font-medium">Internal air circulation temperature</p>
+            <div className="text-5xl font-black text-slate-900">
+              {maxThermal === null ? '—' : `${maxThermal.toFixed(1)}°C`}
+            </div>
+            <p className="text-xs text-slate-500 mt-1 font-medium">Highest reading across the 64 AMG8833 pixels</p>
           </div>
           <div className="text-xs text-slate-400 border-t border-slate-100 pt-3 flex justify-between">
-            <span>Target Range: 45.0°C – 55.0°C</span>
-            <span className="text-emerald-600 font-bold">Live Synced</span>
+            <span>Thermal array maximum</span>
+            <span className={`font-bold ${maxThermal === null ? 'text-amber-600' : 'text-emerald-600'}`}>
+              {maxThermal === null ? 'Waiting for array' : 'Live from AMG8833'}
+            </span>
           </div>
         </div>
 
@@ -413,15 +420,15 @@ export default function DryFishMonitor() {
             <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
               <div className="px-3 py-1 text-center border-r border-slate-200">
                 <span className="text-[9px] text-slate-400 uppercase font-bold block">Min</span>
-                <span className="text-xs font-black text-cyan-600">{minThermal.toFixed(1)}°C</span>
+                <span className="text-xs font-black text-cyan-600">{minThermal === null ? '—' : `${minThermal.toFixed(1)}°C`}</span>
               </div>
               <div className="px-3 py-1 text-center border-r border-slate-200">
                 <span className="text-[9px] text-slate-400 uppercase font-bold block">Avg</span>
-                <span className="text-xs font-black text-amber-600">{avgThermal.toFixed(1)}°C</span>
+                <span className="text-xs font-black text-amber-600">{avgThermal === null ? '—' : `${avgThermal.toFixed(1)}°C`}</span>
               </div>
               <div className="px-3 py-1 text-center">
                 <span className="text-[9px] text-slate-400 uppercase font-bold block">Max</span>
-                <span className="text-xs font-black text-rose-600">{maxThermal.toFixed(1)}°C</span>
+                <span className="text-xs font-black text-rose-600">{maxThermal === null ? '—' : `${maxThermal.toFixed(1)}°C`}</span>
               </div>
             </div>
           </div>
@@ -432,7 +439,17 @@ export default function DryFishMonitor() {
             {/* 8x8 Thermal Pixels Matrix */}
             <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm">
               <div className="grid grid-cols-8 gap-1.5">
-                {thermalMatrix.map((pixelTemp, idx) => {
+                {(thermalMatrix || Array(64).fill(null)).map((pixelTemp, idx) => {
+                  if (pixelTemp === null) {
+                    return (
+                      <div
+                        key={idx}
+                        className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-[8px] text-slate-400"
+                      >
+                        —
+                      </div>
+                    );
+                  }
                   const style = getThermalStyle(pixelTemp);
                   return (
                     <div
@@ -475,8 +492,9 @@ export default function DryFishMonitor() {
 
           <div className="text-[10px] text-slate-400 border-t border-slate-100 pt-3 flex justify-between items-center mt-2">
             <span>Sensor: Panasonic AMG8833 (I2C 0x69)</span>
-            <span className="text-emerald-600 font-bold flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> 64 Frame Array OK
+            <span className={`font-bold flex items-center gap-1 ${thermalMatrix ? 'text-emerald-600' : 'text-amber-600'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${thermalMatrix ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              {thermalMatrix ? '64 Frame Array OK' : 'Waiting for thermal data'}
             </span>
           </div>
 
@@ -486,7 +504,7 @@ export default function DryFishMonitor() {
       {/* ── Batch Registry Overview Table ── */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
         
-        {/* Category Tabs */}
+        {/* Category Tabs
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
             {[
@@ -514,7 +532,7 @@ export default function DryFishMonitor() {
             ))}
           </div>
           <span className="text-xs text-slate-400 font-semibold">Real-time Telemetry Feed ({filteredBatches.length} items)</span>
-        </div>
+        </div> */}
 
         {/* Dynamic Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 p-6">

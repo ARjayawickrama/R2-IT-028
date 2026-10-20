@@ -1,12 +1,13 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import joblib
+from pathlib import Path
 
 app = Flask(__name__)
 CORS(app) 
 
 
-model = joblib.load('SUPER_FISH_COOKING_ENSEMBLE_MODEL.pkl')
+model = joblib.load(Path(__file__).with_name('boiler_rf_model.pkl'))
 
 @app.route('/predict', methods=['POST'])
 def predict():

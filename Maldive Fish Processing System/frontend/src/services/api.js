@@ -49,4 +49,38 @@ export const qualityService = {
     axiosInstance.delete(`/quality/batches/${id}`),
 };
 
+export const dryFishService = {
+  getBatches: () =>
+    axiosInstance.get('/dry-fish/batches'),
+
+  createBatch: (batch) =>
+    axiosInstance.post('/dry-fish/batches', batch),
+
+  updateBatch: (id, updates) =>
+    axiosInstance.patch(`/dry-fish/batches/${id}`, updates),
+
+  deleteAllBatches: () =>
+    axiosInstance.delete('/dry-fish/batches'),
+};
+
+export const safetyService = {
+  getEmailStatus: () =>
+    axiosInstance.get('/safety/email-status'),
+
+  sendTestEmail: () =>
+    axiosInstance.post('/safety/test-email'),
+
+  getHistory: () =>
+    axiosInstance.get('/safety/history'),
+
+  evaluateAlerts: (activeAlerts, heatmapPng) =>
+    axiosInstance.post('/safety/alerts/evaluate', { activeAlerts, heatmapPng, deliveryMode: 'emailjs' }),
+
+  reportEmailStatus: (incidentKeys, emailStatus) =>
+    axiosInstance.patch('/safety/alerts/email-status', { incidentKeys, emailStatus }),
+
+  acknowledgeIncident: (id) =>
+    axiosInstance.patch(`/safety/history/${id}/acknowledge`),
+};
+
 export default axiosInstance;

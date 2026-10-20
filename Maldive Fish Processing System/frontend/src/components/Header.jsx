@@ -184,7 +184,7 @@ const Header = () => {
             <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 p-1 rounded-xl">
               
               {/* Notification Button & Popover */}
-              <div className="relative" ref={notifRef}>
+              {/* <div className="relative" ref={notifRef}>
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
                   className={`relative p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-all ${
@@ -232,7 +232,7 @@ const Header = () => {
                     </div>
                   </div>
                 )}
-              </div>
+              </div> */}
 
               {/* Messages Button & Popover */}
               <div className="relative" ref={msgRef}>

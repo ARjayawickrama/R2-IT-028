@@ -10,7 +10,7 @@ import {
   MechanicalPage,
   WaterSalinityControl
 } from "./features";
-import MeasurementPage from "./features/Measurement"; // Measurement පිටුව ආනයනය කිරීම
+import MeasurementPage from "./features/Measurement"; // Measurement 
 import GuidelinesPage from "./GuidelinesPage";
 
 export default function FishBoilingDetectionApp() {
@@ -84,7 +84,7 @@ export default function FishBoilingDetectionApp() {
 
       {/* Menu Bar */}
       <div className="flex items-center gap-1 px-5 h-10 bg-white border-b border-gray-200 flex-shrink-0 overflow-x-auto">
-        <button 
+        {/* <button 
           className={`px-3.5 h-[34px] rounded-t-lg text-xs font-medium flex items-center gap-2 transition-all whitespace-nowrap ${
             mode === "mechanical" 
               ? "bg-gray-50 border border-gray-200 border-b-transparent text-blue-600" 
@@ -94,7 +94,7 @@ export default function FishBoilingDetectionApp() {
         >
           <span className={`w-1.5 h-1.5 rounded-full ${mode === "mechanical" ? "bg-purple-600" : "bg-gray-400"}`} />
           Mechanical System Controllers
-        </button>
+        </button> */}
 
         <button 
           className={`px-3.5 h-[34px] rounded-t-lg text-xs font-medium flex items-center gap-2 transition-all whitespace-nowrap ${

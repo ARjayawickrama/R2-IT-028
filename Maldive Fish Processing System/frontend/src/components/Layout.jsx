@@ -375,16 +375,16 @@ export default function Layout({ children }) {
           iconBg: "rgba(6, 182, 212, 0.12)",
           desc: "Chamber Drying & Weight Loss",
         },
-        {
-          path: "/environmental-monitoring",
-          icon: Droplets,
-          label: "Environmental & Climate",
-          badge: "IOT",
-          badgeColor: "#3B82F6",
-          iconColor: "#3B82F6",
-          iconBg: "rgba(59, 130, 246, 0.12)",
-          desc: "Solar Tunnel RH & Ambient Sensors",
-        },
+        // {
+        //   path: "/environmental-monitoring",
+        //   icon: Droplets,
+        //   label: "",
+        //   badge: "IOT",
+        //   badgeColor: "#3B82F6",
+        //   iconColor: "#3B82F6",
+        //   iconBg: "rgba(59, 130, 246, 0.12)",
+        //   desc: "Solar Tunnel RH & Ambient Sensors",
+        // },
         {
           path: "/dried-fish-quality",
           icon: Sparkles,
@@ -893,7 +893,7 @@ export default function Layout({ children }) {
             className="hidden xl:flex items-center gap-3 px-3 py-1.5 rounded-xl border text-xs"
             style={{ background: t.statusbar, borderColor: t.statusBdr }}
           >
-            <div className="flex items-center gap-1.5 font-bold mono">
+            {/* <div className="flex items-center gap-1.5 font-bold mono">
               <Flame size={14} className="text-amber-500" />
               <span>Chamber A: 98.6°C</span>
             </div>
@@ -906,15 +906,15 @@ export default function Layout({ children }) {
             <div className="flex items-center gap-1.5 font-bold mono">
               <ShieldCheck size={14} className="text-emerald-500" />
               <span>Yield AAA: 96.8%</span>
-            </div>
+            </div> */}
           </div>
 
           <div style={{ flex: 1 }} />
 
           {/* Right Header Utilities */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <NotificationBar />
-            <RightSideNotificationBar />
+            {/* <NotificationBar /> */}
+            {/* <RightSideNotificationBar /> */}
 
             {/* Profile Dropdown */}
             <div style={{ position: "relative" }} className="dropdown-menu">

@@ -175,26 +175,31 @@ export default function BoilerDashboard() {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
 
   // Live Hardware States
-  const [espTemp, setEspTemp] = useState(28.0);
+  const [espTemp, setEspTemp] = useState(29.0);
   const [isSaltDetected, setIsSaltDetected] = useState(false);
   const [isMqttConnected, setIsMqttConnected] = useState(false);
   const [lastSyncedFishNo, setLastSyncedFishNo] = useState(null);
 
   const activeTank = tanks.find(t => t.id === activeId);
+  const isFishWeightValid = activeTank.fishWeight !== '' &&
+    Number.isFinite(Number(activeTank.fishWeight)) && Number(activeTank.fishWeight) > 0;
+  const isThicknessValid = activeTank.thickness !== '' &&
+    Number.isFinite(Number(activeTank.thickness)) && Number(activeTank.thickness) > 0;
+  const hasInvalidBoilingInputs = !isFishWeightValid || !isThicknessValid;
 
   const showNotification = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // 1. Initial Load: Database එකෙන් අලුත්ම Fish Record එක ලබාගෙන Batch Parameters වලට දැමීම
+
   useEffect(() => {
     const fetchLatestFishData = async () => {
       try {
         const res = await fetch('http://localhost:8000/api/measurements');
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          const latest = data[0]; // අලුත්ම record එක
+          const latest = data[0]; 
           const weightNum = parseFloat(latest.fish_weight.replace(' kg', '')) || 0.0;
           const thickCm = parseFloat(latest.fish_thickness.replace(' cm', '')) || 0.0;
           const thickMm = +(thickCm * 10).toFixed(1); // cm to mm
@@ -212,9 +217,9 @@ export default function BoilerDashboard() {
     fetchLatestFishData();
   }, [activeId]);
 
-  // 2. Real-time Live Sync: MQTT හරහා Laser & Scale එකෙන් Data එන විට auto-update වීම
+
   useEffect(() => {
-    // HiveMQ WebSocket Port 8884 / 8000
+  
     const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
 
     client.on('connect', () => {
@@ -243,7 +248,7 @@ export default function BoilerDashboard() {
             const liveWeight = parseFloat(d.weight) || 0.0;
             const liveThickMm = (parseFloat(d.peak_cm) * 10.0) || 0.0;
 
-            // මාළුවා ස්කෑන් වී අගයන් ලැබුණු විට Active Tank එකට Auto-Fill කිරීම
+  
             if (liveWeight > 0 || liveThickMm > 0) {
               setTanks(prev => prev.map(t =>
                 t.id === activeId ? { ...t, fishWeight: liveWeight, thickness: liveThickMm } : t
@@ -265,7 +270,9 @@ export default function BoilerDashboard() {
   }, [activeId]);
 
   const handleInputChange = (field, value) => {
-    const numValue = Number(value);
+    const numValue = value === '' && (field === 'fishWeight' || field === 'thickness')
+      ? ''
+      : Number(value);
     setTanks(prev => prev.map(t =>
       t.id === activeId ? { ...t, [field]: numValue } : t
     ));
@@ -287,6 +294,11 @@ export default function BoilerDashboard() {
     const nextState = !activeTank.isCycling;
 
     if (nextState) {
+      if (hasInvalidBoilingInputs) {
+        showNotification('Fish Batch Weight and Max Fish Thickness must both be greater than 0.');
+        return;
+      }
+
       setPredictionStatus('AI Analyzing...');
       showNotification('🤖 AI analyzing parameters and initiating process...');
 
@@ -493,8 +505,15 @@ export default function BoilerDashboard() {
               <div style={{ position: 'relative' }}>
                 <Scale size={16} color={C.muted} style={{ position: 'absolute', left: 14, top: 14 }} />
                 <input type="number" step="0.01" value={activeTank.fishWeight}
-                  onChange={(e) => handleInputChange('fishWeight', e.target.value)} style={fieldStyle} />
+                  onChange={(e) => handleInputChange('fishWeight', e.target.value)}
+                  aria-invalid={!isFishWeightValid}
+                  style={{ ...fieldStyle, borderColor: isFishWeightValid ? C.border : C.danger }} />
               </div>
+              {!isFishWeightValid && (
+                <div role="alert" style={{ marginTop: 6, color: C.danger, fontSize: 11, fontWeight: 600 }}>
+                  Fish Batch Weight must be greater than 0 kg.
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: 18 }}>
@@ -505,8 +524,15 @@ export default function BoilerDashboard() {
               <div style={{ position: 'relative' }}>
                 <Ruler size={16} color={C.muted} style={{ position: 'absolute', left: 14, top: 14 }} />
                 <input type="number" step="0.1" value={activeTank.thickness}
-                  onChange={(e) => handleInputChange('thickness', e.target.value)} style={fieldStyle} />
+                  onChange={(e) => handleInputChange('thickness', e.target.value)}
+                  aria-invalid={!isThicknessValid}
+                  style={{ ...fieldStyle, borderColor: isThicknessValid ? C.border : C.danger }} />
               </div>
+              {!isThicknessValid && (
+                <div role="alert" style={{ marginTop: 6, color: C.danger, fontSize: 11, fontWeight: 600 }}>
+                  Max Fish Thickness must be greater than 0 mm.
+                </div>
+              )}
             </div>
           </div>
 
@@ -603,16 +629,29 @@ export default function BoilerDashboard() {
             </Card>
           )}
 
-          <button onClick={startAutomatedBoiling} style={{
+          <button onClick={startAutomatedBoiling}
+            disabled={!activeTank.isCycling && hasInvalidBoilingInputs}
+            style={{
             width: '100%', padding: '18px 20px', borderRadius: 14,
             border: activeTank.isCycling ? `1px solid #FCA5A5` : 'none',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-            background: activeTank.isCycling ? C.dangerSoft : `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`,
-            boxShadow: activeTank.isCycling ? 'none' : `0 10px 20px -6px ${C.primary}`,
+            cursor: activeTank.isCycling || !hasInvalidBoilingInputs ? 'pointer' : 'not-allowed',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+            background: activeTank.isCycling
+              ? C.dangerSoft
+              : hasInvalidBoilingInputs
+                ? '#CBD5E1'
+                : `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`,
+            boxShadow: activeTank.isCycling || hasInvalidBoilingInputs ? 'none' : `0 10px 20px -6px ${C.primary}`,
             transition: 'all 0.2s ease'
           }}>
-            {activeTank.isCycling ? <Square size={16} color={C.danger} /> : <Play size={16} color="#FFFFFF" />}
-            <span style={{ fontWeight: 700, fontSize: 13.5, color: activeTank.isCycling ? C.danger : '#FFFFFF', fontFamily: FONT_DISPLAY, letterSpacing: '0.5px' }}>
+            {activeTank.isCycling
+              ? <Square size={16} color={C.danger} />
+              : <Play size={16} color={hasInvalidBoilingInputs ? C.muted : '#FFFFFF'} />}
+            <span style={{
+              fontWeight: 700, fontSize: 13.5,
+              color: activeTank.isCycling ? C.danger : hasInvalidBoilingInputs ? C.muted : '#FFFFFF',
+              fontFamily: FONT_DISPLAY, letterSpacing: '0.5px'
+            }}>
               {activeTank.isCycling ? 'TERMINATE CYCLE' : 'START AI AUTOMATED BOILING'}
             </span>
           </button>
