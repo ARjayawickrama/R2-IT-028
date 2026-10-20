@@ -1,4 +1,10 @@
-import React, { useMemo, useRef, useState, useEffect } from "react";
+import React, {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useEffect,
+} from "react";
 import mqtt from "mqtt";
 import { qualityService } from "../../services/api";
 
@@ -7,6 +13,9 @@ export default function DriedFishQuality() {
   const [batches, setBatches] = useState([]);
   const [preview, setPreview] = useState(null);
   const [cameraOn, setCameraOn] = useState(false);
+  const [cameras, setCameras] = useState([]);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
+  const [cameraError, setCameraError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const [dialog, setDialog] = useState({
@@ -20,6 +29,7 @@ export default function DriedFishQuality() {
   });
 
   const videoRef = useRef(null);
+  const cameraStreamRef = useRef(null);
   const fileRef = useRef(null);
   const cameraFileRef = useRef(null);
 
@@ -35,6 +45,55 @@ export default function DriedFishQuality() {
   useEffect(() => {
     fetchBatches();
   }, []);
+
+  const refreshCameras = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      setCameraError("Camera access is not supported by this browser.");
+      return;
+    }
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(
+        (device) => device.kind === "videoinput"
+      );
+      setCameras(videoDevices);
+      setSelectedCameraId((currentId) =>
+        videoDevices.some((device) => device.deviceId === currentId)
+          ? currentId
+          : videoDevices[0]?.deviceId || ""
+      );
+      setCameraError(
+        videoDevices.length === 0
+          ? "No cameras found. Connect a webcam and refresh the camera list."
+          : ""
+      );
+    } catch (error) {
+      console.error("Error listing cameras:", error);
+      setCameraError("Unable to list cameras. Check browser camera permissions.");
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshCameras();
+
+    const mediaDevices = navigator.mediaDevices;
+    mediaDevices?.addEventListener?.("devicechange", refreshCameras);
+
+    return () => {
+      mediaDevices?.removeEventListener?.("devicechange", refreshCameras);
+      cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    };
+  }, [refreshCameras]);
+
+  useEffect(() => {
+    if (activeTab !== "camera" && cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+      setCameraOn(false);
+    }
+  }, [activeTab]);
 
   const showDialog = ({
     type = "success",
@@ -211,36 +270,98 @@ export default function DriedFishQuality() {
   };
 
   const startCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showDialog({
+        type: "error",
+        title: "Camera Not Supported",
+        message:
+          "This browser does not support webcam access. Use a current browser over HTTPS or localhost.",
+      });
+      return;
+    }
+
+    let stream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720 },
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          ...(selectedCameraId ? { deviceId: { exact: selectedCameraId } } : {}),
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
         audio: false,
       });
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setCameraOn(true);
-
-        showDialog({
-          type: "success",
-          title: "Camera Started",
-          message: "Live camera preview is now active. You can capture a frame.",
-        });
+      if (!videoRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
       }
+
+      cameraStreamRef.current = stream;
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+      stream.getVideoTracks().forEach((track) => {
+        track.addEventListener(
+          "ended",
+          () => {
+            if (cameraStreamRef.current !== stream) return;
+
+            cameraStreamRef.current = null;
+            if (videoRef.current?.srcObject === stream) {
+              videoRef.current.srcObject = null;
+            }
+            setCameraOn(false);
+            refreshCameras();
+            showDialog({
+              type: "error",
+              title: "Camera Disconnected",
+              message:
+                "The active camera stopped unexpectedly. Check its connection, refresh the camera list, and try again.",
+            });
+          },
+          { once: true }
+        );
+      });
+      setCameraOn(true);
+      await refreshCameras();
+
+      showDialog({
+        type: "success",
+        title: "Camera Started",
+        message: "Live camera preview is now active. You can capture a frame.",
+      });
     } catch (error) {
+      stream?.getTracks().forEach((track) => track.stop());
+      if (videoRef.current?.srcObject === stream) {
+        videoRef.current.srcObject = null;
+      }
+      cameraStreamRef.current = null;
+      console.error("Error starting camera:", error);
+
+      const errorMessages = {
+        NotAllowedError:
+          "Camera permission was denied. Allow camera access in your browser settings and try again.",
+        NotFoundError:
+          "No camera was found. Connect the USB webcam and refresh the camera list.",
+        NotReadableError:
+          "The camera could not be opened. It may be in use by another application.",
+        OverconstrainedError:
+          "The selected camera is no longer available. Refresh the camera list and select it again.",
+        SecurityError:
+          "Camera access requires a secure connection. Open the app over HTTPS or localhost.",
+      };
       showDialog({
         type: "error",
         title: "Camera Error",
         message:
-          "Camera permission denied or camera is already used by another app.",
+          errorMessages[error.name] ||
+          "Unable to start the selected camera. Check its connection and browser permissions.",
       });
     }
   };
 
   const stopCamera = () => {
-    const stream = videoRef.current?.srcObject;
-    stream?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
 
     if (videoRef.current) {
       videoRef.current.srcObject = null;
@@ -256,11 +377,15 @@ export default function DriedFishQuality() {
   };
 
   const captureFrame = () => {
-    if (!videoRef.current || !cameraOn) {
+    if (
+      !videoRef.current ||
+      !cameraOn ||
+      videoRef.current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+    ) {
       showDialog({
         type: "error",
-        title: "Camera Not Started",
-        message: "Please start the camera before capturing a frame.",
+        title: "Camera Not Ready",
+        message: "Start the camera and wait for the live preview before capturing.",
       });
       return;
     }
@@ -326,6 +451,11 @@ export default function DriedFishQuality() {
           <CameraTab
             videoRef={videoRef}
             cameraOn={cameraOn}
+            cameras={cameras}
+            selectedCameraId={selectedCameraId}
+            setSelectedCameraId={setSelectedCameraId}
+            cameraError={cameraError}
+            refreshCameras={refreshCameras}
             startCamera={startCamera}
             stopCamera={stopCamera}
             captureFrame={captureFrame}
@@ -535,6 +665,11 @@ function UploadTab({ fileRef, handleUpload, preview, isLoading }) {
 function CameraTab({
   videoRef,
   cameraOn,
+  cameras,
+  selectedCameraId,
+  setSelectedCameraId,
+  cameraError,
+  refreshCameras,
   startCamera,
   stopCamera,
   captureFrame,
@@ -570,13 +705,62 @@ function CameraTab({
         />
 
         <p className="text-xs tracking-[4px] text-slate-400 pt-4">
+          SELECT CAMERA
+        </p>
+
+        <label
+          htmlFor="quality-camera-select"
+          className="block text-sm font-medium text-slate-700"
+        >
+          Available webcams
+        </label>
+        <select
+          id="quality-camera-select"
+          value={selectedCameraId}
+          onChange={(event) => setSelectedCameraId(event.target.value)}
+          disabled={cameraOn || cameras.length === 0}
+          className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm disabled:bg-slate-100"
+        >
+          {cameras.length === 0 ? (
+            <option value="">No cameras detected</option>
+          ) : (
+            cameras.map((camera, index) => (
+              <option key={camera.deviceId} value={camera.deviceId}>
+                {camera.label || `Camera ${index + 1}`}
+              </option>
+            ))
+          )}
+        </select>
+        {cameras.length > 1 && cameras.every((camera) => !camera.label) && (
+          <p className="text-xs text-slate-500">
+            Camera names are hidden until access is granted. Start a camera
+            once, then stop it to select the USB webcam by name.
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={refreshCameras}
+          className="w-full rounded-lg border border-slate-300 bg-white py-2 text-sm text-slate-700 hover:bg-slate-100"
+        >
+          ↻ Refresh camera list
+        </button>
+
+        {cameraError && (
+          <p role="status" className="text-xs text-amber-700">
+            {cameraError}
+          </p>
+        )}
+
+        <p className="text-xs tracking-[4px] text-slate-400 pt-2">
           CAMERA CONTROL
         </p>
 
         <button
           type="button"
           onClick={startCamera}
-          className="w-full py-3 rounded-lg bg-blue-50 border border-blue-300 text-blue-600 font-medium"
+          disabled={cameraOn}
+          className="w-full py-3 rounded-lg bg-blue-50 border border-blue-300 text-blue-600 font-medium disabled:cursor-not-allowed disabled:opacity-50"
         >
           ▶ Start Camera
         </button>
@@ -584,7 +768,8 @@ function CameraTab({
         <button
           type="button"
           onClick={stopCamera}
-          className="w-full py-3 rounded-lg bg-red-50 border border-red-300 text-red-600 font-medium"
+          disabled={!cameraOn}
+          className="w-full py-3 rounded-lg bg-red-50 border border-red-300 text-red-600 font-medium disabled:cursor-not-allowed disabled:opacity-50"
         >
           ■ Stop Camera
         </button>
@@ -1630,8 +1815,8 @@ function Mq135Tab() {
 }
 
 function EnvironmentTab() {
-  const [currentTemp, setCurrentTemp] = useState(26.7);
-  const [currentHumidity, setCurrentHumidity] = useState(87);
+  const [currentTemp, setCurrentTemp] = useState(0);
+  const [currentHumidity, setCurrentHumidity] = useState(0);
   const [tempHistory, setTempHistory] = useState([26.4, 26.5, 26.7, 26.6, 26.8, 26.7]);
   const [humidityHistory, setHumidityHistory] = useState([86, 87, 88, 87, 86, 87]);
   const [weatherStatus, setWeatherStatus] = useState("High Moisture");
@@ -1639,7 +1824,7 @@ function EnvironmentTab() {
   // Pure frontend real-time sensor simulation around Malabe base metrics
   useEffect(() => {
     const streamInterval = setInterval(() => {
-      // 26.7°C සහ 87% වටා ස්වභාවික ක්ෂුද්‍ර වෙනස්වීම් (Micro-variations)
+
       const tempVariance = Number((26.7 + (Math.random() * 0.6 - 0.3)).toFixed(1));
       const humVariance = Math.round(87 + (Math.random() * 4 - 2));
 
@@ -1672,8 +1857,9 @@ function EnvironmentTab() {
       </div>
 
       <div className="grid md:grid-cols-4 gap-5">
-        <Metric title="Temperature (Malabe)" value={`${currentTemp}°C`} color="blue" />
-        <Metric title="Humidity (Malabe)" value={`${currentHumidity}%`} color="sky" />
+       
+          <Metric title="Temperature (Malabe)" value={`${0.}°C`} color="blue" />
+        <Metric title="Humidity (Malabe)" value={`${0}%`} color="sky" />
         <Metric
           title="Storage Status"
           value={weatherStatus}
